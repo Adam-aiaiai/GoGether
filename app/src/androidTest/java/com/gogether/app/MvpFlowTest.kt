@@ -2,6 +2,7 @@ package com.gogether.app
 
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.test.espresso.Espresso.closeSoftKeyboard
 import com.gogether.app.core.data.FakeGogetherRepository
 import com.gogether.app.core.model.RegistrationStatus
 import com.gogether.app.navigation.GogetherApp
@@ -18,10 +19,19 @@ class MvpFlowTest {
         repo = FakeGogetherRepository()
         compose.setContent { GogetherTheme { GogetherApp(repo) } }
     }
-    // Material snackbars briefly overlay the bottom of scrollable content. Wait for the real
-    // touch target to become available instead of bypassing touch input with semantic clicks.
-    private fun awaitSnackbar() = compose.waitUntil(15_000) {
-        compose.onAllNodesWithTag("snackbar").fetchSemanticsNodes().isEmpty()
+    // SnackbarHost's dismissal delay and exit animation use the Compose test clock.
+    // A wall-clock waitUntil timeout can expire first on a slow emulator. Advance virtual
+    // time until the snackbar leaves semantics, then finish Android draw/layout before tapping.
+    private fun awaitSnackbar() {
+        val start = compose.mainClock.currentTime
+        // Keep semantics queries on the test thread: in Compose 1.9, advanceTimeUntil
+        // evaluates its condition on the UI thread, where these queries cannot synchronize.
+        while (compose.onAllNodesWithTag("snackbar").fetchSemanticsNodes().isNotEmpty()) {
+            assertTrue("Snackbar did not disappear within 15000 ms of Compose test time.",
+                compose.mainClock.currentTime - start < 15_000)
+            compose.mainClock.advanceTimeBy(100)
+        }
+        compose.waitForIdle()
     }
     private fun click(tag: String) { awaitSnackbar(); compose.onNodeWithTag(tag).performClick() }
     private fun scrollClick(tag: String) { awaitSnackbar(); compose.onNodeWithTag(tag).performScrollTo().performClick() }
@@ -39,6 +49,9 @@ class MvpFlowTest {
         compose.onNodeWithText("Team demo walk").assertExists()
         click("nav_explore")
         text("search", "Team demo walk")
+        // Finish typing before scrolling; the IME changes the available list viewport.
+        closeSoftKeyboard()
+        compose.waitForIdle()
         compose.waitUntil(5_000) { compose.onAllNodesWithTag("event_$id").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("event_$id").performScrollTo().assertIsDisplayed()
         click("nav_my-events")
