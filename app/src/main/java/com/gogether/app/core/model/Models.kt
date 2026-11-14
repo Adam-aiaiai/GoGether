@@ -6,6 +6,9 @@ enum class Category(val label: String, val symbol: String) {
 }
 enum class RegistrationStatus { CONFIRMED, WAITLISTED, CANCELLED, REJECTED }
 enum class EventStatus { OPEN, CANCELLED, COMPLETED }
+enum class ExperienceRequirement(val label: String) {
+    NONE("No experience needed"), BASIC("Basic familiarity"), EXPERIENCED("Experienced participants")
+}
 enum class UserStatus { DEMO }
 enum class CheckInStatus { DEMO_RECORDED }
 enum class NotificationType { PROMOTED, EVENT_CANCELLED, ANNOUNCEMENT }
@@ -21,9 +24,15 @@ data class Event(
     val city: String, val capacity: Int, val registrationDeadline: Long, val notes: String,
     val createdAt: Long, val updatedAt: Long, val status: EventStatus = EventStatus.OPEN,
     val demoCheckInOpen: Boolean = false,
+    val experienceRequirement: ExperienceRequirement = ExperienceRequirement.NONE,
+    val beginnerGuidance: Boolean = false,
+    val requiredItems: String = "",
+    val spareEquipment: String = "",
+    val imageUri: String = "",
 ) {
     fun acceptsRegistration(now: Long) = status == EventStatus.OPEN &&
         now < registrationDeadline && now < startAt && now < endAt
+    fun statusAt(now: Long) = if (status == EventStatus.OPEN && now >= endAt) EventStatus.COMPLETED else status
 }
 data class Registration(
     val id: String, val eventId: String, val userId: String, val status: RegistrationStatus,
@@ -45,6 +54,12 @@ data class EventDraft(
     val title: String, val category: Category, val description: String, val startAt: Long,
     val location: String, val city: String, val capacity: Int,
     val registrationDeadline: Long, val notes: String = "",
+    val endAt: Long = startAt + 2 * 60 * 60 * 1000L,
+    val experienceRequirement: ExperienceRequirement = ExperienceRequirement.NONE,
+    val beginnerGuidance: Boolean = false,
+    val requiredItems: String = "",
+    val spareEquipment: String = "",
+    val imageUri: String = "",
 )
 
 /** One immutable snapshot is published for every transaction, including promotions and notifications. */

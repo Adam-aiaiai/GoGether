@@ -89,6 +89,8 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
         topBar = {
             TopAppBar(title = { Text(if (subpage) when {
                 route.startsWith("manage") -> "Event management"
+                route.startsWith("edit") -> "Edit event"
+                route.startsWith("reuse") -> "Reuse event"
                 route.startsWith("check-in") -> "Check-in & feedback"
                 else -> "Event details"
             } else "Gogether") },
@@ -101,10 +103,14 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
                 destinations.forEach { destination ->
                     NavigationBarItem(selected = route == destination.route,
                         onClick = {
-                            if (route != destination.route) nav.navigate(destination.route) {
-                                popUpTo("explore") { saveState = !subpage }
-                                launchSingleTop = true
-                                restoreState = true
+                            if (route != destination.route) {
+                                if (destination.route == "explore") {
+                                    nav.popBackStack("explore", inclusive = false)
+                                } else nav.navigate(destination.route) {
+                                    popUpTo("explore") { saveState = !subpage }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
                             }
                         }, icon = { Icon(destination.icon, contentDescription = null) },
                         label = { Text(destination.label, maxLines = 2, style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center) }, modifier = Modifier.testTag("nav_${destination.route}"))
@@ -129,8 +135,27 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
                 val id = backStack.arguments?.getString("eventId").orEmpty()
                 val event = state.event(id)
                 if (event == null) Page { InfoCard("Event not found", "Return to Explore.") }
-                else ManagementScreen(event, state, now, coordinationBusy, { coordination.cancel(id) },
+                else ManagementScreen(event, state, now, coordinationBusy,
+                    { nav.navigate("edit/$id") }, { nav.navigate("reuse/$id") }, { coordination.cancel(id) },
                     { coordination.openCheckIn(id, it) }, { coordination.announce(id, it) })
+            }
+            composable("edit/{eventId}", arguments = listOf(navArgument("eventId") { type = NavType.StringType })) { backStack ->
+                val id = backStack.arguments?.getString("eventId").orEmpty()
+                val event = state.event(id)
+                when {
+                    event == null -> Page { InfoCard("Event not found", "Return to your event list.") }
+                    event.organizerId != state.currentUserId -> Page { InfoCard("Organizer access", "Only this event's organizer can edit it.") }
+                    else -> EditEventScreen(event, eventBusy) { eventsVm.update(id, it) }
+                }
+            }
+            composable("reuse/{eventId}", arguments = listOf(navArgument("eventId") { type = NavType.StringType })) { backStack ->
+                val id = backStack.arguments?.getString("eventId").orEmpty()
+                val event = state.event(id)
+                when {
+                    event == null -> Page { InfoCard("Event not found", "Return to your event list.") }
+                    event.organizerId != state.currentUserId -> Page { InfoCard("Organizer access", "Only this event's organizer can reuse it.") }
+                    else -> ReuseEventScreen(event, eventBusy, eventsVm::create)
+                }
             }
             composable("check-in/{eventId}", arguments = listOf(navArgument("eventId") { type = NavType.StringType })) { backStack ->
                 val id = backStack.arguments?.getString("eventId").orEmpty()

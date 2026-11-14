@@ -59,6 +59,58 @@ class MvpFlowTest {
         compose.onNodeWithTag("event_$id").performScrollTo().assertIsDisplayed()
     }
 
+    @Test fun exploreBottomNavigationReturnsFromProfile() {
+        scrollClick("login_alice")
+        click("nav_profile")
+        compose.onNodeWithText("Hey, Alice").assertExists()
+        click("nav_explore")
+        compose.onNodeWithText("Good plans.\nBetter together.").assertExists()
+        compose.onNodeWithTag("search").assertExists()
+    }
+
+    @Test fun advancedFiltersExpandAndAcceptOrganizer() {
+        scrollClick("login_alice")
+        compose.onNodeWithTag("organizer_filter").assertDoesNotExist()
+        scrollClick("toggle_filters")
+        text("organizer_filter", "Alice")
+        closeSoftKeyboard()
+        compose.waitForIdle()
+        compose.onNodeWithTag("event_event-1").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test fun organizerReusesConfigurationAsNewEvent() {
+        scrollClick("login_alice")
+        scrollClick("event_event-3")
+        scrollClick("manage_event")
+        scrollClick("reuse_event")
+        text("reuse_title", "Weekly photo walk")
+        text("reuse_location", "Jinji Lake west gate")
+        scrollClick("publish_reused_event")
+        compose.waitUntil(5_000) { repo.state.value.events.any { it.title == "Weekly photo walk" } }
+        val reused = repo.state.value.events.single { it.title == "Weekly photo walk" }
+        assertEquals("Jinji Lake west gate", reused.location)
+        assertEquals("A phone or camera", reused.requiredItems)
+        compose.onNodeWithText("Weekly photo walk").assertExists()
+    }
+
+    @Test fun organizerEditsEventAndParticipationInformation() {
+        scrollClick("login_alice")
+        scrollClick("event_event-3")
+        scrollClick("manage_event")
+        scrollClick("edit_event")
+        text("edit_title", "Beginner photo walk")
+        text("edit_required_items", "A phone or camera and water")
+        text("edit_spare_equipment", "One spare phone tripod")
+        scrollClick("edit_guidance")
+        scrollClick("save_event")
+        compose.waitUntil(5_000) { repo.state.value.event("event-3")?.title == "Beginner photo walk" }
+        compose.onNodeWithText("Beginner photo walk").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Bring: A phone or camera and water", substring = true)
+            .performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Spare equipment: One spare phone tripod", substring = true)
+            .performScrollTo().assertIsDisplayed()
+    }
+
     @Test fun cancellationPromotesEmmaAcrossDetailMyEventsAndProfile() {
         scrollClick("login_bob")
         scrollClick("event_event-1")

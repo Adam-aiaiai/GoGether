@@ -11,6 +11,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.dp
 import com.gogether.app.core.model.*
 import com.gogether.app.core.ui.*
 
@@ -24,11 +25,18 @@ fun EventDetailScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean
     Page {
         StatusPill(event.category.label)
         SectionTitle(event.title, "Hosted by ${state.userName(event.organizerId)}")
+        EventImage(event.imageUri, event.title, Modifier.fillMaxWidth().height(220.dp))
         Text(event.description, style = MaterialTheme.typography.bodyLarge)
         InfoCard("The plan", "${displayTime(event.startAt)}\nEnds ${displayTime(event.endAt)}\n${event.city} · ${event.location}")
         MeetingMapButton("${event.city} ${event.location}")
+        InfoCard("Before you join", buildString {
+            append("Experience: ${event.experienceRequirement.label}")
+            append("\nBeginner guidance: ${if (event.beginnerGuidance) "Provided" else "Not provided"}")
+            append("\nBring: ${event.requiredItems.ifBlank { "Nothing specific" }}")
+            append("\nSpare equipment: ${event.spareEquipment.ifBlank { "None listed" }}")
+        })
         InfoCard("Who's coming", "${state.confirmed(event.id).size} / ${event.capacity} confirmed (includes organizer)\n${state.waitlist(event.id).size} on the waitlist")
-        InfoCard("Registration", "Closes ${displayTime(event.registrationDeadline)}\nEvent: ${event.status.name.lowercase()}\nYour status: ${registration?.status?.name?.lowercase() ?: "not registered"}")
+        InfoCard("Registration", "Closes ${displayTime(event.registrationDeadline)}\nEvent: ${event.statusAt(now).name.lowercase()}\nYour status: ${registration?.status?.name?.lowercase() ?: "not registered"}")
         if (registration?.status == RegistrationStatus.WAITLISTED) {
             Text("Your waitlist position: ${state.waitlist(event.id).indexOfFirst { it.userId == state.currentUserId } + 1}",
                 color = MaterialTheme.colorScheme.primary, modifier = Modifier.testTag("waitlist_position"))
@@ -49,7 +57,7 @@ fun EventDetailScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean
         }
         if (registration?.status == RegistrationStatus.CONFIRMED && event.status != EventStatus.CANCELLED) {
             Button(onClick = onCheckIn, modifier = Modifier.fillMaxWidth().testTag("open_checkin")) {
-                Text(if (event.status == EventStatus.COMPLETED || now >= event.endAt) "Leave feedback" else "Check-in & meeting")
+                Text(if (event.statusAt(now) == EventStatus.COMPLETED) "Leave feedback" else "Check-in & meeting")
             }
         }
     }

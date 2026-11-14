@@ -9,6 +9,22 @@ import java.time.format.ResolverStyle
 
 class EventViewModel(repository: GogetherRepository) : RepositoryViewModel(repository) {
     fun create(draft: EventDraft) = execute({ repository.createEvent(draft) }) { UiMessage("Your event is live!", it.id) }
+    fun update(eventId: String, draft: EventDraft) = execute({ repository.updateEvent(eventId, draft) }) {
+        UiMessage("Event details updated.", it.id)
+    }
+}
+
+fun Event.reuseDraft(now: Long = System.currentTimeMillis(), zone: ZoneId = ZoneId.systemDefault()): EventDraft {
+    val originalTime = Instant.ofEpochMilli(startAt).atZone(zone).toLocalTime()
+    val newStart = Instant.ofEpochMilli(now).atZone(zone).toLocalDate().plusDays(1)
+        .atTime(originalTime).atZone(zone).toInstant().toEpochMilli()
+    return EventDraft(
+        title = title, category = category, description = description, startAt = newStart,
+        endAt = newStart + (endAt - startAt), location = location, city = city, capacity = capacity,
+        registrationDeadline = newStart - 60 * 60 * 1000L, notes = notes,
+        experienceRequirement = experienceRequirement, beginnerGuidance = beginnerGuidance,
+        requiredItems = requiredItems, spareEquipment = spareEquipment, imageUri = imageUri,
+    )
 }
 
 /** Strict parsing shared by the form and JVM tests. No silent date correction. */

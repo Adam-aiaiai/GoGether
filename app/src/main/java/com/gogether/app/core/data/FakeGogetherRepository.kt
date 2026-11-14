@@ -31,6 +31,9 @@ class FakeGogetherRepository(
     override suspend fun register(name: String, interests: Set<Category>) = mutate { engine.registerUser(name, interests) }
     override suspend fun logout() = mutate { engine.logout() }
     override suspend fun createEvent(draft: EventDraft) = mutate { engine.createEvent(actor(), draft) }
+    override suspend fun updateEvent(eventId: String, draft: EventDraft) = mutate {
+        engine.updateEvent(actor(), eventId, draft)
+    }
     override suspend fun join(eventId: String) = mutate { engine.join(actor(), eventId) }
     override suspend fun cancelRegistration(eventId: String) = mutate { engine.cancelRegistration(actor(), eventId) }
     override suspend fun cancelEvent(eventId: String) = mutate { engine.cancelEvent(actor(), eventId) }

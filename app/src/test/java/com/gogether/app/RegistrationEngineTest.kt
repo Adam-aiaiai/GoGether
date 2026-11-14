@@ -32,13 +32,33 @@ class RegistrationEngineTest {
         assertEquals(time, event.createdAt)
         assertEquals(event.startAt + RegistrationEngine.TWO_HOURS, event.endAt)
     }
+    @Test fun creationPersistsScheduleAndParticipationInformation() {
+        val custom = draft.copy(
+            endAt = draft.startAt + 3 * 60 * 60 * 1000L,
+            experienceRequirement = ExperienceRequirement.BASIC,
+            beginnerGuidance = true,
+            requiredItems = "  Shoes and water  ",
+            spareEquipment = "  Two spare rackets  ",
+            imageUri = "  content://event/photo  ",
+        )
+        val event = engine.createEvent("u1", custom)
+        assertEquals(custom.endAt, event.endAt)
+        assertEquals(ExperienceRequirement.BASIC, event.experienceRequirement)
+        assertTrue(event.beginnerGuidance)
+        assertEquals("Shoes and water", event.requiredItems)
+        assertEquals("Two spare rackets", event.spareEquipment)
+        assertEquals("content://event/photo", event.imageUri)
+    }
     @Test fun invalidCreationFieldsAreRejectedAtomically() {
         val invalid = listOf(draft.copy(title = "  "), draft.copy(title = "x".repeat(81)),
             draft.copy(description = "short"), draft.copy(description = "x".repeat(2001)),
             draft.copy(location = " "), draft.copy(city = ""), draft.copy(capacity = 1),
             draft.copy(capacity = 51), draft.copy(startAt = time),
+            draft.copy(endAt = draft.startAt),
+            draft.copy(endAt = draft.startAt + 24 * 60 * 60 * 1000L + 1),
             draft.copy(registrationDeadline = time), draft.copy(registrationDeadline = draft.startAt + 1),
-            draft.copy(notes = "x".repeat(1001)))
+            draft.copy(notes = "x".repeat(1001)), draft.copy(requiredItems = "x".repeat(501)),
+            draft.copy(spareEquipment = "x".repeat(501)), draft.copy(imageUri = "x".repeat(2001)))
         invalid.forEach { invalidDraft -> failure { engine.createEvent("u1", invalidDraft) } }
     }
     @Test fun creationAcceptsDeadlineAtStart() {
@@ -142,9 +162,41 @@ class RegistrationEngineTest {
     }
     @Test fun onlyOrganizerCanManageEvent() {
         val event = event()
+        failure { engine.updateEvent("u2", event.id, draft.copy(title = "Changed title")) }
         failure { engine.cancelEvent("u2", event.id) }
         failure { engine.setDemoCheckInOpen("u2", event.id, true) }
         failure { engine.postAnnouncement("u2", event.id, "Meet at the gate") }
+    }
+    @Test fun organizerCanEditUpcomingEventAndCannotShrinkBelowConfirmedCount() {
+        val event = event(capacity = 3)
+        engine.join("u2", event.id)
+        val changed = draft.copy(title = "Updated friendly match", capacity = 3,
+            experienceRequirement = ExperienceRequirement.NONE, beginnerGuidance = true)
+        val updated = engine.updateEvent("u1", event.id, changed)
+        assertEquals("Updated friendly match", updated.title)
+        assertEquals(3, updated.capacity)
+        assertTrue(updated.beginnerGuidance)
+        assertEquals(event.createdAt, updated.createdAt)
+        engine.join("u3", event.id)
+        failure("confirmed") { engine.updateEvent("u1", event.id, changed.copy(capacity = 2)) }
+    }
+    @Test fun increasingCapacityPromotesWaitlistInOrder() {
+        val event = event(capacity = 2)
+        engine.join("u2", event.id)
+        engine.join("u3", event.id)
+        engine.join("u4", event.id)
+        engine.updateEvent("u1", event.id, draft.copy(capacity = 3))
+        assertEquals(RegistrationStatus.CONFIRMED, engine.snapshot.registration(event.id, "u3")?.status)
+        assertEquals(listOf("u4"), engine.snapshot.waitlist(event.id).map { it.userId })
+        assertEquals("u3", engine.snapshot.notifications.single().userId)
+    }
+    @Test fun startedOrCancelledEventCannotBeEdited() {
+        val event = event()
+        time = event.startAt
+        failure { engine.updateEvent("u1", event.id, draft.copy(startAt = time + 100_000, endAt = time + 200_000)) }
+        time = event.createdAt
+        engine.cancelEvent("u1", event.id)
+        failure { engine.updateEvent("u1", event.id, draft) }
     }
     @Test fun checkInRequiresOrganizerOpeningAndConfirmedPlaceAndRejectsDuplicate() {
         val event = event(); engine.join("u2", event.id); engine.join("u3", event.id)

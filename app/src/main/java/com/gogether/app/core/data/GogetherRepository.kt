@@ -10,6 +10,7 @@ interface GogetherRepository {
     suspend fun register(name: String, interests: Set<Category>): Result<User>
     suspend fun logout(): Result<Unit>
     suspend fun createEvent(draft: EventDraft): Result<Event>
+    suspend fun updateEvent(eventId: String, draft: EventDraft): Result<Event>
     suspend fun join(eventId: String): Result<Registration>
     suspend fun cancelRegistration(eventId: String): Result<Unit>
     suspend fun cancelEvent(eventId: String): Result<Unit>

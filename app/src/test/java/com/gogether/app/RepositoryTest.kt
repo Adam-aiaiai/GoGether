@@ -3,6 +3,7 @@ package com.gogether.app
 import com.gogether.app.core.data.*
 import com.gogether.app.core.model.*
 import com.gogether.app.feature.event.parseEventDateTime
+import com.gogether.app.feature.event.reuseDraft
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.test.*
@@ -24,6 +25,21 @@ class RepositoryTest {
         assertEquals(2, repo.state.value.confirmed(created.id).size)
         repo.login("alice").getOrThrow()
         assertEquals(2, repo.state.value.confirmed(created.id).size)
+    }
+    @Test fun sharedStatePublishesOrganizerEditsAndParticipationInformation() = runTest {
+        val repo = FakeGogetherRepository()
+        repo.login("alice").getOrThrow()
+        val event = repo.state.value.event("event-1")!!
+        val updated = repo.updateEvent(event.id, EventDraft(
+            title = "Beginner badminton workshop", category = event.category,
+            description = event.description, startAt = event.startAt, endAt = event.endAt,
+            location = event.location, city = event.city, capacity = event.capacity,
+            registrationDeadline = event.registrationDeadline, notes = event.notes,
+            experienceRequirement = ExperienceRequirement.NONE, beginnerGuidance = true,
+            requiredItems = "Sports shoes and water", spareEquipment = "Two spare rackets",
+        )).getOrThrow()
+        assertEquals(updated, repo.state.value.event(event.id))
+        assertEquals("Sports shoes and water", repo.state.value.event(event.id)?.requiredItems)
     }
     @Test fun promotionAndNotificationArePublishedAsOneSnapshot() = runTest {
         val repo = FakeGogetherRepository()
@@ -66,5 +82,19 @@ class RepositoryTest {
         assertEquals(5, data.events.count { it.acceptsRegistration(time) })
         assertEquals(1, data.events.count { it.status == EventStatus.COMPLETED })
         assertEquals(listOf("emma"), data.waitlist("event-1").map { it.userId })
+    }
+    @Test fun reuseDraftCopiesConfigurationButMovesScheduleToTheFuture() {
+        val time = 1_800_000_000_000L
+        val event = DemoData.create(time).event("event-history")!!.copy(imageUri = "content://event/photo")
+        val draft = event.reuseDraft(time, ZoneId.of("UTC"))
+        assertEquals(event.title, draft.title)
+        assertEquals(event.category, draft.category)
+        assertEquals(event.location, draft.location)
+        assertEquals(event.capacity, draft.capacity)
+        assertEquals(event.requiredItems, draft.requiredItems)
+        assertEquals("content://event/photo", draft.imageUri)
+        assertTrue(draft.startAt > time)
+        assertEquals(event.endAt - event.startAt, draft.endAt - draft.startAt)
+        assertEquals(draft.startAt - 60 * 60 * 1000L, draft.registrationDeadline)
     }
 }

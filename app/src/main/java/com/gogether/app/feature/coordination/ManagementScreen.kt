@@ -12,7 +12,8 @@ import com.gogether.app.feature.event.MeetingMapButton
 
 @Composable
 fun ManagementScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
-                     cancel: () -> Unit, checkInOpen: (Boolean) -> Unit, announce: (String) -> Unit) {
+                     edit: () -> Unit, reuse: () -> Unit, cancel: () -> Unit,
+                     checkInOpen: (Boolean) -> Unit, announce: (String) -> Unit) {
     var confirmation by rememberSaveable { mutableStateOf(false) }
     var announcement by rememberSaveable { mutableStateOf("") }
     if (event.organizerId != state.currentUserId) {
@@ -21,10 +22,24 @@ fun ManagementScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
     }
     Page {
         SectionTitle("Manage your plan", event.title)
-        StatusPill(event.status.name.lowercase())
+        StatusPill(event.statusAt(now).name.lowercase())
         InfoCard("At a glance", "${state.confirmed(event.id).size} / ${event.capacity} confirmed\n${state.waitlist(event.id).size} waitlisted\n${state.checkIns.count { it.eventId == event.id }} Demo check-ins")
-        InfoCard("Meeting information", "${displayTime(event.startAt)}\n${event.city} · ${event.location}\n${event.notes}")
+        InfoCard("Meeting information", "${displayTime(event.startAt)} – ${displayTime(event.endAt)}\n${event.city} · ${event.location}\n${event.notes}")
+        InfoCard("Participation information", buildString {
+            append(event.experienceRequirement.label)
+            append("\nGuidance: ${if (event.beginnerGuidance) "Provided" else "Not provided"}")
+            append("\nBring: ${event.requiredItems.ifBlank { "Nothing specific" }}")
+            append("\nSpare equipment: ${event.spareEquipment.ifBlank { "None listed" }}")
+        })
         MeetingMapButton("${event.city} ${event.location}")
+        OutlinedButton(onClick = reuse, enabled = !busy,
+            modifier = Modifier.fillMaxWidth().testTag("reuse_event")) {
+            Text("Reuse as a new event")
+        }
+        if (event.status == EventStatus.OPEN && now < event.startAt) {
+            Button(onClick = edit, enabled = !busy,
+                modifier = Modifier.fillMaxWidth().testTag("edit_event")) { Text("Edit event") }
+        }
         Text("Confirmed participants", style = MaterialTheme.typography.titleLarge)
         state.confirmed(event.id).forEach { registration ->
             val checked = state.checkIns.any { it.eventId == event.id && it.userId == registration.userId }
