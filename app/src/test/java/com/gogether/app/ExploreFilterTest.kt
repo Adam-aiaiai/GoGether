@@ -19,7 +19,8 @@ class ExploreFilterTest {
     )
 
     @Test fun searchesEventAndParticipationInformation() {
-        listOf("badminton", "friendly doubles", "court 3", "sports shoes", "spare rackets", "no experience")
+        listOf("badminton", "friendly doubles", "sports", "suzhou", "sports centre", "court 3",
+            "sports shoes", "spare rackets", "no experience")
             .forEach { query -> assertTrue(query, event.matchesExploreFilter(ExploreFilter(query = query), now)) }
         assertFalse(event.matchesExploreFilter(ExploreFilter(query = "photography"), now))
     }
@@ -46,13 +47,32 @@ class ExploreFilterTest {
         assertTrue(evening.matchesExploreFilter(ExploreFilter(freeTime = FreeTimeFilter.EVENING), before, zone))
     }
 
-    @Test fun filtersCategoryLocationTimeAndBeginnerSupport() {
-        assertTrue(event.matchesExploreFilter(ExploreFilter(category = Category.SPORTS, city = "centre",
-            time = EventTimeFilter.NEXT_7_DAYS, beginnerFriendlyOnly = true,
-            guidanceOnly = true, spareEquipmentOnly = true), now, ZoneId.of("UTC")))
-        assertFalse(event.matchesExploreFilter(ExploreFilter(category = Category.READING), now))
+    @Test fun combinesMultipleInterestsAndParticipationRequirements() {
+        assertTrue(event.matchesExploreFilter(ExploreFilter(
+            categories = setOf(Category.SPORTS, Category.STUDY), city = "centre",
+            experienceLevels = setOf(ExperienceRequirement.NONE, ExperienceRequirement.BASIC),
+            guidanceOnly = true, equipment = EquipmentFilter.REQUIRED,
+            spareEquipmentOnly = true), now, ZoneId.of("UTC")))
+        assertFalse(event.matchesExploreFilter(ExploreFilter(categories = setOf(Category.READING)), now))
         assertFalse(event.matchesExploreFilter(ExploreFilter(city = "Shanghai"), now))
         assertFalse(event.matchesExploreFilter(ExploreFilter(time = EventTimeFilter.TODAY), now, ZoneId.of("UTC")))
+        assertFalse(event.matchesExploreFilter(
+            ExploreFilter(experienceLevels = setOf(ExperienceRequirement.EXPERIENCED)), now))
+        assertFalse(event.copy(requiredItems = "").matchesExploreFilter(
+            ExploreFilter(equipment = EquipmentFilter.REQUIRED), now))
+    }
+
+    @Test fun filtersTodayTomorrowWeekendAndCustomDateRangeByStartTime() {
+        val zone = ZoneId.of("UTC")
+        val monday = ZonedDateTime.of(2027, 1, 4, 8, 0, 0, 0, zone).toInstant().toEpochMilli()
+        val tomorrow = event.copy(startAt = monday + DAY + 2 * HOUR, endAt = monday + DAY + 3 * HOUR)
+        val saturday = event.copy(startAt = monday + 5 * DAY, endAt = monday + 5 * DAY + HOUR)
+        assertTrue(tomorrow.matchesExploreFilter(ExploreFilter(time = EventTimeFilter.TOMORROW), monday, zone))
+        assertTrue(saturday.matchesExploreFilter(ExploreFilter(time = EventTimeFilter.THIS_WEEKEND), monday, zone))
+        assertTrue(saturday.matchesExploreFilter(ExploreFilter(time = EventTimeFilter.CUSTOM,
+            customStartDate = "2027-01-08", customEndDate = "2027-01-10"), monday, zone))
+        assertFalse(tomorrow.matchesExploreFilter(ExploreFilter(time = EventTimeFilter.CUSTOM,
+            customStartDate = "2027-01-08", customEndDate = "2027-01-10"), monday, zone))
     }
 
     @Test fun excludesCancelledAndEndedEvents() {

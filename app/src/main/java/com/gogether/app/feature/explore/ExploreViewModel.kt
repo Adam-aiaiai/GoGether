@@ -9,12 +9,12 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.DayOfWeek
+import java.time.LocalDate
 import java.time.ZoneId
 
-private const val DAY_MILLIS = 24 * 60 * 60 * 1000L
-
 enum class EventTimeFilter(val label: String) {
-    ANY("Any time"), TODAY("Today"), NEXT_7_DAYS("Next 7 days"), NEXT_30_DAYS("Next 30 days")
+    ANY("Any time"), TODAY("Today"), TOMORROW("Tomorrow"),
+    THIS_WEEKEND("This Weekend"), CUSTOM("Custom dates")
 }
 
 enum class FreeTimeFilter(val label: String) {
@@ -22,15 +22,22 @@ enum class FreeTimeFilter(val label: String) {
     EVENING("Evening"), WEEKEND("Weekend")
 }
 
+enum class EquipmentFilter(val label: String) {
+    ANY("Any equipment"), REQUIRED("Bring equipment"), NOT_REQUIRED("No equipment needed")
+}
+
 data class ExploreFilter(
     val query: String = "",
     val organizerQuery: String = "",
     val city: String = "",
-    val category: Category? = null,
+    val categories: Set<Category> = emptySet(),
     val time: EventTimeFilter = EventTimeFilter.ANY,
+    val customStartDate: String = "",
+    val customEndDate: String = "",
     val freeTime: FreeTimeFilter = FreeTimeFilter.ANY,
-    val beginnerFriendlyOnly: Boolean = false,
+    val experienceLevels: Set<ExperienceRequirement> = emptySet(),
     val guidanceOnly: Boolean = false,
+    val equipment: EquipmentFilter = EquipmentFilter.ANY,
     val spareEquipmentOnly: Boolean = false,
 )
 
@@ -41,18 +48,34 @@ fun Event.matchesExploreFilter(
     organizerName: String = "",
 ): Boolean {
     if (status != EventStatus.OPEN || endAt <= now) return false
-    if (filter.category != null && category != filter.category) return false
-    val searchable = listOf(title, description, notes, requiredItems, spareEquipment, organizerName,
-        experienceRequirement.label).joinToString(" ")
+    if (filter.categories.isNotEmpty() && category !in filter.categories) return false
+    val searchable = listOf(title, description, category.label, city, location, notes, requiredItems,
+        spareEquipment, organizerName, experienceRequirement.label).joinToString(" ")
     if (!searchable.contains(filter.query.trim(), ignoreCase = true)) return false
     if (!organizerName.contains(filter.organizerQuery.trim(), ignoreCase = true)) return false
     if (!city.contains(filter.city.trim(), true) && !location.contains(filter.city.trim(), true)) return false
+    val localToday = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+    val eventDate = Instant.ofEpochMilli(startAt).atZone(zone).toLocalDate()
     val timeMatches = when (filter.time) {
         EventTimeFilter.ANY -> true
-        EventTimeFilter.TODAY -> Instant.ofEpochMilli(startAt).atZone(zone).toLocalDate() ==
-            Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
-        EventTimeFilter.NEXT_7_DAYS -> startAt in now until now + 7 * DAY_MILLIS
-        EventTimeFilter.NEXT_30_DAYS -> startAt in now until now + 30 * DAY_MILLIS
+        EventTimeFilter.TODAY -> eventDate == localToday
+        EventTimeFilter.TOMORROW -> eventDate == localToday.plusDays(1)
+        EventTimeFilter.THIS_WEEKEND -> {
+            val saturday = when (localToday.dayOfWeek) {
+                DayOfWeek.SATURDAY -> localToday
+                DayOfWeek.SUNDAY -> localToday.minusDays(1)
+                else -> localToday.plusDays((DayOfWeek.SATURDAY.value - localToday.dayOfWeek.value).toLong())
+            }
+            eventDate in saturday..saturday.plusDays(1)
+        }
+        EventTimeFilter.CUSTOM -> {
+            val start = filter.customStartDate.toLocalDateOrNull()
+            val end = filter.customEndDate.toLocalDateOrNull()
+            val validStart = filter.customStartDate.isBlank() || start != null
+            val validEnd = filter.customEndDate.isBlank() || end != null
+            validStart && validEnd && (start == null || !eventDate.isBefore(start)) &&
+                (end == null || !eventDate.isAfter(end))
+        }
     }
     val localStart = Instant.ofEpochMilli(startAt).atZone(zone)
     val freeTimeMatches = when (filter.freeTime) {
@@ -63,10 +86,16 @@ fun Event.matchesExploreFilter(
         FreeTimeFilter.WEEKEND -> localStart.dayOfWeek in setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY)
     }
     return timeMatches && freeTimeMatches &&
-        (!filter.beginnerFriendlyOnly || experienceRequirement == ExperienceRequirement.NONE) &&
+        (filter.experienceLevels.isEmpty() || experienceRequirement in filter.experienceLevels) &&
         (!filter.guidanceOnly || beginnerGuidance) &&
+        (filter.equipment == EquipmentFilter.ANY ||
+            filter.equipment == EquipmentFilter.REQUIRED && requiredItems.isNotBlank() ||
+            filter.equipment == EquipmentFilter.NOT_REQUIRED && requiredItems.isBlank()) &&
         (!filter.spareEquipmentOnly || spareEquipment.isNotBlank())
 }
+
+private fun String.toLocalDateOrNull(): LocalDate? =
+    trim().takeIf { it.isNotEmpty() }?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
 
 class ExploreViewModel(repository: GogetherRepository) : ViewModel() {
     private val mutableFilter = MutableStateFlow(ExploreFilter())

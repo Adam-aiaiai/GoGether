@@ -5,6 +5,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -12,6 +13,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.gogether.app.core.model.*
@@ -21,8 +23,13 @@ import java.time.*
 import java.time.format.DateTimeFormatter
 
 @Composable
-fun CreateEventScreen(busy: Boolean, onCreate: (EventDraft) -> Unit) {
-    EventFormScreen(null, FormMode.CREATE, busy, onCreate)
+fun CreateEventScreen(
+    busy: Boolean,
+    retainedDraft: CreateEventFormState?,
+    onRetainDraft: (CreateEventFormState) -> Unit,
+    onCreate: (EventDraft) -> Unit,
+) {
+    EventFormScreen(null, FormMode.CREATE, busy, onCreate, retainedDraft, onRetainDraft)
 }
 
 @Composable
@@ -43,96 +50,162 @@ fun ReuseEventScreen(event: Event, busy: Boolean, onCreate: (EventDraft) -> Unit
 private enum class FormMode { CREATE, EDIT, REUSE }
 
 @Composable
-private fun EventFormScreen(initial: Event?, mode: FormMode, busy: Boolean, onSubmit: (EventDraft) -> Unit) {
+private fun EventFormScreen(
+    initial: Event?,
+    mode: FormMode,
+    busy: Boolean,
+    onSubmit: (EventDraft) -> Unit,
+    retainedDraft: CreateEventFormState? = null,
+    onRetainDraft: (CreateEventFormState) -> Unit = {},
+) {
     val zone = remember { ZoneId.systemDefault() }
     val tomorrow = remember { LocalDate.now().plusDays(1) }
     val defaultStart = remember { tomorrow.atTime(18, 0).atZone(zone).toInstant().toEpochMilli() }
     val editing = mode == FormMode.EDIT
     val prefix = mode.name.lowercase()
-    var title by rememberSaveable(initial?.id) { mutableStateOf(initial?.title.orEmpty()) }
-    var category by rememberSaveable(initial?.id) { mutableStateOf(initial?.category?.name ?: Category.SPORTS.name) }
-    var description by rememberSaveable(initial?.id) { mutableStateOf(initial?.description.orEmpty()) }
-    var startDate by rememberSaveable(initial?.id) { mutableStateOf(formatDate(initial?.startAt ?: defaultStart, zone)) }
-    var startTime by rememberSaveable(initial?.id) { mutableStateOf(formatClock(initial?.startAt ?: defaultStart, zone)) }
-    var endDate by rememberSaveable(initial?.id) { mutableStateOf(formatDate(initial?.endAt ?: defaultStart + RegistrationEngine.TWO_HOURS, zone)) }
-    var endTime by rememberSaveable(initial?.id) { mutableStateOf(formatClock(initial?.endAt ?: defaultStart + RegistrationEngine.TWO_HOURS, zone)) }
-    var location by rememberSaveable(initial?.id) { mutableStateOf(initial?.location.orEmpty()) }
-    var city by rememberSaveable(initial?.id) { mutableStateOf(initial?.city ?: "Suzhou") }
-    var capacity by rememberSaveable(initial?.id) { mutableStateOf(initial?.capacity?.toString() ?: "4") }
+    val retained = retainedDraft.takeIf { mode == FormMode.CREATE }
+    var title by rememberSaveable(initial?.id) { mutableStateOf(retained?.title ?: initial?.title.orEmpty()) }
+    var category by rememberSaveable(initial?.id) { mutableStateOf(retained?.category ?: initial?.category?.name ?: Category.SPORTS.name) }
+    var description by rememberSaveable(initial?.id) { mutableStateOf(retained?.description ?: initial?.description.orEmpty()) }
+    var startDate by rememberSaveable(initial?.id) { mutableStateOf(retained?.startDate ?: formatDate(initial?.startAt ?: defaultStart, zone)) }
+    var startTime by rememberSaveable(initial?.id) { mutableStateOf(retained?.startTime ?: formatClock(initial?.startAt ?: defaultStart, zone)) }
+    var endDate by rememberSaveable(initial?.id) { mutableStateOf(retained?.endDate ?: formatDate(initial?.endAt ?: defaultStart + RegistrationEngine.TWO_HOURS, zone)) }
+    var endTime by rememberSaveable(initial?.id) { mutableStateOf(retained?.endTime ?: formatClock(initial?.endAt ?: defaultStart + RegistrationEngine.TWO_HOURS, zone)) }
+    var location by rememberSaveable(initial?.id) { mutableStateOf(retained?.location ?: initial?.location.orEmpty()) }
+    var city by rememberSaveable(initial?.id) { mutableStateOf(retained?.city ?: initial?.city ?: "Suzhou") }
+    var capacity by rememberSaveable(initial?.id) { mutableStateOf(retained?.capacity ?: initial?.capacity?.toString() ?: "4") }
     var deadlineDate by rememberSaveable(initial?.id) {
-        mutableStateOf(formatDate(initial?.registrationDeadline ?: defaultStart - 60 * 60 * 1000L, zone))
+        mutableStateOf(retained?.deadlineDate ?: formatDate(initial?.registrationDeadline ?: defaultStart - 60 * 60 * 1000L, zone))
     }
     var deadlineTime by rememberSaveable(initial?.id) {
-        mutableStateOf(formatClock(initial?.registrationDeadline ?: defaultStart - 60 * 60 * 1000L, zone))
+        mutableStateOf(retained?.deadlineTime ?: formatClock(initial?.registrationDeadline ?: defaultStart - 60 * 60 * 1000L, zone))
     }
-    var notes by rememberSaveable(initial?.id) { mutableStateOf(initial?.notes.orEmpty()) }
+    var notes by rememberSaveable(initial?.id) { mutableStateOf(retained?.notes ?: initial?.notes.orEmpty()) }
     var experience by rememberSaveable(initial?.id) {
-        mutableStateOf(initial?.experienceRequirement?.name ?: ExperienceRequirement.NONE.name)
+        mutableStateOf(retained?.experience ?: initial?.experienceRequirement?.name ?: ExperienceRequirement.NONE.name)
     }
-    var beginnerGuidance by rememberSaveable(initial?.id) { mutableStateOf(initial?.beginnerGuidance ?: false) }
-    var requiredItems by rememberSaveable(initial?.id) { mutableStateOf(initial?.requiredItems.orEmpty()) }
-    var spareEquipment by rememberSaveable(initial?.id) { mutableStateOf(initial?.spareEquipment.orEmpty()) }
-    var imageUri by rememberSaveable(initial?.id) { mutableStateOf(initial?.imageUri.orEmpty()) }
+    var beginnerGuidance by rememberSaveable(initial?.id) { mutableStateOf(retained?.beginnerGuidance ?: initial?.beginnerGuidance ?: false) }
+    var requiredItems by rememberSaveable(initial?.id) { mutableStateOf(retained?.requiredItems ?: initial?.requiredItems.orEmpty()) }
+    var spareEquipment by rememberSaveable(initial?.id) { mutableStateOf(retained?.spareEquipment ?: initial?.spareEquipment.orEmpty()) }
+    var imageUri by rememberSaveable(initial?.id) { mutableStateOf(retained?.imageUri ?: initial?.imageUri.orEmpty()) }
     var error by rememberSaveable(initial?.id) { mutableStateOf<String?>(null) }
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) imageUri = uri.toString()
     }
+    val currentCreateDraft = CreateEventFormState(
+        title, category, description, startDate, startTime, endDate, endTime, location, city,
+        capacity, deadlineDate, deadlineTime, notes, experience, beginnerGuidance,
+        requiredItems, spareEquipment, imageUri,
+    )
+    LaunchedEffect(mode, currentCreateDraft) {
+        if (mode == FormMode.CREATE) onRetainDraft(currentCreateDraft)
+    }
 
     Page {
-        SectionTitle(when (mode) {
-            FormMode.CREATE -> "Make a plan"
-            FormMode.EDIT -> "Edit your plan"
-            FormMode.REUSE -> "Reuse this plan"
-        }, when (mode) {
-            FormMode.CREATE -> "A few details. A few new faces."
-            FormMode.EDIT -> "Keep participants clear on what changed."
-            FormMode.REUSE -> "Review the copied details, then adjust the time and place."
-        })
-        FormField("Title", title, { title = it }, "${prefix}_title")
-        Text("Category", style = MaterialTheme.typography.titleMedium)
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Category.entries.forEach { option ->
-                FilterChip(category == option.name, { category = option.name }, label = { Text(option.label) })
-            }
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(when (mode) {
+                FormMode.CREATE -> "Create an event"
+                FormMode.EDIT -> "Edit your event"
+                FormMode.REUSE -> "Reuse this event"
+            }, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text(when (mode) {
+                FormMode.CREATE -> "Bring people together, one plan at a time."
+                FormMode.EDIT -> "Keep participants clear on what changed."
+                FormMode.REUSE -> "Adjust the copied time and place before publishing."
+            }, style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        FormField("Description", description, { description = it }, "${prefix}_description", multiline = true)
-        Text("Event image (optional)", style = MaterialTheme.typography.titleMedium)
-        OutlinedButton(onClick = { imagePicker.launch("image/*") }, modifier = Modifier.fillMaxWidth()
-            .testTag("${prefix}_choose_image")) {
-            Text(if (imageUri.isBlank()) "Choose an image" else "Change image")
-        }
+
         if (imageUri.isNotBlank()) {
             EventImage(imageUri, title.ifBlank { "Event image" }, Modifier.fillMaxWidth().height(180.dp))
-            TextButton(onClick = { imageUri = "" }, modifier = Modifier.testTag("${prefix}_remove_image")) {
-                Text("Remove image")
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                TextButton(onClick = { imagePicker.launch("image/*") },
+                    modifier = Modifier.testTag("${prefix}_choose_image")) { Text("Change cover") }
+                TextButton(onClick = { imageUri = "" },
+                    modifier = Modifier.testTag("${prefix}_remove_image")) { Text("Remove") }
+            }
+        } else {
+            OutlinedButton(onClick = { imagePicker.launch("image/*") },
+                modifier = Modifier.fillMaxWidth().height(112.dp)
+                    .testTag("${prefix}_choose_image"),
+                shape = MaterialTheme.shapes.large) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("▧ +", style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.primary)
+                    Text("Add an event cover", fontWeight = FontWeight.SemiBold)
+                    Text("Choose a photo from your gallery",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Optional · 16:9 recommended",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
-        Text("Schedule", style = MaterialTheme.typography.titleMedium)
-        FormField("Start date (YYYY-MM-DD)", startDate, { startDate = it }, "${prefix}_date")
-        FormField("Start time (HH:mm, 24-hour)", startTime, { startTime = it }, "${prefix}_time")
-        FormField("End date (YYYY-MM-DD)", endDate, { endDate = it }, "${prefix}_end_date")
-        FormField("End time (HH:mm, 24-hour)", endTime, { endTime = it }, "${prefix}_end_time")
-        Text("Times use ${zone.id}. Events may last up to 24 hours.", style = MaterialTheme.typography.bodySmall)
-        FormField("City", city, { city = it }, "${prefix}_city")
-        FormField("Meeting location", location, { location = it }, "${prefix}_location")
-        OutlinedTextField(capacity, { capacity = it }, label = { Text("Maximum participants") },
-            supportingText = { Text("2–50 people, including you as the organizer") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true,
-            modifier = Modifier.fillMaxWidth().testTag("${prefix}_capacity"))
-        FormField("Deadline date (YYYY-MM-DD)", deadlineDate, { deadlineDate = it }, "${prefix}_deadline_date")
-        FormField("Deadline time (HH:mm)", deadlineTime, { deadlineTime = it }, "${prefix}_deadline_time")
 
-        SectionTitle("Before people join", "Make the participation threshold visible.")
-        Text("Experience requirement", style = MaterialTheme.typography.titleMedium)
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        HorizontalDivider()
+        FormSectionHeader("01", "Basics")
+        FormField("Event title", title, { title = it }, "${prefix}_title",
+            placeholder = "e.g. Friday Badminton Session")
+        Text("Category", style = MaterialTheme.typography.labelLarge)
+        Row(Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Category.entries.forEach { option ->
+                FilterChip(category == option.name, { category = option.name },
+                    label = { Text(option.label) })
+            }
+        }
+        FormField("Description", description, { description = it }, "${prefix}_description",
+            multiline = true, placeholder = "Tell others what this event is about...")
+
+        HorizontalDivider()
+        FormSectionHeader("02", "Date & Location")
+        FormField("Start date", startDate, { startDate = it }, "${prefix}_date",
+            placeholder = "YYYY-MM-DD")
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            CompactFormField("Start time", startTime, { startTime = it }, "${prefix}_time",
+                Modifier.weight(1f), "HH:mm")
+            CompactFormField("End time", endTime, { endTime = it }, "${prefix}_end_time",
+                Modifier.weight(1f), "HH:mm")
+        }
+        FormField("End date", endDate, { endDate = it }, "${prefix}_end_date",
+            placeholder = "YYYY-MM-DD")
+        FormField("Location", location, { location = it }, "${prefix}_location",
+            placeholder = "Choose a campus location")
+        FormField("City", city, { city = it }, "${prefix}_city", placeholder = "e.g. Suzhou")
+        Text("Times use ${zone.id}. Events may last up to 24 hours.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            CompactFormField("Registration deadline", deadlineDate, { deadlineDate = it },
+                "${prefix}_deadline_date", Modifier.weight(1.35f), "YYYY-MM-DD")
+            CompactFormField("Time", deadlineTime, { deadlineTime = it },
+                "${prefix}_deadline_time", Modifier.weight(0.65f), "HH:mm")
+        }
+
+        HorizontalDivider()
+        FormSectionHeader("03", "Participation")
+        OutlinedTextField(capacity, { capacity = it }, label = { Text("Maximum participants") },
+            placeholder = { Text("e.g. 6") },
+            supportingText = { Text("2–50 people, including the organizer") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true,
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth().testTag("${prefix}_capacity"))
+        Text("Experience level", style = MaterialTheme.typography.labelLarge)
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             ExperienceRequirement.entries.forEach { option ->
-                FilterChip(experience == option.name, { experience = option.name }, label = { Text(option.label) })
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = experience == option.name,
+                        onClick = { experience = option.name })
+                    Text(option.formLabel(), style = MaterialTheme.typography.bodyMedium)
+                }
             }
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Beginner guidance provided", style = MaterialTheme.typography.titleMedium)
-                Text("Choose this only when someone will explain or demonstrate the basics.",
+                Text("Beginner guidance provided", fontWeight = FontWeight.SemiBold)
+                Text("Someone will explain or demonstrate the basics.",
                     style = MaterialTheme.typography.bodySmall)
             }
             Switch(beginnerGuidance, { beginnerGuidance = it }, modifier = Modifier.testTag("${prefix}_guidance"))
@@ -163,12 +236,19 @@ private fun EventFormScreen(initial: Event?, mode: FormMode, busy: Boolean, onSu
             } catch (e: IllegalArgumentException) {
                 error = e.message
             }
-        }, enabled = !busy, modifier = Modifier.fillMaxWidth().testTag(when (mode) {
+        }, enabled = !busy, shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth().height(52.dp).testTag(when (mode) {
             FormMode.EDIT -> "save_event"
             FormMode.REUSE -> "publish_reused_event"
             FormMode.CREATE -> "publish_event"
         })) {
             Text(if (mode == FormMode.EDIT) "Save changes" else "Publish event")
+        }
+        if (mode == FormMode.CREATE) {
+            Text("Draft saves automatically when you leave this page.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.align(Alignment.CenterHorizontally).testTag("draft_saved_hint"))
         }
     }
 }
@@ -180,7 +260,45 @@ private fun formatClock(epoch: Long, zone: ZoneId) = Instant.ofEpochMilli(epoch)
     .format(DateTimeFormatter.ofPattern("HH:mm"))
 
 @Composable
-private fun FormField(label: String, value: String, change: (String) -> Unit, tag: String, multiline: Boolean = false) {
+private fun FormSectionHeader(number: String, title: String) {
+    Row(verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("•", color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.titleLarge)
+        Text("$number / $title", style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun FormField(
+    label: String,
+    value: String,
+    change: (String) -> Unit,
+    tag: String,
+    multiline: Boolean = false,
+    placeholder: String? = null,
+) {
     OutlinedTextField(value, change, label = { Text(label) }, singleLine = !multiline,
-        minLines = if (multiline) 3 else 1, modifier = Modifier.fillMaxWidth().testTag(tag))
+        placeholder = placeholder?.let { { Text(it) } }, minLines = if (multiline) 3 else 1,
+        shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().testTag(tag))
+}
+
+@Composable
+private fun CompactFormField(
+    label: String,
+    value: String,
+    change: (String) -> Unit,
+    tag: String,
+    modifier: Modifier,
+    placeholder: String,
+) {
+    OutlinedTextField(value, change, label = { Text(label) }, placeholder = { Text(placeholder) },
+        singleLine = true, shape = RoundedCornerShape(16.dp), modifier = modifier.testTag(tag))
+}
+
+private fun ExperienceRequirement.formLabel(): String = when (this) {
+    ExperienceRequirement.NONE -> "All levels welcome"
+    ExperienceRequirement.BASIC -> "Some experience preferred"
+    ExperienceRequirement.EXPERIENCED -> "Experienced participants only"
 }

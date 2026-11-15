@@ -58,7 +58,10 @@ fun GogetherApp(repository: GogetherRepository) {
 private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth: AuthViewModel, snackbars: SnackbarHostState) {
     val nav = rememberNavController()
     val explore: ExploreViewModel = viewModel(factory = RepositoryViewModel.factory { ExploreViewModel(repository) })
-    val eventsVm: EventViewModel = viewModel(factory = RepositoryViewModel.factory { EventViewModel(repository) })
+    val eventsVm: EventViewModel = viewModel(
+        key = "events-${state.currentUserId}",
+        factory = RepositoryViewModel.factory { EventViewModel(repository) },
+    )
     val registration: RegistrationViewModel = viewModel(factory = RepositoryViewModel.factory { RegistrationViewModel(repository) })
     val coordination: CoordinationViewModel = viewModel(factory = RepositoryViewModel.factory { CoordinationViewModel(repository) })
     val checkIn: CheckInViewModel = viewModel(factory = RepositoryViewModel.factory { CheckInViewModel(repository) })
@@ -66,6 +69,7 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
     val events by explore.events.collectAsStateWithLifecycle()
     val filter by explore.filter.collectAsStateWithLifecycle()
     val eventBusy by eventsVm.busy.collectAsStateWithLifecycle()
+    val createDraft by eventsVm.createDraft.collectAsStateWithLifecycle()
     val registrationBusy by registration.busy.collectAsStateWithLifecycle()
     val coordinationBusy by coordination.busy.collectAsStateWithLifecycle()
     val checkInBusy by checkIn.busy.collectAsStateWithLifecycle()
@@ -87,16 +91,18 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
     }
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text(if (subpage) when {
-                route.startsWith("manage") -> "Event management"
-                route.startsWith("edit") -> "Edit event"
-                route.startsWith("reuse") -> "Reuse event"
-                route.startsWith("check-in") -> "Check-in & feedback"
-                else -> "Event details"
-            } else "Gogether") },
-                navigationIcon = { if (subpage) IconButton(onClick = { nav.popBackStack() }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                } }, actions = { Text("DEMO", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(end = 16.dp)) })
+            if (route != "explore" && route != "create") {
+                TopAppBar(title = { Text(if (subpage) when {
+                    route.startsWith("manage") -> "Event management"
+                    route.startsWith("edit") -> "Edit event"
+                    route.startsWith("reuse") -> "Reuse event"
+                    route.startsWith("check-in") -> "Check-in & feedback"
+                    else -> "Event details"
+                } else "Gogether") },
+                    navigationIcon = { if (subpage) IconButton(onClick = { nav.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    } }, actions = { Text("DEMO", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(end = 16.dp)) })
+            }
         },
         bottomBar = {
             NavigationBar {
@@ -120,7 +126,11 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
     ) { padding ->
         NavHost(navController = nav, startDestination = "explore", modifier = Modifier.padding(padding)) {
             composable("explore") { ExploreScreen(state, events, filter, now, explore::filter) { nav.navigate("event/$it") } }
-            composable("create") { CreateEventScreen(eventBusy, eventsVm::create) }
+            composable("create") {
+                CreateEventScreen(eventBusy, createDraft, eventsVm::retainCreateDraft) {
+                    eventsVm.create(it, clearRetainedDraft = true)
+                }
+            }
             composable("my-events") { MyEventsScreen(state, now) { nav.navigate("event/$it") } }
             composable("profile") { ProfileScreen(state, now, authBusy, auth::login, auth::logout, coordination::read) { nav.navigate("event/$it") } }
             composable("event/{eventId}", arguments = listOf(navArgument("eventId") { type = NavType.StringType })) { backStack ->

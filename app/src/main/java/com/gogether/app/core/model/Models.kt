@@ -1,8 +1,9 @@
 package com.gogether.app.core.model
 
 enum class Category(val label: String, val symbol: String) {
-    SPORTS("Sports", "↗"), OUTDOOR("Outdoor", "△"), PHOTOGRAPHY("Photography", "◎"),
-    BOARD_GAMES("Board Games", "▦"), READING("Reading", "≋"), OTHERS("Others", "+")
+    SPORTS("Sports", "🏸"), STUDY("Study", "📚"), SOCIAL("Social", "🎲"),
+    OUTDOOR("Outdoor", "🌿"), LANGUAGE("Language", "💬"), PHOTOGRAPHY("Photography", "📷"),
+    BOARD_GAMES("Board Games", "♟"), READING("Reading", "📖"), OTHERS("Others", "✨")
 }
 enum class RegistrationStatus { CONFIRMED, WAITLISTED, CANCELLED, REJECTED }
 enum class EventStatus { OPEN, CANCELLED, COMPLETED }

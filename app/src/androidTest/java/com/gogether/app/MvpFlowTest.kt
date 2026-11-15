@@ -64,8 +64,23 @@ class MvpFlowTest {
         click("nav_profile")
         compose.onNodeWithText("Hey, Alice").assertExists()
         click("nav_explore")
-        compose.onNodeWithText("Good plans.\nBetter together.").assertExists()
+        compose.onNodeWithText("Find your next plan.").assertExists()
         compose.onNodeWithTag("search").assertExists()
+    }
+
+    @Test fun createDraftSurvivesBottomNavigation() {
+        scrollClick("login_alice")
+        click("nav_create")
+        text("create_title", "Saved campus plan")
+        text("create_description", "This draft should still be here after browsing Explore.")
+        text("create_location", "Library entrance")
+        click("nav_explore")
+        click("nav_create")
+        compose.onNodeWithTag("create_title").assertTextContains("Saved campus plan")
+        compose.onNodeWithTag("create_description").performScrollTo()
+            .assertTextContains("This draft should still be here after browsing Explore.")
+        compose.onNodeWithTag("create_location").performScrollTo()
+            .assertTextContains("Library entrance")
     }
 
     @Test fun advancedFiltersExpandAndAcceptOrganizer() {

@@ -96,22 +96,33 @@ fun EventImage(imageUri: String, contentDescription: String, modifier: Modifier 
 fun EventCard(event: Event, state: AppSnapshot, onClick: () -> Unit, now: Long = System.currentTimeMillis()) {
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth().testTag("event_${event.id}"),
         shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            EventImage(event.imageUri, event.title, Modifier.fillMaxWidth().height(140.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(Modifier.size(48.dp).background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
-                    Text(event.category.symbol, style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                }
-                Column(Modifier.weight(1f)) {
-                    Text(event.category.label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                    Text(event.title, style = MaterialTheme.typography.titleLarge)
+        Column {
+            if (event.imageUri.isNotBlank()) {
+                EventImage(event.imageUri, event.title, Modifier.fillMaxWidth().height(190.dp))
+            } else {
+                Box(Modifier.fillMaxWidth().height(118.dp)
+                    .background(MaterialTheme.colorScheme.secondaryContainer),
+                    contentAlignment = Alignment.Center) {
+                    Text(event.category.symbol, style = MaterialTheme.typography.displayMedium)
                 }
             }
-            Text(displayTime(event.startAt), style = MaterialTheme.typography.bodyMedium)
-            Text("${event.city} · ${event.location}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("${event.category.label.uppercase()} · ${displayTime(event.startAt)}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                if (event.experienceRequirement == ExperienceRequirement.NONE) {
+                    Text("Beginner Friendly", style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary)
+                }
+            }
+            Text(event.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("⌖ ${event.location}   ⚉ ${state.confirmed(event.id).size}/${event.capacity} joined",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (event.experienceRequirement == ExperienceRequirement.NONE) StatusPill("Beginner friendly")
                 if (event.beginnerGuidance) StatusPill("Guidance provided")
+                if (event.requiredItems.isNotBlank()) StatusPill("Bring equipment")
                 if (event.spareEquipment.isNotBlank()) StatusPill("Spare gear")
             }
             val remaining = (event.capacity - state.confirmed(event.id).size).coerceAtLeast(0)
@@ -125,6 +136,7 @@ fun EventCard(event: Event, state: AppSnapshot, onClick: () -> Unit, now: Long =
             }
             Text(availability, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
             state.registration(event.id)?.let { StatusPill(it.status.name.lowercase().replaceFirstChar(Char::uppercase)) }
+            }
         }
     }
 }
