@@ -21,7 +21,7 @@ fun AuthScreen(state: AppSnapshot, busy: Boolean, login: (String) -> Unit, regis
         Spacer(Modifier.height(20.dp))
         Text("Gogether", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary)
         SectionTitle("Find your people.\nMake it happen.", "Small plans. Good company. A little more offline.")
-        InfoCard("Demo Mode", "Local test profiles only. No password or real authentication. Data resets when the app process restarts.")
+        InfoCard("Demo Mode", "Local test profiles only. No password or real authentication. Demo changes are saved on this device. Other devices have separate data.")
         TabRow(selectedTabIndex = if (registering) 1 else 0) {
             Tab(selected = !registering, onClick = { registering = false }, text = { Text("Demo login") })
             Tab(selected = registering, onClick = { registering = true }, text = { Text("Demo register") })

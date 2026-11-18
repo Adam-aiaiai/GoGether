@@ -139,8 +139,34 @@ class RegistrationEngine(
         require(content.trim().length in 1..500) { "Write an announcement of 1–500 characters." }
         val recipients = snapshot.registrations.filter { it.eventId == eventId && it.status in ACTIVE }
         val time = now()
-        snapshot = snapshot.copy(notifications = snapshot.notifications + recipients.map {
+        snapshot = snapshot.copy(
+            announcements = snapshot.announcements + Announcement(newId(), eventId, actor, content.trim(), time),
+            notifications = snapshot.notifications + recipients.map {
             Notification(newId(), it.userId, eventId, NotificationType.ANNOUNCEMENT, content.trim(), time)
+        })
+    }
+
+    fun updateMeeting(actor: String, eventId: String, update: MeetingUpdate) {
+        val event = requireOrganizer(actor, eventId)
+        val time = now()
+        require(event.status == EventStatus.OPEN && time < event.endAt) { "This event is closed." }
+        require(update.meetingAt > time && update.meetingAt <= event.endAt) { "Choose a future meeting time before the event ends." }
+        require(update.location.trim().length in 3..150) { "Meeting location must contain 3–150 characters." }
+        require(update.notes.length <= 1000) { "Use up to 1,000 characters for meeting notes." }
+        val recipients = snapshot.registrations.filter { it.eventId == eventId && it.status in ACTIVE }.map { it.userId }.distinct()
+        snapshot = snapshot.copy(events = snapshot.events.map {
+            if (it.id == eventId) it.copy(meetingAt = update.meetingAt, meetingLocation = update.location.trim(),
+                meetingNotes = update.notes.trim(), updatedAt = time) else it
+        }, notifications = snapshot.notifications + recipients.map {
+            Notification(newId(), it, eventId, NotificationType.MEETING_UPDATED,
+                "Meeting information updated: ${event.title}. Open the event for the latest time and location.", time)
+        })
+    }
+
+    fun markAllRead(actor: String) {
+        requireUser(actor)
+        snapshot = snapshot.copy(notifications = snapshot.notifications.map {
+            if (it.userId == actor && !it.isRead) it.copy(isRead = true) else it
         })
     }
 

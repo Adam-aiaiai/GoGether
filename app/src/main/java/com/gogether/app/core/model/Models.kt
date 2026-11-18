@@ -8,7 +8,7 @@ enum class RegistrationStatus { CONFIRMED, WAITLISTED, CANCELLED, REJECTED }
 enum class EventStatus { OPEN, CANCELLED, COMPLETED }
 enum class UserStatus { DEMO }
 enum class CheckInStatus { DEMO_RECORDED }
-enum class NotificationType { PROMOTED, EVENT_CANCELLED, ANNOUNCEMENT }
+enum class NotificationType { PROMOTED, EVENT_CANCELLED, ANNOUNCEMENT, MEETING_UPDATED }
 enum class FeedbackStatus { SUBMITTED }
 
 data class User(
@@ -21,6 +21,7 @@ data class Event(
     val city: String, val capacity: Int, val registrationDeadline: Long, val notes: String,
     val createdAt: Long, val updatedAt: Long, val status: EventStatus = EventStatus.OPEN,
     val demoCheckInOpen: Boolean = false,
+    val meetingAt: Long? = null, val meetingLocation: String? = null, val meetingNotes: String = "",
 ) {
     fun acceptsRegistration(now: Long) = status == EventStatus.OPEN &&
         now < registrationDeadline && now < startAt && now < endAt
@@ -41,6 +42,10 @@ data class Feedback(
     val id: String, val eventId: String, val userId: String, val rating: Int,
     val comment: String, val createdAt: Long, val status: FeedbackStatus = FeedbackStatus.SUBMITTED,
 )
+data class Announcement(val id: String, val eventId: String, val authorId: String,
+    val content: String, val createdAt: Long)
+data class MeetingUpdate(val meetingAt: Long, val location: String, val notes: String)
+
 data class EventDraft(
     val title: String, val category: Category, val description: String, val startAt: Long,
     val location: String, val city: String, val capacity: Int,
@@ -53,6 +58,7 @@ data class AppSnapshot(
     val events: List<Event> = emptyList(), val registrations: List<Registration> = emptyList(),
     val checkIns: List<CheckIn> = emptyList(), val notifications: List<Notification> = emptyList(),
     val feedback: List<Feedback> = emptyList(),
+    val announcements: List<Announcement> = emptyList(),
 ) {
     val currentUser: User? get() = users.find { it.id == currentUserId }
     fun event(id: String) = events.find { it.id == id }

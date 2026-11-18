@@ -34,8 +34,14 @@ fun EventDetailScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean
                 color = MaterialTheme.colorScheme.primary, modifier = Modifier.testTag("waitlist_position"))
         }
         if (event.notes.isNotBlank()) InfoCard("Good to know", event.notes)
-        val notices = state.notifications.filter { it.eventId == event.id && it.userId == state.currentUserId && it.type == NotificationType.ANNOUNCEMENT }
-        notices.takeLast(3).forEach { InfoCard("Organizer update · ${displayTime(it.createdAt)}", it.content) }
+        if (organizer || active) {
+            InfoCard("Meeting point", "${displayTime(event.meetingAt ?: event.startAt)}\n${event.meetingLocation ?: event.location}\n${event.meetingNotes}")
+            MeetingMapButton("${event.city} ${event.meetingLocation ?: event.location}")
+            state.announcements.filter { it.eventId == event.id }.sortedByDescending { it.createdAt }.forEach {
+                InfoCard("Organizer announcement · ${displayTime(it.createdAt)}", it.content)
+            }
+        }
+
         when {
             organizer -> Button(onClick = onManage, modifier = Modifier.fillMaxWidth().testTag("manage_event")) { Text("Manage event") }
             active && event.status == EventStatus.OPEN && now < event.startAt -> OutlinedButton(

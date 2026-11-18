@@ -116,4 +116,65 @@ class MvpFlowTest {
         compose.onNodeWithTag("create_error").assertTextEquals("Title must contain 3–80 characters.")
         assertEquals(6, repo.state.value.events.size)
     }
+
+    @Test fun organizerAnnouncementReachesParticipantAndCanBeRead() {
+        scrollClick("login_alice")
+        scrollClick("event_event-1")
+        scrollClick("manage_event")
+        compose.onNodeWithText("Organizer announcement").performScrollTo().performTextInput("Meet by the east gate")
+        closeSoftKeyboard()
+        compose.onNodeWithText("Post announcement").performScrollTo().performClick()
+        compose.waitUntil(10_000) { repo.state.value.announcements.isNotEmpty() }
+        click("nav_profile"); scrollClick("switch_bob")
+        click("nav_my-events"); scrollClick("event_event-1")
+        compose.onNodeWithText("Meet by the east gate").performScrollTo().assertIsDisplayed()
+        click("nav_profile")
+        compose.onNodeWithText("Mark as read").performScrollTo().performClick()
+        compose.waitUntil(10_000) { repo.state.value.notifications.single { it.userId == "bob" }.isRead }
+        assertFalse(repo.state.value.notifications.single { it.userId == "emma" }.isRead)
+    }
+
+    @Test fun meetingPickersValidationAndParticipantDisplay() {
+        scrollClick("login_alice"); scrollClick("event_event-1"); scrollClick("manage_event")
+        scrollClick("edit_meeting")
+        text("meeting_location", "x"); closeSoftKeyboard(); scrollClick("save_meeting")
+        compose.onNodeWithText("Use 3–150 characters for the location.").performScrollTo().assertIsDisplayed()
+        scrollClick("meeting_date")
+        androidx.test.espresso.Espresso.onView(androidx.test.espresso.matcher.ViewMatchers.withId(android.R.id.button1))
+            .perform(androidx.test.espresso.action.ViewActions.click())
+        scrollClick("meeting_time")
+        androidx.test.espresso.Espresso.onView(androidx.test.espresso.matcher.ViewMatchers.withId(android.R.id.button1))
+            .perform(androidx.test.espresso.action.ViewActions.click())
+        text("meeting_location", "South entrance for meeting")
+        text("meeting_notes", "Bring water and a racket")
+        closeSoftKeyboard(); scrollClick("save_meeting")
+        compose.waitUntil(10_000) { repo.state.value.event("event-1")?.meetingLocation == "South entrance for meeting" }
+        awaitSnackbar(); compose.onNodeWithTag("save_meeting").assertDoesNotExist()
+        click("nav_profile"); scrollClick("switch_bob"); click("nav_my-events"); scrollClick("event_event-1")
+        compose.onNodeWithText("South entrance for meeting",substring=true).performScrollTo().assertIsDisplayed()
+        scrollClick("open_checkin")
+        compose.onNodeWithText("South entrance for meeting",substring=true).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test fun notificationEntryFiltersAndMarkAllReadStayUserScoped() {
+        kotlinx.coroutines.runBlocking {
+            repo.login("alice").getOrThrow(); repo.postAnnouncement("event-1","First notice").getOrThrow()
+            repo.postAnnouncement("event-1","Second notice").getOrThrow(); repo.login("bob").getOrThrow()
+        }
+        click("nav_my-events"); compose.onNodeWithText("Notifications · 2 unread").assertExists()
+        scrollClick("open_inbox"); scrollClick("inbox_unread"); scrollClick("read_all")
+        compose.waitUntil(10_000) { repo.state.value.notifications.filter { it.userId=="bob" }.all { it.isRead } }
+        awaitSnackbar(); compose.onNodeWithText("You're all caught up").performScrollTo().assertIsDisplayed()
+        scrollClick("inbox_all"); compose.onNodeWithText("Second notice").performScrollTo().assertIsDisplayed()
+        assertTrue(repo.state.value.notifications.filter { it.userId=="emma" }.none { it.isRead })
+    }
+
+    @Test fun emptyMyEventsOffersWorkingExploreActionAndHistorySeparatesPastPlans() {
+        scrollClick("login_finn"); click("nav_my-events"); scrollClick("empty_events_action")
+        compose.onNodeWithTag("search").assertExists()
+        click("nav_profile"); scrollClick("switch_bob"); click("nav_my-events")
+        compose.onNodeWithTag("event_event-history").assertDoesNotExist()
+        scrollClick("events_history"); compose.onNodeWithTag("event_event-history").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("event_event-1").assertDoesNotExist()
+    }
 }

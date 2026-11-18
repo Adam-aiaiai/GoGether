@@ -72,7 +72,7 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
     val authBusy by auth.busy.collectAsStateWithLifecycle()
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route ?: "explore"
-    val subpage = route.contains("{eventId}")
+    val subpage = route.contains("{eventId}") || route == "notifications"
     val scope = rememberCoroutineScope()
     listOf(eventsVm, registration, coordination, checkIn).forEach { vm ->
         LaunchedEffect(vm) {
@@ -88,6 +88,7 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
     Scaffold(
         topBar = {
             TopAppBar(title = { Text(if (subpage) when {
+                route == "notifications" -> "Notifications"
                 route.startsWith("manage") -> "Event management"
                 route.startsWith("check-in") -> "Check-in & feedback"
                 else -> "Event details"
@@ -115,12 +116,16 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
         NavHost(navController = nav, startDestination = "explore", modifier = Modifier.padding(padding)) {
             composable("explore") { ExploreScreen(state, events, filter, now, explore::filter) { nav.navigate("event/$it") } }
             composable("create") { CreateEventScreen(eventBusy, eventsVm::create) }
-            composable("my-events") { MyEventsScreen(state, now) { nav.navigate("event/$it") } }
-            composable("profile") { ProfileScreen(state, now, authBusy, auth::login, auth::logout, coordination::read) { nav.navigate("event/$it") } }
+            composable("my-events") { MyEventsScreen(state, now, { nav.navigate("notifications") }, { nav.navigate("explore") }, { nav.navigate("create") }) { nav.navigate("event/$it") } }
+            composable("profile") { ProfileScreen(state, now, authBusy || coordinationBusy, auth::login, auth::logout, coordination::read, coordination::readAll, { nav.navigate("explore") }) { nav.navigate("event/$it") } }
+            composable("notifications") {
+                Page { InboxContent(state, coordinationBusy, coordination::read, coordination::readAll,
+                    { nav.navigate("event/$it") }, { nav.navigate("explore") }) }
+            }
             composable("event/{eventId}", arguments = listOf(navArgument("eventId") { type = NavType.StringType })) { backStack ->
                 val id = backStack.arguments?.getString("eventId").orEmpty()
                 val event = state.event(id)
-                if (event == null) Page { InfoCard("Event not found", "Return to Explore to find another plan.") }
+                if (event == null) MissingEvent { nav.navigate("explore") { popUpTo("explore") { inclusive = true } } }
                 else EventDetailScreen(event, state, now, registrationBusy,
                     { registration.join(id) }, { registration.cancel(id) },
                     { nav.navigate("manage/$id") }, { nav.navigate("check-in/$id") })
@@ -128,14 +133,14 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
             composable("manage/{eventId}", arguments = listOf(navArgument("eventId") { type = NavType.StringType })) { backStack ->
                 val id = backStack.arguments?.getString("eventId").orEmpty()
                 val event = state.event(id)
-                if (event == null) Page { InfoCard("Event not found", "Return to Explore.") }
+                if (event == null) MissingEvent { nav.navigate("explore") { popUpTo("explore") { inclusive = true } } }
                 else ManagementScreen(event, state, now, coordinationBusy, { coordination.cancel(id) },
-                    { coordination.openCheckIn(id, it) }, { coordination.announce(id, it) })
+                    { coordination.openCheckIn(id, it) }, { text, saved -> coordination.announce(id, text, saved) }, { update, saved -> coordination.meeting(id, update, saved) })
             }
             composable("check-in/{eventId}", arguments = listOf(navArgument("eventId") { type = NavType.StringType })) { backStack ->
                 val id = backStack.arguments?.getString("eventId").orEmpty()
                 val event = state.event(id)
-                if (event == null) Page { InfoCard("Event not found", "Return to Explore.") }
+                if (event == null) MissingEvent { nav.navigate("explore") { popUpTo("explore") { inclusive = true } } }
                 else CheckInScreen(event, state, now, checkInBusy, { checkIn.checkIn(id) }, { rating, comment -> checkIn.feedback(id, rating, comment) })
             }
         }
@@ -145,4 +150,12 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
 @Composable
 private fun AppSnackbarHost(state: SnackbarHostState) {
     SnackbarHost(state) { data -> Snackbar(data, Modifier.testTag("snackbar")) }
+}
+
+@Composable
+private fun MissingEvent(explore: () -> Unit) {
+    Page {
+        InfoCard("Event not found", "This activity is no longer available. Your notification remains in your inbox.")
+        Button(onClick = explore, modifier = Modifier.testTag("missing_event_explore")) { Text("Back to Explore") }
+    }
 }

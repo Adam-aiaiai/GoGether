@@ -14,3 +14,7 @@ service-account*.json
 .env.*
 !.env.example
 verification/
+
+node_modules/
+*-debug.log
+.firebase/

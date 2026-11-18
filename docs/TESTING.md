@@ -55,7 +55,7 @@ Material 3 Snackbar 的自动消失计时和退出动画由 Compose 测试时钟
 
 ## 手动检查
 
-- 重启进程，确认 Demo 种子数据恢复；旋转屏幕，确认仓库数据仍在。
+- 重启进程，确认已保存的公告、集合信息和通知阅读状态保留；旋转屏幕，确认仓库数据仍在。
 - Explore 输入不存在的标题或城市，检查空状态；清空后恢复。
 - 检查深色模式、320dp 宽屏幕和放大字体；正文可换行，表单和页面可滚动。
 - 取消活动后切换参与者，检查取消通知；新的报名和签到应被拒绝。
@@ -71,7 +71,7 @@ Material 3 Snackbar 的自动消失计时和退出动画由 Compose 测试时钟
 | Maven Central HTTP 403 | 使用上方可选镜像；不关闭证书校验 |
 | 没有连接设备 | 用 SDK 的 `platform-tools/adb devices` 检查，先启动模拟器再执行 connected 测试 |
 | JVM 报 native memory allocation failed | 减少本次构建的 worker 数量及 JVM 内存上限，见下方 Windows 命令；不必修改共享构建配置 |
-| 演示数据突然恢复 | 进程被终止后重建是当前 Fake 设计；持久化尚未接入 |
+| 演示数据突然恢复 | 默认 App 应恢复本地文件；检查是否清除过应用数据，或使用了未传 SnapshotStore 的测试 Fake |
 
 Windows 内存紧张时，可仅为本次验证指定参数：
 
