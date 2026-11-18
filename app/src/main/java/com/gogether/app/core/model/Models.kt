@@ -10,7 +10,7 @@ enum class EventStatus { OPEN, CANCELLED, COMPLETED }
 enum class ExperienceRequirement(val label: String) {
     NONE("No experience needed"), BASIC("Basic familiarity"), EXPERIENCED("Experienced participants")
 }
-enum class UserStatus { DEMO }
+enum class UserStatus { DEMO, ACCOUNT }
 enum class CheckInStatus { DEMO_RECORDED }
 enum class NotificationType { PROMOTED, EVENT_CANCELLED, ANNOUNCEMENT }
 enum class FeedbackStatus { SUBMITTED }
@@ -18,6 +18,7 @@ enum class FeedbackStatus { SUBMITTED }
 data class User(
     val id: String, val displayName: String, val interests: Set<Category>, val createdAt: Long,
     val status: UserStatus = UserStatus.DEMO,
+    val email: String? = null,
 )
 data class Event(
     val id: String, val organizerId: String, val title: String, val category: Category,
@@ -69,6 +70,8 @@ data class AppSnapshot(
     val events: List<Event> = emptyList(), val registrations: List<Registration> = emptyList(),
     val checkIns: List<CheckIn> = emptyList(), val notifications: List<Notification> = emptyList(),
     val feedback: List<Feedback> = emptyList(),
+    val sessionRestoring: Boolean = false,
+    val sessionError: String? = null,
 ) {
     val currentUser: User? get() = users.find { it.id == currentUserId }
     fun event(id: String) = events.find { it.id == id }

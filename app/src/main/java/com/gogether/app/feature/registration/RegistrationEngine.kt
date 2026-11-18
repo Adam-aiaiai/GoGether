@@ -12,6 +12,9 @@ class RegistrationEngine(
     var snapshot: AppSnapshot = initial
         private set
 
+    /** Repository holds the single mutation lock when restoring or applying account state. */
+    internal fun replaceSnapshot(value: AppSnapshot) { snapshot = value }
+
     fun login(userId: String) {
         requireUser(userId)
         snapshot = snapshot.copy(currentUserId = userId)
@@ -20,7 +23,7 @@ class RegistrationEngine(
     fun logout() { snapshot = snapshot.copy(currentUserId = null) }
 
     fun registerUser(name: String, interests: Set<Category>): User {
-        require(name.trim().length in 2..30) { "Use a nickname of 2–30 characters." }
+        com.gogether.app.core.account.AccountRules.name(name)
         require(snapshot.users.none { it.displayName.equals(name.trim(), ignoreCase = true) }) {
             "This demo nickname already exists. Choose it on the login screen."
         }

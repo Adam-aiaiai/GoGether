@@ -24,7 +24,8 @@ import com.gogether.app.feature.checkin.*
 import com.gogether.app.feature.coordination.*
 import com.gogether.app.feature.event.*
 import com.gogether.app.feature.explore.*
-import com.gogether.app.feature.profile.ProfileScreen
+import com.gogether.app.feature.profile.*
+import com.gogether.app.core.account.AccountMode
 import com.gogether.app.feature.registration.*
 import kotlinx.coroutines.launch
 
@@ -43,9 +44,15 @@ fun GogetherApp(repository: GogetherRepository) {
     val busy by auth.busy.collectAsStateWithLifecycle()
     val snackbars = remember { SnackbarHostState() }
     LaunchedEffect(auth) { auth.messages.collect { snackbars.showSnackbar(it.text) } }
-    if (state.currentUser == null) {
+    LaunchedEffect(repository) {
+        if (repository.accountMode == AccountMode.CONNECTED) auth.restore()
+    }
+    if (state.sessionRestoring) {
+        Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) { CircularProgressIndicator() }
+    } else if (state.currentUser == null) {
         Scaffold(snackbarHost = { AppSnackbarHost(snackbars) }) { padding ->
-            Box(Modifier.padding(padding)) { AuthScreen(state, busy, auth::login, auth::register) }
+            Box(Modifier.padding(padding)) { AuthScreen(state, busy, auth::login, auth::register,
+                repository.accountMode, repository.storageDescription, auth::signIn, auth::signUp, auth::restore) }
         }
     } else {
         // Changing profiles removes all old navigation/form state; only repository data is shared.
@@ -57,14 +64,18 @@ fun GogetherApp(repository: GogetherRepository) {
 @Composable
 private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth: AuthViewModel, snackbars: SnackbarHostState) {
     val nav = rememberNavController()
-    val explore: ExploreViewModel = viewModel(factory = RepositoryViewModel.factory { ExploreViewModel(repository) })
+    val explore: ExploreViewModel = viewModel(key = "explore-${state.currentUserId}", factory = RepositoryViewModel.factory { ExploreViewModel(repository) })
     val eventsVm: EventViewModel = viewModel(
         key = "events-${state.currentUserId}",
         factory = RepositoryViewModel.factory { EventViewModel(repository) },
     )
-    val registration: RegistrationViewModel = viewModel(factory = RepositoryViewModel.factory { RegistrationViewModel(repository) })
-    val coordination: CoordinationViewModel = viewModel(factory = RepositoryViewModel.factory { CoordinationViewModel(repository) })
-    val checkIn: CheckInViewModel = viewModel(factory = RepositoryViewModel.factory { CheckInViewModel(repository) })
+    val registration: RegistrationViewModel = viewModel(key = "registration-${state.currentUserId}", factory = RepositoryViewModel.factory { RegistrationViewModel(repository) })
+    val coordination: CoordinationViewModel = viewModel(key = "coordination-${state.currentUserId}", factory = RepositoryViewModel.factory { CoordinationViewModel(repository) })
+    val checkIn: CheckInViewModel = viewModel(key = "checkIn-${state.currentUserId}", factory = RepositoryViewModel.factory { CheckInViewModel(repository) })
+    val profile: ProfileViewModel = viewModel(key = "profile-${state.currentUserId}",
+        factory = RepositoryViewModel.factory { ProfileViewModel(repository) })
+    val profileBusy by profile.busy.collectAsStateWithLifecycle()
+    LaunchedEffect(profile) { profile.saved.collect { if (nav.currentDestination?.route == "edit-profile") nav.popBackStack() } }
     val now by explore.now.collectAsStateWithLifecycle()
     val events by explore.events.collectAsStateWithLifecycle()
     val filter by explore.filter.collectAsStateWithLifecycle()
@@ -76,9 +87,9 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
     val authBusy by auth.busy.collectAsStateWithLifecycle()
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route ?: "explore"
-    val subpage = route.contains("{eventId}")
+    val subpage = route.contains("{eventId}") || route == "edit-profile"
     val scope = rememberCoroutineScope()
-    listOf(eventsVm, registration, coordination, checkIn).forEach { vm ->
+    listOf(eventsVm, registration, coordination, checkIn, profile).forEach { vm ->
         LaunchedEffect(vm) {
             vm.messages.collect { message ->
                 message.eventId?.let { id ->
@@ -93,6 +104,7 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
         topBar = {
             if (route != "explore" && route != "create") {
                 TopAppBar(title = { Text(if (subpage) when {
+                    route == "edit-profile" -> "Your profile"
                     route.startsWith("manage") -> "Event management"
                     route.startsWith("edit") -> "Edit event"
                     route.startsWith("reuse") -> "Reuse event"
@@ -101,7 +113,7 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
                 } else "Gogether") },
                     navigationIcon = { if (subpage) IconButton(onClick = { nav.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    } }, actions = { Text("DEMO", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(end = 16.dp)) })
+                    } }, actions = { Text(if (repository.accountMode == AccountMode.LOCAL_DEMO) "DEMO" else "LOCAL ACTIVITIES", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(end = 16.dp)) })
             }
         },
         bottomBar = {
@@ -132,7 +144,13 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
                 }
             }
             composable("my-events") { MyEventsScreen(state, now) { nav.navigate("event/$it") } }
-            composable("profile") { ProfileScreen(state, now, authBusy, auth::login, auth::logout, coordination::read) { nav.navigate("event/$it") } }
+            composable("profile") {
+                ProfileScreen(state, now, authBusy || coordinationBusy, repository.accountMode, repository.storageDescription,
+                    { nav.navigate("edit-profile") }, auth::login, auth::logout, coordination::read) { nav.navigate("event/$it") }
+            }
+            composable("edit-profile") {
+                state.currentUser?.let { user -> EditProfileScreen(user, profileBusy, profile::save, { nav.popBackStack() }) }
+            }
             composable("event/{eventId}", arguments = listOf(navArgument("eventId") { type = NavType.StringType })) { backStack ->
                 val id = backStack.arguments?.getString("eventId").orEmpty()
                 val event = state.event(id)
