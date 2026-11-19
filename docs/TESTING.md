@@ -110,3 +110,20 @@ Windows 内存紧张时，可仅为本次验证指定参数：
 账号服务测试使用测试替身，不证明真实 Firebase 已连接。双设备认证、云端资料和业务同步在共用服务配置后另行验收。
 
 2026-11-18 最终清理重建：Debug APK 构建成功；JVM 57/57、Android 设备 18/18 通过，均为 0 失败/错误/跳过；Lint 0 错误、10 条现有依赖版本/KTX 建议。设备测试包含 B 的 10 条现有流程和新增的 8 条 A 模块流程。A 的 Snackbar 等待沿用上文的虚拟时钟处理。期间本地构建输出曾出现带 ` 2` 后缀的重复 `.class`，执行 `clean` 后重新构建并以最终 XML 报告验收，工程源码没有相应重复文件。
+
+## A / B 整合验证（2026-11-19）
+
+分支 `integration/member-a-b` 的来源与保留核对见 [INTEGRATION_A_B](INTEGRATION_A_B.md)。新增 `AccountEventIntegrationTest` 使用同一个 Repository 和实际设备文件保存，经过真实页面检查：新账号发布、修改昵称、编辑及搜索活动、个人分类、双方取消历史、退出后的保存恢复，以及草稿在个人页面间保留和跨身份隔离。
+
+本次结果：Debug APK 构建成功；重新执行的 JVM 用例 57/57 通过；首轮原有设备用例 18/18 通过；新增三条跨模块用例经专项复验 3/3 通过；Lint 0 错误、10 条现有建议。
+
+专项执行：
+
+```bash
+./gradlew :app:testDebugUnitTest --rerun :app:lintDebug :app:connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.gogether.app.AccountEventIntegrationTest
+```
+
+新注册流程在输入昵称后先收起键盘、等待布局并检查按钮可用，再点击创建。首轮该步骤发生一次等待超时；修正测试操作后专项三条用例全部通过。原有应用功能和测试用例保留。
+
+当前标准设备报告为最终三条专项用例。本机保留的首轮完整报告与最终专项报告分别在 `verification/a-b-20261119/full-suite/` 和 `verification/a-b-20261119/integration-suite/`；首轮报告中仍可追溯上述超时。报告和构建产物不加入 Git。
