@@ -10,21 +10,28 @@ import kotlinx.coroutines.sync.withLock
 /** Serializes operations in ONE process. This is not cross-device concurrency control. */
 class FakeGogetherRepository(
     initial: AppSnapshot = DemoData.create(),
-    now: () -> Long = System::currentTimeMillis,
+    private val now: () -> Long = System::currentTimeMillis,
+    private val save: (AppSnapshot) -> Unit = {},
 ) : GogetherRepository {
-    private val engine = RegistrationEngine(initial, now)
+    private var engine = RegistrationEngine(initial, now)
     private val mutex = Mutex()
     private val mutableState = MutableStateFlow(initial)
     override val state = mutableState.asStateFlow()
     private fun actor() = requireNotNull(engine.snapshot.currentUserId) { "Choose a Demo user first." }
 
     private suspend fun <T> mutate(action: () -> T): Result<T> = mutex.withLock {
-        try {
-            val result = action()
-            mutableState.value = engine.snapshot
-            Result.success(result)
-        } catch (error: IllegalArgumentException) {
-            Result.failure(error)
+        synchronized(LocalDataLock.monitor) {
+            val before = engine.snapshot
+            try {
+                val result = action()
+                save(engine.snapshot)
+                mutableState.value = engine.snapshot
+                Result.success(result)
+            } catch (error: Exception) {
+                engine = RegistrationEngine(before, now)
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                Result.failure(error)
+            }
         }
     }
     override suspend fun login(userId: String) = mutate { engine.login(userId) }

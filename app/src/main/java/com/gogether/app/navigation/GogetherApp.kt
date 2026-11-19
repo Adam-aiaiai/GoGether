@@ -9,6 +9,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
+import android.content.Context
+import android.content.SharedPreferences
+import android.os.SystemClock
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -21,6 +25,7 @@ import com.gogether.app.core.model.AppSnapshot
 import com.gogether.app.core.ui.*
 import com.gogether.app.feature.auth.*
 import com.gogether.app.feature.checkin.*
+import com.gogether.app.feature.checkin.prototype.*
 import com.gogether.app.feature.coordination.*
 import com.gogether.app.feature.event.*
 import com.gogether.app.feature.explore.*
@@ -38,7 +43,19 @@ private val destinations = listOf(
 
 @Composable
 fun GogetherApp(repository: GogetherRepository) {
-    val state by repository.state.collectAsStateWithLifecycle()
+    val source by repository.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val attendanceStore = remember { PreferencesPrototypeStore(context.applicationContext) }
+    val bridge = remember(repository) { RegistrationAttendanceBridge({ repository.state.value }, attendanceStore,
+        elapsedNow = SystemClock::elapsedRealtime) }
+    var attendanceRevision by remember { mutableIntStateOf(0) }
+    DisposableEffect(context) {
+        val preferences = context.getSharedPreferences("checkin_prototype_v1", Context.MODE_PRIVATE)
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> attendanceRevision++ }
+        preferences.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { preferences.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+    val state = remember(source, attendanceRevision) { bridge.withAttendance(source) }
     val auth: AuthViewModel = viewModel(factory = RepositoryViewModel.factory { AuthViewModel(repository) })
     val busy by auth.busy.collectAsStateWithLifecycle()
     val snackbars = remember { SnackbarHostState() }
@@ -61,20 +78,18 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
     val eventsVm: EventViewModel = viewModel(factory = RepositoryViewModel.factory { EventViewModel(repository) })
     val registration: RegistrationViewModel = viewModel(factory = RepositoryViewModel.factory { RegistrationViewModel(repository) })
     val coordination: CoordinationViewModel = viewModel(factory = RepositoryViewModel.factory { CoordinationViewModel(repository) })
-    val checkIn: CheckInViewModel = viewModel(factory = RepositoryViewModel.factory { CheckInViewModel(repository) })
     val now by explore.now.collectAsStateWithLifecycle()
     val events by explore.events.collectAsStateWithLifecycle()
     val filter by explore.filter.collectAsStateWithLifecycle()
     val eventBusy by eventsVm.busy.collectAsStateWithLifecycle()
     val registrationBusy by registration.busy.collectAsStateWithLifecycle()
     val coordinationBusy by coordination.busy.collectAsStateWithLifecycle()
-    val checkInBusy by checkIn.busy.collectAsStateWithLifecycle()
     val authBusy by auth.busy.collectAsStateWithLifecycle()
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route ?: "explore"
     val subpage = route.contains("{eventId}")
     val scope = rememberCoroutineScope()
-    listOf(eventsVm, registration, coordination, checkIn).forEach { vm ->
+    listOf(eventsVm, registration, coordination).forEach { vm ->
         LaunchedEffect(vm) {
             vm.messages.collect { message ->
                 message.eventId?.let { id ->
@@ -86,7 +101,7 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
         }
     }
     Scaffold(
-        topBar = {
+        topBar = { if (!route.startsWith("check-in")) {
             TopAppBar(title = { Text(if (subpage) when {
                 route.startsWith("manage") -> "Event management"
                 route.startsWith("check-in") -> "Check-in & feedback"
@@ -95,8 +110,9 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
                 navigationIcon = { if (subpage) IconButton(onClick = { nav.popBackStack() }) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                 } }, actions = { Text("DEMO", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(end = 16.dp)) })
-        },
+        } },
         bottomBar = {
+            if (!route.startsWith("check-in")) {
             NavigationBar {
                 destinations.forEach { destination ->
                     NavigationBarItem(selected = route == destination.route,
@@ -109,7 +125,7 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
                         }, icon = { Icon(destination.icon, contentDescription = null) },
                         label = { Text(destination.label, maxLines = 2, style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center) }, modifier = Modifier.testTag("nav_${destination.route}"))
                 }
-            }
+            } }
         }, snackbarHost = { AppSnackbarHost(snackbars) },
     ) { padding ->
         NavHost(navController = nav, startDestination = "explore", modifier = Modifier.padding(padding)) {
@@ -130,13 +146,13 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
                 val event = state.event(id)
                 if (event == null) Page { InfoCard("Event not found", "Return to Explore.") }
                 else ManagementScreen(event, state, now, coordinationBusy, { coordination.cancel(id) },
-                    { coordination.announce(id, it) })
+                    { coordination.announce(id, it) }, { nav.navigate("check-in/$id") })
             }
             composable("check-in/{eventId}", arguments = listOf(navArgument("eventId") { type = NavType.StringType })) { backStack ->
                 val id = backStack.arguments?.getString("eventId").orEmpty()
                 val event = state.event(id)
                 if (event == null) Page { InfoCard("Event not found", "Return to Explore.") }
-                else CheckInScreen(event, state, now, checkInBusy, { checkIn.checkIn(id) }, { rating, comment -> checkIn.feedback(id, rating, comment) })
+                else RepositoryCheckInScreen(repository, id, now) { nav.popBackStack() }
             }
         }
     }

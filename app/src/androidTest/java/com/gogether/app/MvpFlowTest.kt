@@ -22,7 +22,7 @@ class MvpFlowTest {
         val time = System.currentTimeMillis()
         val seed = DemoData.create(time)
         // Only this flow needs an event inside the window; other flows retain their original fixtures.
-        val initial = if (testName.methodName == "automaticCheckInAllowsParticipantOnce")
+        val initial = if (testName.methodName == "normalEntryRequiresBoundMeetingInsteadOfBypassingTheScanner")
             seed.copy(events = seed.events.map {
                 if (it.id == "event-1") it.copy(startAt = time + 600_000, endAt = time + 7_800_000) else it
             }) else seed
@@ -99,7 +99,7 @@ class MvpFlowTest {
         assertEquals(listOf("emma"), repo.state.value.waitlist("event-1").map { it.userId })
     }
 
-    @Test fun automaticCheckInAllowsParticipantOnce() {
+    @Test fun normalEntryRequiresBoundMeetingInsteadOfBypassingTheScanner() {
         scrollClick("login_alice")
         scrollClick("event_event-1")
         scrollClick("manage_event")
@@ -109,11 +109,9 @@ class MvpFlowTest {
         scrollClick("switch_bob")
         scrollClick("event_event-1")
         scrollClick("open_checkin")
-        scrollClick("demo_checkin")
-        compose.waitUntil(5_000) { repo.state.value.checkIns.any { it.userId == "bob" && it.eventId == "event-1" } }
-        compose.onNodeWithTag("demo_checkin").assertIsNotEnabled()
-        compose.onNodeWithText("You're checked in · Demo").performScrollTo().assertIsDisplayed()
-        assertEquals(1, repo.state.value.checkIns.size)
+        compose.onNodeWithTag("demo_checkin").assertDoesNotExist()
+        compose.onNodeWithTag("meeting_setup_status").assertTextEquals("组织者尚未确认集合点，请稍后重新进入。")
+        assertTrue(repo.state.value.checkIns.isEmpty())
     }
 
     @Test fun demoRegistrationCreatesProfileAndBlankEventShowsValidation() {

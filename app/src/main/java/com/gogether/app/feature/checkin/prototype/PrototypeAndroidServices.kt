@@ -38,7 +38,9 @@ class PreferencesPrototypeStore(private val context: Context) : PrototypeStore {
     override fun activityInfo(id: String): CheckInActivityInfo? = prefs.getString("activity-info.$id", null)?.let { raw ->
         val value = JSONObject(raw)
         CheckInActivityInfo(PrototypeCodeCodec.decode(value.getString("session")).session,
-            value.getString("organizer"), value.getString("title"), value.getString("meeting"), value.getString("introduction"))
+            value.getString("organizer"), value.getString("title"), value.getString("meeting"), value.getString("introduction"),
+            value.optString("sourceEventId").takeIf { it.isNotBlank() },
+            value.optString("organizerName").takeIf { it.isNotBlank() })
     }
     override fun rememberActivityInfo(info: CheckInActivityInfo) = synchronized(writeLock) {
         val previous = activityInfo(info.session.id)
@@ -46,6 +48,8 @@ class PreferencesPrototypeStore(private val context: Context) : PrototypeStore {
         if (previous == info) return@synchronized
         val value = JSONObject().put("session", PrototypeCodeCodec.encode(PrototypeCode(info.session, info.session.startAt, info.session.startAt + 30_000)))
             .put("organizer", info.organizerId).put("title", info.title).put("meeting", info.meetingName).put("introduction", info.introduction)
+            .put("sourceEventId", info.sourceEventId)
+            .put("organizerName", info.organizerDisplayName)
         check(prefs.edit().putString("activity-info.${info.session.id}", value.toString()).commit()) { "活动资料保存失败，请重试。" }
     }
     override var hostedSession: PrototypeSession?

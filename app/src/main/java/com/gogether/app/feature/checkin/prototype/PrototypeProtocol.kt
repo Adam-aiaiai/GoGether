@@ -136,6 +136,7 @@ interface PrototypeCheckInBackend {
     fun submit(actor: String, raw: String, fix: PositionFix): PrototypeReceipt
     fun cancel(actor: String, session: PrototypeSession)
     fun isCancelled(session: PrototypeSession): Boolean
+    fun isCheckInClosed(session: PrototypeSession): Boolean = isCancelled(session)
     fun attendance(actor: String, session: PrototypeSession): List<PrototypeAttendee>
     fun rememberCode(actor: String, raw: String): PrototypeSession
     fun history(actor: String): List<PrototypeHistoryEntry>

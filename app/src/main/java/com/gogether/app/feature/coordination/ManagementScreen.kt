@@ -13,7 +13,7 @@ import com.gogether.app.feature.checkin.CheckInWindowCard
 
 @Composable
 fun ManagementScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
-                     cancel: () -> Unit, announce: (String) -> Unit) {
+                     cancel: () -> Unit, announce: (String) -> Unit, attendance: (() -> Unit)? = null) {
     var confirmation by rememberSaveable { mutableStateOf(false) }
     var announcement by rememberSaveable { mutableStateOf("") }
     if (event.organizerId != state.currentUserId) {
@@ -23,7 +23,10 @@ fun ManagementScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
     Page {
         SectionTitle("Manage your plan", event.title)
         StatusPill(event.status.name.lowercase())
-        InfoCard("At a glance", "${state.confirmed(event.id).size} / ${event.capacity} confirmed\n${state.waitlist(event.id).size} waitlisted\n${state.checkIns.count { it.eventId == event.id }} Demo check-ins")
+        InfoCard("At a glance", "${state.confirmed(event.id).size} / ${event.capacity} confirmed\n${state.waitlist(event.id).size} waitlisted\n${state.checkIns.count { it.eventId == event.id }} checked in")
+        attendance?.let { open -> OutlinedButton(onClick = open, modifier = Modifier.fillMaxWidth().testTag("manage_attendance")) {
+            Text("查看签到与出席")
+        } }
         InfoCard("Meeting information", "${displayTime(event.startAt)}\n${event.city} · ${event.location}\n${event.notes}")
         MeetingMapButton("${event.city} ${event.location}")
         CheckInWindowCard(event, now)
@@ -31,7 +34,7 @@ fun ManagementScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
         state.confirmed(event.id).forEach { registration ->
             val checked = state.checkIns.any { it.eventId == event.id && it.userId == registration.userId }
             InfoCard(state.userName(registration.userId),
-                (if (registration.userId == event.organizerId) "Organizer · " else "") + if (checked) "Demo checked in" else "Confirmed")
+                (if (registration.userId == event.organizerId) "Organizer · " else "") + if (checked) "Checked in" else "Confirmed")
         }
         Text("Waitlist · first come, first served", style = MaterialTheme.typography.titleLarge)
         val queue = state.waitlist(event.id)

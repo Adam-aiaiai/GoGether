@@ -26,7 +26,7 @@ import com.journeyapps.barcodescanner.BarcodeEncoder
 @Composable
 internal fun OrganizerCheckInPanel(state: PrototypeUiState, now: Long, back: () -> Unit,
     show: () -> Unit, cancel: () -> Unit, newMeeting: () -> Unit, settings: () -> Unit, history: () -> Unit,
-    refreshAttendance: (PrototypeSession) -> Unit = {}) {
+    refreshAttendance: (PrototypeSession) -> Unit = {}, integrated: Boolean = false) {
     val session = requireNotNull(state.session)
     var more by rememberSaveable(session.id) { mutableStateOf(false) }
     var preview by rememberSaveable(session.id) { mutableStateOf(false) }
@@ -81,12 +81,13 @@ internal fun OrganizerCheckInPanel(state: PrototypeUiState, now: Long, back: () 
             MeetingSummary(session)
             Text("组织者和参与者均需在集合点 200 米内。只在操作时获取精确位置。")
             TextButton(shape = CheckInStyle.shape, onClick = { more = false; settings() }) { Text("打开应用权限设置") }
-            TextButton(shape = CheckInStyle.shape, onClick = { preview = !preview; more = false }, modifier = Modifier.testTag("attendance_preview")) {
+            if (!integrated) TextButton(shape = CheckInStyle.shape, onClick = { preview = !preview; more = false }, modifier = Modifier.testTag("attendance_preview")) {
                 Text(if (preview) "返回当前名单" else "预览多人名单")
             }
-            if (!state.cancelled && now < session.startAt) OutlinedButton(shape = CheckInStyle.shape,
+            if (!integrated && !state.cancelled && now < session.startAt) OutlinedButton(shape = CheckInStyle.shape,
                 onClick = { more = false; cancel() }, enabled = !state.busy) { Text("取消这场活动") }
-            TextButton(shape = CheckInStyle.shape, onClick = { more = false; newMeeting() }, enabled = !state.busy) { Text("另建一场活动") }
+            if (!integrated) TextButton(shape = CheckInStyle.shape, onClick = { more = false; newMeeting() }, enabled = !state.busy) { Text("另建一场活动") }
+            else Text("活动取消请返回活动管理，报名与候补会一并更新。")
         }
     }
 }
@@ -94,7 +95,7 @@ internal fun OrganizerCheckInPanel(state: PrototypeUiState, now: Long, back: () 
 @Composable
 private fun OrganizerCode(state: PrototypeUiState, now: Long, show: () -> Unit, modifier: Modifier) {
     val session = requireNotNull(state.session)
-    val available = !state.cancelled && now < session.endAt &&
+    val available = !state.cancelled && !state.checkInClosed && now < session.endAt &&
         now >= session.startAt - PrototypePolicy.HALF_HOUR_MS && now <= session.startAt + PrototypePolicy.HALF_HOUR_MS
     val code = state.code?.takeIf { available && now >= it.issuedAt - 5_000 && now < it.expiresAt }
     val status = when {

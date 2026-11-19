@@ -3,8 +3,9 @@ package com.gogether.app.feature.checkin.prototype
 /** E-owned read-only B seam. Organizer identity never comes from the scanning user or QR payload. */
 data class CheckInActivityInfo(val session: PrototypeSession, val organizerId: String,
     val title: String = "羽毛球交流", val meetingName: String = "组织者指定集合点",
-    val introduction: String = "一起挥拍，认识新朋友。活动前先到集合点碰面，再一起前往场地。") {
-    val organizerName: String get() = prototypeParticipants.find { it.userId == organizerId }?.name ?: organizerId
+    val introduction: String = "一起挥拍，认识新朋友。活动前先到集合点碰面，再一起前往场地。",
+    val sourceEventId: String? = null, val organizerDisplayName: String? = null) {
+    val organizerName: String get() = organizerDisplayName ?: prototypeParticipants.find { it.userId == organizerId }?.name ?: organizerId
 }
 
 interface CheckInActivitySource {

@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import com.gogether.app.core.model.*
 import com.gogether.app.core.ui.*
+import com.gogether.app.feature.registration.ParticipantsCard
 
 @Composable
 fun EventDetailScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
@@ -27,7 +28,7 @@ fun EventDetailScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean
         Text(event.description, style = MaterialTheme.typography.bodyLarge)
         InfoCard("The plan", "${displayTime(event.startAt)}\nEnds ${displayTime(event.endAt)}\n${event.city} · ${event.location}")
         MeetingMapButton("${event.city} ${event.location}")
-        InfoCard("Who's coming", "${state.confirmed(event.id).size} / ${event.capacity} confirmed (includes organizer)\n${state.waitlist(event.id).size} on the waitlist")
+        ParticipantsCard(event, state)
         InfoCard("Registration", "Closes ${displayTime(event.registrationDeadline)}\nEvent: ${event.status.name.lowercase()}\nYour status: ${registration?.status?.name?.lowercase() ?: "not registered"}")
         if (registration?.status == RegistrationStatus.WAITLISTED) {
             Text("Your waitlist position: ${state.waitlist(event.id).indexOfFirst { it.userId == state.currentUserId } + 1}",

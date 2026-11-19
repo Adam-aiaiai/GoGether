@@ -42,17 +42,21 @@ class PrototypeCheckInActivity : ComponentActivity() {
         val entry = try { CheckInEntryIntent.read(intent) } catch (_: IllegalArgumentException) { finish(); return }
         val identity = CheckInIdentitySource { (application as GogetherApplication).repository.state.value.currentUserId }
         val store = PreferencesPrototypeStore(applicationContext)
-        val registrations = StoredMockCheckInRegistrations(store)
+        val linked = RegistrationAttendanceBridge({ (application as GogetherApplication).repository.state.value }, store,
+            elapsedNow = SystemClock::elapsedRealtime)
+        val registrations = CombinedCheckInRegistrations(store, linked, StoredMockCheckInRegistrations(store))
+        val backend = CombinedCheckInBackend(store, linked.backend,
+            LocalPrototypeBackend(store, elapsedNow = SystemClock::elapsedRealtime, registrations = registrations))
         model = ViewModelProvider(this, RepositoryViewModel.factory {
             PrototypeViewModel(actor,
-                LocalPrototypeBackend(store, elapsedNow = SystemClock::elapsedRealtime, registrations = registrations),
+                backend,
                 AndroidPositionSource(applicationContext), store.latestReceipt(actor), entry = entry, identity = identity,
                 registrations = registrations, pendingSubmissions = PreferencesPendingCheckInStore(applicationContext))
         })[PrototypeViewModel::class.java]
         // Keep this lightweight identity watch active while the external camera covers this Activity.
         lifecycleScope.launch {
             (application as GogetherApplication).repository.state.collect {
-                if (!model.refreshIdentity()) finish()
+                if (!model.refreshIdentity()) finish() else model.refreshLiveData()
             }
         }
         setContent {
@@ -66,7 +70,9 @@ class PrototypeCheckInActivity : ComponentActivity() {
                     if (state.code != null) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                     onDispose { window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
                 }
-                PrototypeRoute(model, state, now, ::finish)
+                val current = state.session ?: state.participantSession
+                PrototypeRoute(model, state, now, ::finish,
+                    integrated = current?.let { store.activityInfo(it.id)?.sourceEventId != null } == true)
             }
         }
     }
@@ -85,7 +91,8 @@ class PrototypeCheckInActivity : ComponentActivity() {
 private enum class PermissionAction { MEETING, DISPLAY, SCAN }
 
 @Composable
-private fun PrototypeRoute(model: PrototypeViewModel, state: PrototypeUiState, now: Long, back: () -> Unit) {
+internal fun PrototypeRoute(model: PrototypeViewModel, state: PrototypeUiState, now: Long, back: () -> Unit,
+    integrated: Boolean = false) {
     val context = LocalContext.current
     var pending by rememberSaveable { mutableStateOf<PermissionAction?>(null) }
     var scanRequest by rememberSaveable(model.actor) { mutableStateOf<Long?>(null) }
@@ -137,7 +144,8 @@ private fun PrototypeRoute(model: PrototypeViewModel, state: PrototypeUiState, n
         scanOther = { request(PermissionAction.SCAN, general = true) }, selectActivity = model::enterActivity,
         refreshAttendance = model::refreshAttendance, stopAttendance = model::stopAttendance, loadReviews = model::loadReviews,
         retryLocation = model::retryLocation, resolveCheckIn = model::resolveCheckIn,
-        pendingActivities = state.history.filter { model.hasPendingCheckIn(it.session) }.map { it.session.id }.toSet())
+        pendingActivities = state.history.filter { model.hasPendingCheckIn(it.session) }.map { it.session.id }.toSet(),
+        integrated = integrated)
     }
 }
 
@@ -150,7 +158,8 @@ fun PrototypeScreen(actor: String, state: PrototypeUiState, now: Long, back: () 
     selectActivity: (PrototypeSession) -> Unit = {},
     refreshAttendance: (PrototypeSession) -> Unit = {}, stopAttendance: () -> Unit = {},
     loadReviews: (PrototypeSession) -> Unit = {}, retryLocation: () -> Unit = {}, resolveCheckIn: () -> Unit = {},
-    pendingActivities: Set<String> = state.pendingSubmission?.let { setOf(it.session.id) }.orEmpty()) {
+    pendingActivities: Set<String> = state.pendingSubmission?.let { setOf(it.session.id) }.orEmpty(),
+    integrated: Boolean = false) {
     if (state.identityExpired || (state.ownerUserId != null && state.ownerUserId != actor)) {
         Page {
             Text("账号已变化，请重新进入签到。", Modifier.testTag("checkin_identity_expired"))
@@ -196,7 +205,7 @@ fun PrototypeScreen(actor: String, state: PrototypeUiState, now: Long, back: () 
             } else if (organizerMode && state.session != null) {
                 OrganizerCheckInPanel(state, now, back, show,
                     cancel = { confirmCancel = true }, newMeeting = { confirmNew = true }, settings = settings, history = ::viewHistory,
-                    refreshAttendance = refreshAttendance)
+                    refreshAttendance = refreshAttendance, integrated = integrated)
             } else if (!organizerMode) {
                 ParticipantCheckInPanel(actor, state, now, back, scan, ::viewHistory, settings,
                     record = { id -> historySessionId = id; openHistory(); historyOpen = true }, scanOther = scanOther,

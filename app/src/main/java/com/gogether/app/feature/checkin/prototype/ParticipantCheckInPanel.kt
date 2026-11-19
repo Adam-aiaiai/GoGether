@@ -50,8 +50,8 @@ internal fun ParticipantCheckInPanel(actor: String, state: PrototypeUiState, now
     val retryCode = state.scanned?.takeIf { state.locationRetryAvailable && it.session == session }
     val canRetryLocation = attention && retryCode != null && runCatching { retryCode.requireValid(now) }.isSuccess
     val showReceipt = receipt != null && !busy && !attention && !needsResolution
-    val cancelled = entry?.cancelled == true || (state.session?.id == session?.id && state.cancelled)
-    val ended = session != null && now >= session.endAt
+    val cancelled = entry?.cancelled == true || state.cancelled
+    val ended = session != null && (now >= session.endAt || (state.checkInClosed && !cancelled))
     val early = session != null && now < session.startAt - PrototypePolicy.HALF_HOUR_MS
     val late = session != null && now > session.startAt + PrototypePolicy.HALF_HOUR_MS
     val canOpenRecord = entry != null && (showReceipt || ended) && !attention

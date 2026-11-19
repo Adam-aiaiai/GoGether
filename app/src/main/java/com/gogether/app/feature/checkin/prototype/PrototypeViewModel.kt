@@ -26,6 +26,7 @@ data class PrototypeUiState(
     val busy: Boolean = false,
     val message: String = "请选择操作。",
     val cancelled: Boolean = false,
+    val checkInClosed: Boolean = false,
     val attendees: List<PrototypeAttendee> = emptyList(),
     val history: List<PrototypeHistoryEntry> = emptyList(),
     val notice: PrototypeNotice? = null,
@@ -76,7 +77,8 @@ class PrototypeViewModel(
     private val mutableState = MutableStateFlow(PrototypeUiState(session = initial,
         receipt = (if (initialRecord != null) initialRecord.takeIf { it.session == initialParticipant }?.receipt else ownLatest)
             ?.takeIf { it.userId == actor && it.sessionId == initialParticipant?.id },
-        cancelled = initial?.let(backend::isCancelled) ?: false,
+        cancelled = initialParticipant?.let(backend::isCancelled) ?: false,
+        checkInClosed = initialParticipant?.let(backend::isCheckInClosed) ?: false,
         history = initialHistory,
         participantSession = if (initial != null || isOrganizer(initialParticipant) || !authorized) null else initialParticipant,
         ownerUserId = actor, identityExpired = !authorized, entry = entry,
@@ -125,7 +127,7 @@ class PrototypeViewModel(
         update { it.copy(entry = CheckInEntry.Activity(session),
             session = hosted, participantSession = if (isOrganizer(session)) null else session,
             attendees = emptyList(), attendance = AttendanceLoadState(), reviewSessionId = null, reviews = emptyList(),
-            cancelled = hosted?.let(backend::isCancelled) ?: false,
+            cancelled = backend.isCancelled(session), checkInClosed = backend.isCheckInClosed(session),
             receipt = receipt, history = records, scanned = null, notice = null,
             pendingSubmission = pending, message = if (pending == null) "" else "上次签到结果待确认，请先核对。",
             scanStage = if (pending == null) ParticipantScanStage.READY else ParticipantScanStage.ATTENTION,
@@ -150,6 +152,19 @@ class PrototypeViewModel(
     }
 
     fun abandonScan() { pendingScan = null }
+
+    /** Re-read C after a promotion/cancellation; final writes still validate the live source. */
+    fun refreshLiveData() {
+        if (!refreshIdentity()) return
+        val session = state.value.session ?: state.value.participantSession ?: return
+        val cancelled = backend.isCancelled(session)
+        val closed = backend.isCheckInClosed(session)
+        val valid = runCatching { backend.activityInfo(session) }.isSuccess
+        if (closed || !valid) stopDisplaying()
+        update { it.copy(registration = registrations.status(session.id, actor),
+            participants = registrations.participants(session.id), cancelled = cancelled, checkInClosed = closed,
+            message = if (!valid) "活动资料已变化，请返回重新进入。" else it.message) }
+    }
 
     fun dismissNotice(id: Long) { update { if (it.notice?.id == id) it.copy(notice = null) else it } }
 

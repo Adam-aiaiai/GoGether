@@ -1,5 +1,16 @@
 # Testing
 
+## 2026-11-19 C/E 集成验证
+
+- 分支：`integration/member-c-e-attendance`；来源 E `6e1ac91`、C `59f5f15`，详见 [集成说明](MEMBER_C_E_INTEGRATION.md)。保留双方提交历史。
+- 最终源码执行 `:app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug`，构建成功；JVM **147 / 147**，0 失败/错误；lint **0 errors, 26 warnings**，主要为依赖版本、Exif 与 KTX 写法建议，没有为此升级依赖。
+- `RegistrationAttendanceBridgeTest` 新增 **13** 项：读取真实 C 本地 Repository 的取消/补位、资格和名单；有效/无效/重复/过期/篡改码；账号切换；活动取消/完成；同/不同组织者多活动隔离；旧实例隔离；原签到/反馈防重复；反馈隐私；保存失败回滚；绑定活动消失不回落到模拟权限。
+- 模拟器 API 37 运行全部 `com.gogether.app` instrumentation：**88 / 88**，292.708 秒。日志 `app/build/reports/member-ce-integration-device-tests.txt`。包括 C 的两个头像动画/名单测试、E 原有出席/草稿/图片/权限/小屏/横屏回归、新增两条 C/E 正常入口测试和三条主数据本机保存测试。
+- C/E 入口测试沿活动列表 → 详情头像 → Bob 已签到页面，以及取消/补位 → Alice 管理人数 → E 出席名单验证；码内容与定位以受控夹具传给实际本地校验服务，没有声称使用真实摄像头或现场 GPS。
+- `LocalSnapshotStoreTest` 验证完整字段保存恢复、重新建立 Repository 后活动身份和补位保留、不恢复 Demo 登录、不把未知存储版本静默重置为种子数据。保存失败测试确认没有发布部分成功状态。
+- 首次安装遭遇模拟器安装服务无响应；冷启动同一 AVD、保留数据后安装成功，再完整执行上述 88 项。没有清空应用数据，也没有将安装环境故障记作业务测试通过。
+- 尚未验证实体手机相机/定位现场操作或跨设备共享；当前没有网络后端。未绑定坐标的旧结束活动继续使用原基础评价入口，完整 E 评价用于已绑定活动。
+
 ## 执行命令
 
 ```bash
