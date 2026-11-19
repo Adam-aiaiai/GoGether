@@ -20,7 +20,6 @@ data class Event(
     val description: String, val startAt: Long, val endAt: Long, val location: String,
     val city: String, val capacity: Int, val registrationDeadline: Long, val notes: String,
     val createdAt: Long, val updatedAt: Long, val status: EventStatus = EventStatus.OPEN,
-    val demoCheckInOpen: Boolean = false,
 ) {
     fun acceptsRegistration(now: Long) = status == EventStatus.OPEN &&
         now < registrationDeadline && now < startAt && now < endAt

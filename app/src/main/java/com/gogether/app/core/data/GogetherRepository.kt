@@ -13,7 +13,6 @@ interface GogetherRepository {
     suspend fun join(eventId: String): Result<Registration>
     suspend fun cancelRegistration(eventId: String): Result<Unit>
     suspend fun cancelEvent(eventId: String): Result<Unit>
-    suspend fun setDemoCheckInOpen(eventId: String, open: Boolean): Result<Unit>
     suspend fun checkIn(eventId: String): Result<CheckIn>
     suspend fun postAnnouncement(eventId: String, content: String): Result<Unit>
     suspend fun markRead(notificationId: String): Result<Unit>

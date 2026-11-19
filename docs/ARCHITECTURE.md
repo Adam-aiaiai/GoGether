@@ -44,7 +44,11 @@ Explore 的 ViewModel 通过 `combine` 合并仓库快照、筛选条件与本�
 
 所有模型时间用 epoch milliseconds。表单严格解析设备时区的 `YYYY-MM-DD` 和 `HH:mm`，拒绝不存在的日期以及夏令时重叠 / 跳过的模糊时间。创建表单明确显示时区。事件持续时间暂定两小时，终止时间到达后即按已结束处理；本地不会自动把存储的 OPEN 重写为 COMPLETED。
 
-Demo 签到要求组织者开启、活动未取消 / 未结束、当前用户正式报名以及此前没有签到。为排练允许活动开始前开启；正式版本需要服务器时间窗口、动态凭据与身份校验。签到记录保留审计信息，若之后活动取消，记录不会被删除。
+Demo 签到默认启用，要求当前用户存在且已登录、正式报名、此前没有签到、活动未取消 / 未结束，并处于 `[startAt - 30 分钟, startAt + 30 分钟]`（两个端点包含）。到达 `endAt` 或标记 COMPLETED 时沿用已有结束限制，即使窗口尚未到期也停止签到；取消活动立即停止签到。没有独立的手动签到开关。本次不扩大组织者取消权限，开始后取消活动仍待 B 确认。
+
+E 的 `feature/checkin/CheckInWindow.kt` 与 `CheckInEligibility.kt` 统一页面状态和提交校验；`RegistrationEngine.checkIn` 在现有 Repository Mutex 内读取一次时间，按最新快照检查并写入该时间。页面沿用现有每秒时间流更新；即使页面提示尚未刷新，提交仍重新校验。签到记录在活动取消后保留，窗口过期不自动产生缺席或处罚。
+
+接口迁移：移除 `Event.demoCheckInOpen`、`GogetherRepository.setDemoCheckInOpen` 及对应 Fake、ViewModel 和管理页回调。管理页改为使用 E 提供的 `CheckInWindowCard`；报名、候补及反馈接口不变。正式后端仍需可信时间、身份、唯一记录约束、动态凭据及跨设备同步，本地 Mutex 不代表多人并发安全。
 
 已结束活动的正式参与者可提交一次 1–5 分和最多 500 字评论；第一阶段不要求签到才可反馈，此规则需由小组确认后再用于正式后端。
 

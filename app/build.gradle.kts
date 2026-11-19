@@ -34,6 +34,8 @@ dependencies {
     implementation(libs.lifecycle.runtime)
     implementation(libs.navigation.compose)
     implementation(libs.coroutines.android)
+    implementation(libs.zxing.embedded)
+    implementation(libs.zxing.core)
     debugImplementation(libs.compose.tooling)
     debugImplementation(libs.compose.test.manifest)
     testImplementation(libs.junit)

@@ -15,16 +15,21 @@ fun CheckInScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
                   checkIn: () -> Unit, feedback: (Int, String) -> Unit) {
     val confirmed = state.registration(event.id)?.status == RegistrationStatus.CONFIRMED
     val checkedIn = state.checkIns.find { it.eventId == event.id && it.userId == state.currentUserId }
-    var rating by rememberSaveable { mutableIntStateOf(5) }
-    var comment by rememberSaveable { mutableStateOf("") }
+    val eligibility = checkInEligibility(event, state, now)
+    var rating by rememberSaveable(event.id, state.currentUserId) { mutableIntStateOf(0) }
+    var comment by rememberSaveable(event.id, state.currentUserId) { mutableStateOf("") }
     val ended = event.status == EventStatus.COMPLETED || now >= event.endAt
     val submitted = state.feedback.find { it.eventId == event.id && it.userId == state.currentUserId }
     Page {
         SectionTitle(if (ended) "How was your plan?" else "See you there", event.title)
         InfoCard("Meeting point", "${displayTime(event.startAt)}\n${event.city} · ${event.location}\n${event.notes}")
         MeetingMapButton("${event.city} ${event.location}")
-        if (event.status == EventStatus.CANCELLED) InfoCard("Event cancelled", "Check-in and feedback are unavailable.")
-        else if (ended) {
+        CheckInWindowCard(event, now)
+        InfoCard(eligibility.title,
+            if (eligibility == CheckInEligibility.ALREADY_CHECKED_IN && checkedIn != null)
+                displayTime(checkedIn.checkedInAt) else eligibility.message,
+            Modifier.testTag("checkin_status"))
+        if (event.status != EventStatus.CANCELLED && ended) {
             when {
                 submitted != null -> InfoCard("Thanks for sharing", "Your rating: ${submitted.rating} / 5\n${submitted.comment}")
                 !confirmed -> InfoCard("Feedback for participants", "Only confirmed participants can leave feedback.")
@@ -35,18 +40,13 @@ fun CheckInScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
                     }
                     OutlinedTextField(comment, { comment = it }, label = { Text("Comment (optional)") }, minLines = 3,
                         supportingText = { Text("Up to 500 characters") }, modifier = Modifier.fillMaxWidth())
-                    Button(onClick = { feedback(rating, comment) }, enabled = !busy && comment.length <= 500,
+                    Button(onClick = { feedback(rating, comment) }, enabled = !busy && FeedbackInput.valid(rating, comment),
                         modifier = Modifier.fillMaxWidth()) { Text("Submit feedback") }
                 }
             }
-        } else {
+        } else if (event.status != EventStatus.CANCELLED) {
             InfoCard("Demo Check-in", "This button records a local test check-in. It does not scan a QR code or verify your identity or physical presence.")
-            when {
-                checkedIn != null -> InfoCard("You're checked in · Demo", displayTime(checkedIn.checkedInAt))
-                !confirmed -> InfoCard("Confirmed place required", "Waitlisted or unregistered users cannot check in.")
-                !event.demoCheckInOpen -> InfoCard("Waiting for the organizer", "The organizer can open Demo check-in from Manage event.")
-            }
-            Button(onClick = checkIn, enabled = !busy && confirmed && event.demoCheckInOpen && checkedIn == null,
+            Button(onClick = checkIn, enabled = !busy && eligibility == CheckInEligibility.READY,
                 modifier = Modifier.fillMaxWidth().testTag("demo_checkin")) { Text("Demo Check-in") }
         }
     }

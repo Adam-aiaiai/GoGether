@@ -130,7 +130,7 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
                 val event = state.event(id)
                 if (event == null) Page { InfoCard("Event not found", "Return to Explore.") }
                 else ManagementScreen(event, state, now, coordinationBusy, { coordination.cancel(id) },
-                    { coordination.openCheckIn(id, it) }, { coordination.announce(id, it) })
+                    { coordination.announce(id, it) })
             }
             composable("check-in/{eventId}", arguments = listOf(navArgument("eventId") { type = NavType.StringType })) { backStack ->
                 val id = backStack.arguments?.getString("eventId").orEmpty()

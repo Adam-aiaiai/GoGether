@@ -1,6 +1,8 @@
 package com.gogether.app.feature.registration
 
 import com.gogether.app.core.model.*
+import com.gogether.app.feature.checkin.CheckInEligibility
+import com.gogether.app.feature.checkin.checkInEligibility
 import java.util.UUID
 
 /** Android-free, deterministic with an injected clock. Called under the fake repository's mutex. */
@@ -95,7 +97,7 @@ class RegistrationEngine(
         val recipients = snapshot.registrations.filter { it.eventId == eventId && it.status in ACTIVE }
         snapshot = snapshot.copy(
             events = snapshot.events.map { if (it.id == eventId) it.copy(
-                status = EventStatus.CANCELLED, demoCheckInOpen = false, updatedAt = time) else it },
+                status = EventStatus.CANCELLED, updatedAt = time) else it },
             registrations = snapshot.registrations.map {
                 if (it.eventId == eventId && it.status in ACTIVE)
                     it.copy(status = RegistrationStatus.CANCELLED, updatedAt = time) else it
@@ -107,28 +109,14 @@ class RegistrationEngine(
         )
     }
 
-    fun setDemoCheckInOpen(actor: String, eventId: String, open: Boolean) {
-        val event = requireOrganizer(actor, eventId)
-        val time = now()
-        require(event.status == EventStatus.OPEN && time < event.endAt) { "Check-in is closed for this event." }
-        snapshot = snapshot.copy(events = snapshot.events.map {
-            if (it.id == eventId) it.copy(demoCheckInOpen = open, updatedAt = time) else it
-        })
-    }
-
     fun checkIn(actor: String, eventId: String): CheckIn {
         requireUser(actor)
         val event = requireEvent(eventId)
-        require(event.status == EventStatus.OPEN && now() < event.endAt && event.demoCheckInOpen) {
-            "The organizer must open Demo check-in for an active event."
-        }
-        require(snapshot.registration(eventId, actor)?.status == RegistrationStatus.CONFIRMED) {
-            "Only confirmed participants can check in."
-        }
-        require(snapshot.checkIns.none { it.eventId == eventId && it.userId == actor }) {
-            "You have already checked in."
-        }
-        val checkIn = CheckIn(newId(), eventId, actor, now())
+        // Read the clock once, under the repository mutex, and validate the latest snapshot.
+        val time = now()
+        val eligibility = checkInEligibility(event, snapshot, time, actor)
+        require(eligibility == CheckInEligibility.READY) { eligibility.message }
+        val checkIn = CheckIn(newId(), eventId, actor, time)
         snapshot = snapshot.copy(checkIns = snapshot.checkIns + checkIn)
         return checkIn
     }

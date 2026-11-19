@@ -4,6 +4,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.espresso.Espresso.closeSoftKeyboard
 import com.gogether.app.core.data.FakeGogetherRepository
+import com.gogether.app.core.data.DemoData
 import com.gogether.app.core.model.RegistrationStatus
 import com.gogether.app.navigation.GogetherApp
 import com.gogether.app.ui.theme.GogetherTheme
@@ -11,12 +12,21 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TestName
 
 class MvpFlowTest {
     @get:Rule val compose = createComposeRule()
+    @get:Rule val testName = TestName()
     private lateinit var repo: FakeGogetherRepository
     @Before fun launch() {
-        repo = FakeGogetherRepository()
+        val time = System.currentTimeMillis()
+        val seed = DemoData.create(time)
+        // Only this flow needs an event inside the window; other flows retain their original fixtures.
+        val initial = if (testName.methodName == "automaticCheckInAllowsParticipantOnce")
+            seed.copy(events = seed.events.map {
+                if (it.id == "event-1") it.copy(startAt = time + 600_000, endAt = time + 7_800_000) else it
+            }) else seed
+        repo = FakeGogetherRepository(initial)
         compose.setContent { GogetherTheme { GogetherApp(repo) } }
     }
     // SnackbarHost's dismissal delay and exit animation use the Compose test clock.
@@ -89,12 +99,12 @@ class MvpFlowTest {
         assertEquals(listOf("emma"), repo.state.value.waitlist("event-1").map { it.userId })
     }
 
-    @Test fun organizerOpensDemoCheckInAndParticipantChecksInOnce() {
+    @Test fun automaticCheckInAllowsParticipantOnce() {
         scrollClick("login_alice")
         scrollClick("event_event-1")
         scrollClick("manage_event")
-        scrollClick("toggle_checkin")
-        compose.waitUntil(5_000) { repo.state.value.event("event-1")?.demoCheckInOpen == true }
+        compose.onNodeWithTag("checkin_window").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("toggle_checkin").assertDoesNotExist()
         click("nav_profile")
         scrollClick("switch_bob")
         scrollClick("event_event-1")

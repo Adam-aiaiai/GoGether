@@ -9,10 +9,11 @@ import androidx.compose.ui.platform.testTag
 import com.gogether.app.core.model.*
 import com.gogether.app.core.ui.*
 import com.gogether.app.feature.event.MeetingMapButton
+import com.gogether.app.feature.checkin.CheckInWindowCard
 
 @Composable
 fun ManagementScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
-                     cancel: () -> Unit, checkInOpen: (Boolean) -> Unit, announce: (String) -> Unit) {
+                     cancel: () -> Unit, announce: (String) -> Unit) {
     var confirmation by rememberSaveable { mutableStateOf(false) }
     var announcement by rememberSaveable { mutableStateOf("") }
     if (event.organizerId != state.currentUserId) {
@@ -25,6 +26,7 @@ fun ManagementScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
         InfoCard("At a glance", "${state.confirmed(event.id).size} / ${event.capacity} confirmed\n${state.waitlist(event.id).size} waitlisted\n${state.checkIns.count { it.eventId == event.id }} Demo check-ins")
         InfoCard("Meeting information", "${displayTime(event.startAt)}\n${event.city} · ${event.location}\n${event.notes}")
         MeetingMapButton("${event.city} ${event.location}")
+        CheckInWindowCard(event, now)
         Text("Confirmed participants", style = MaterialTheme.typography.titleLarge)
         state.confirmed(event.id).forEach { registration ->
             val checked = state.checkIns.any { it.eventId == event.id && it.userId == registration.userId }
@@ -36,11 +38,7 @@ fun ManagementScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
         if (queue.isEmpty()) Text("Nobody is waiting.")
         queue.forEachIndexed { index, registration -> Text("${index + 1}. ${state.userName(registration.userId)}") }
         if (event.status == EventStatus.OPEN && now < event.endAt) {
-            InfoCard("Demo check-in", "For this skeleton, you can open check-in early to rehearse. This does not verify identity, location or QR codes.")
-            Button(onClick = { checkInOpen(!event.demoCheckInOpen) }, enabled = !busy,
-                modifier = Modifier.fillMaxWidth().testTag("toggle_checkin")) {
-                Text(if (event.demoCheckInOpen) "Close Demo check-in" else "Open Demo check-in")
-            }
+            InfoCard("Automatic check-in", "Confirmed participants can check in during the window without a manual switch. Cancelling the event also stops check-in.")
             OutlinedTextField(announcement, { announcement = it }, label = { Text("Organizer announcement") },
                 supportingText = { Text("Local in-app inbox · up to 500 characters") }, minLines = 3, modifier = Modifier.fillMaxWidth())
             OutlinedButton(onClick = { announce(announcement); announcement = "" }, enabled = !busy && announcement.trim().length in 1..500,

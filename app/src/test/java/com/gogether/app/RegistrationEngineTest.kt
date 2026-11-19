@@ -143,20 +143,19 @@ class RegistrationEngineTest {
     @Test fun onlyOrganizerCanManageEvent() {
         val event = event()
         failure { engine.cancelEvent("u2", event.id) }
-        failure { engine.setDemoCheckInOpen("u2", event.id, true) }
         failure { engine.postAnnouncement("u2", event.id, "Meet at the gate") }
     }
-    @Test fun checkInRequiresOrganizerOpeningAndConfirmedPlaceAndRejectsDuplicate() {
+    @Test fun checkInRequiresWindowAndConfirmedPlaceAndRejectsDuplicate() {
         val event = event(); engine.join("u2", event.id); engine.join("u3", event.id)
         failure { engine.checkIn("u2", event.id) }
-        engine.setDemoCheckInOpen("u1", event.id, true)
+        time = event.startAt
         failure { engine.checkIn("u3", event.id) }
         engine.checkIn("u2", event.id)
         failure("already") { engine.checkIn("u2", event.id) }
         assertEquals(CheckInStatus.DEMO_RECORDED, engine.snapshot.checkIns.single().status)
     }
     @Test fun cancelledAndEndedEventsRejectCheckIn() {
-        val event = event(); engine.setDemoCheckInOpen("u1", event.id, true)
+        val event = event()
         time = event.endAt; failure { engine.checkIn("u1", event.id) }
         time = event.createdAt; engine.cancelEvent("u1", event.id)
         failure { engine.checkIn("u1", event.id) }
