@@ -56,6 +56,7 @@ fun Event.reuseDraft(now: Long = System.currentTimeMillis(), zone: ZoneId = Zone
         registrationDeadline = newStart - 60 * 60 * 1000L, notes = notes,
         experienceRequirement = experienceRequirement, beginnerGuidance = beginnerGuidance,
         requiredItems = requiredItems, spareEquipment = spareEquipment, imageUri = imageUri,
+        meetingLocation = meetingLocation, meetingNotes = meetingNotes,
     )
 }
 

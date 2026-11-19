@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gogether.app.core.model.*
 import com.gogether.app.core.ui.*
+import com.gogether.app.feature.coordination.AnnouncementSection
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -64,7 +65,7 @@ fun EventDetailScreen(
             "${detailClock(event.startAt)} – ${detailClock(event.endAt)}")
         HorizontalDivider()
         DetailFact("⌖", event.location, event.city)
-        MeetingMapButton("${event.city} ${event.location}")
+        if (!organizer && !active) MeetingMapButton("${event.city} ${event.location}")
         HorizontalDivider()
         DetailFact("♙", "$confirmed of ${event.capacity} spots taken",
             if (state.waitlist(event.id).isEmpty()) "$remaining spots remaining"
@@ -100,13 +101,11 @@ fun EventDetailScreen(
             fontWeight = FontWeight.Bold)
         HostRow(state.userName(event.organizerId))
 
-        val notices = state.notifications.filter {
-            it.eventId == event.id && it.userId == state.currentUserId &&
-                it.type == NotificationType.ANNOUNCEMENT
+        if (organizer || active) {
+            InfoCard("Meeting point", "${displayTime(event.meetingAt ?: event.startAt)}\n${event.meetingLocation ?: event.location}\n${event.meetingNotes}")
+            MeetingMapButton("${event.city} ${event.meetingLocation ?: event.location}")
         }
-        notices.takeLast(3).forEach {
-            InfoCard("Organizer update · ${displayTime(it.createdAt)}", it.content)
-        }
+        AnnouncementSection(event, state)
 
         HorizontalDivider()
         Text("Registration closes ${displayTime(event.registrationDeadline)}",

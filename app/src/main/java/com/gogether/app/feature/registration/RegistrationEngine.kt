@@ -36,6 +36,7 @@ class RegistrationEngine(
         requireUser(actor)
         val time = now()
         validateDraft(draft, time)
+        require(draft.meetingAt == null || draft.meetingAt > time) { "Choose a future meeting time." }
         val event = Event(newId(), actor, draft.title.trim(), draft.category, draft.description.trim(),
             draft.startAt, draft.endAt, draft.location.trim(), draft.city.trim(),
             draft.capacity, draft.registrationDeadline, draft.notes.trim(), time, time,
@@ -43,7 +44,8 @@ class RegistrationEngine(
             beginnerGuidance = draft.beginnerGuidance,
             requiredItems = draft.requiredItems.trim(),
             spareEquipment = draft.spareEquipment.trim(),
-            imageUri = draft.imageUri.trim())
+            imageUri = draft.imageUri.trim(), meetingAt = draft.meetingAt,
+            meetingLocation = draft.meetingLocation?.trim(), meetingNotes = draft.meetingNotes.trim())
         val organizer = Registration(newId(), event.id, actor, RegistrationStatus.CONFIRMED,
             time, time, nextOrder())
         snapshot = snapshot.copy(events = snapshot.events + event,
@@ -58,6 +60,11 @@ class RegistrationEngine(
             "Only upcoming open events can be edited."
         }
         validateDraft(draft, time, allowClosedDeadline = true)
+        val meetingAt = draft.meetingAt ?: event.meetingAt
+        require(meetingAt == null || meetingAt <= draft.endAt) {
+            "Meeting time is after the new end time. Adjust the meeting time before saving."
+        }
+        require(meetingAt == event.meetingAt || meetingAt == null || meetingAt > time) { "Choose a future meeting time." }
         val confirmedCount = snapshot.confirmed(eventId).size
         require(draft.capacity >= confirmedCount) {
             "Capacity cannot be lower than the $confirmedCount confirmed participants."
@@ -70,6 +77,7 @@ class RegistrationEngine(
             updatedAt = time, experienceRequirement = draft.experienceRequirement,
             beginnerGuidance = draft.beginnerGuidance, requiredItems = draft.requiredItems.trim(),
             spareEquipment = draft.spareEquipment.trim(), imageUri = draft.imageUri.trim(),
+            meetingAt = meetingAt,
         )
         val promotable = if (updatedEvent.acceptsRegistration(time)) {
             snapshot.waitlist(eventId).take((draft.capacity - confirmedCount).coerceAtLeast(0))
@@ -83,7 +91,7 @@ class RegistrationEngine(
             notifications = snapshot.notifications + promotable.map {
                 Notification(newId(), it.userId, eventId, NotificationType.PROMOTED,
                     "You're in! More places are available: ${updatedEvent.title}", time)
-            },
+            } + if (meetingAt != event.meetingAt) meetingNotifications(updatedEvent, time) else emptyList(),
         )
         return updatedEvent
     }
@@ -182,10 +190,39 @@ class RegistrationEngine(
         val event = requireOrganizer(actor, eventId)
         require(event.status == EventStatus.OPEN && now() < event.endAt) { "This event is closed." }
         require(content.trim().length in 1..500) { "Write an announcement of 1–500 characters." }
-        val recipients = snapshot.registrations.filter { it.eventId == eventId && it.status in ACTIVE }
+        val recipients = snapshot.registrations.filter { it.eventId == eventId && it.status in ACTIVE }.map { it.userId }.distinct()
         val time = now()
-        snapshot = snapshot.copy(notifications = snapshot.notifications + recipients.map {
-            Notification(newId(), it.userId, eventId, NotificationType.ANNOUNCEMENT, content.trim(), time)
+        val announcement = Announcement(newId(), eventId, actor, content.trim(), time)
+        snapshot = snapshot.copy(
+            announcements = snapshot.announcements + announcement,
+            notifications = snapshot.notifications + recipients.map {
+            Notification(newId(), it, eventId, NotificationType.ANNOUNCEMENT, content.trim(), time, announcementId = announcement.id)
+        })
+    }
+
+    fun updateMeeting(actor: String, eventId: String, update: MeetingUpdate) {
+        val event = requireOrganizer(actor, eventId)
+        val time = now()
+        require(event.status == EventStatus.OPEN && time < event.endAt) { "This event is closed." }
+        require(update.meetingAt > time && update.meetingAt <= event.endAt) { "Choose a future meeting time before the event ends." }
+        require(update.location.trim().length in 3..150) { "Meeting location must contain 3–150 characters." }
+        require(update.notes.length <= 1000) { "Use up to 1,000 characters for meeting notes." }
+        snapshot = snapshot.copy(events = snapshot.events.map {
+            if (it.id == eventId) it.copy(meetingAt = update.meetingAt, meetingLocation = update.location.trim(),
+                meetingNotes = update.notes.trim(), updatedAt = time) else it
+        }, notifications = snapshot.notifications + meetingNotifications(event, time))
+    }
+
+    private fun meetingNotifications(event: Event, time: Long) = snapshot.registrations
+        .filter { it.eventId == event.id && it.status in ACTIVE }.map { it.userId }.distinct().map {
+            Notification(newId(), it, event.id, NotificationType.MEETING_UPDATED,
+                "Meeting information updated: ${event.title}. Open the event for the latest time and location.", time)
+        }
+
+    fun markAllRead(actor: String) {
+        requireUser(actor)
+        snapshot = snapshot.copy(notifications = snapshot.notifications.map {
+            if (it.userId == actor && !it.isRead) it.copy(isRead = true) else it
         })
     }
 
@@ -240,6 +277,11 @@ class RegistrationEngine(
             require(draft.requiredItems.length <= 500) { "Items to bring must be at most 500 characters." }
             require(draft.spareEquipment.length <= 500) { "Spare equipment must be at most 500 characters." }
             require(draft.imageUri.length <= 2_000) { "Event image reference is too long." }
+            require(draft.meetingAt == null || draft.meetingAt <= draft.endAt) {
+                "Meeting time is after the new end time. Adjust the meeting time before saving."
+            }
+            require(draft.meetingLocation == null || draft.meetingLocation.trim().length in 3..150) { "Meeting location must contain 3–150 characters." }
+            require(draft.meetingNotes.length <= 1000) { "Use up to 1,000 characters for meeting notes." }
         }
     }
 }

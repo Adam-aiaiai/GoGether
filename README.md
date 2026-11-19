@@ -4,7 +4,11 @@ Find Your People. Make It Happen.
 
 面向小型线下兴趣活动的 Android 应用。第一阶段提供可独立运行的 Demo：发现活动、创建活动、报名及候补、集合信息、签到和个人记录。正式应用名为 **Gogether**；GitHub 仓库和克隆目录保持 **GoGether**。
 
-## A / B 整合版本（2026-11-19）
+## A / B / D 第一阶段（2026-11-19）
+
+当前本地整合分支 `integration/member-a-b-d` 保留 A/B 功能，加入 D 的公告历史、统一收件箱、批量已读、集合信息及提醒。旧 A/B 存档可继续读取。来源、验收和回退入口见 [INTEGRATION_A_B_D](docs/INTEGRATION_A_B_D.md)。默认仍为本地 Demo，云端服务尚未启用；问答安排在后续阶段。
+
+## A / B 整合基线（2026-11-19）
 
 `integration/member-a-b` 继承 A 的 `3716d94` 与 B 的 `740de15`，统一使用现有账号、活动数据、导航和主题。A 的分支历史已经包含 B 的上述提交；本次在独立整合分支核对功能保留，并新增跨模块界面与本地保存验证。来源关系、接续方式和验收结果见 [INTEGRATION_A_B](docs/INTEGRATION_A_B.md)。全组功能完成串联与联合验收后再合入 `main`。
 

@@ -21,8 +21,8 @@ fun CheckInScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
     val submitted = state.feedback.find { it.eventId == event.id && it.userId == state.currentUserId }
     Page {
         SectionTitle(if (ended) "How was your plan?" else "See you there", event.title)
-        InfoCard("Meeting point", "${displayTime(event.startAt)}\n${event.city} · ${event.location}\n${event.notes}")
-        MeetingMapButton("${event.city} ${event.location}")
+        InfoCard("Meeting point", "${displayTime(event.meetingAt ?: event.startAt)}\n${event.city} · ${event.meetingLocation ?: event.location}\n${event.meetingNotes.ifBlank { event.notes }}")
+        MeetingMapButton("${event.city} ${event.meetingLocation ?: event.location}")
         if (event.status == EventStatus.CANCELLED) InfoCard("Event cancelled", "Check-in and feedback are unavailable.")
         else if (ended) {
             when {

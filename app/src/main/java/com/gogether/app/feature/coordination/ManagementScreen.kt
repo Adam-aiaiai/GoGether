@@ -13,7 +13,8 @@ import com.gogether.app.feature.event.MeetingMapButton
 @Composable
 fun ManagementScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
                      edit: () -> Unit, reuse: () -> Unit, cancel: () -> Unit,
-                     checkInOpen: (Boolean) -> Unit, announce: (String) -> Unit) {
+                     checkInOpen: (Boolean) -> Unit, announce: (String, () -> Unit) -> Unit,
+                     updateMeeting: (MeetingUpdate, () -> Unit) -> Unit) {
     var confirmation by rememberSaveable { mutableStateOf(false) }
     var announcement by rememberSaveable { mutableStateOf("") }
     if (event.organizerId != state.currentUserId) {
@@ -24,14 +25,16 @@ fun ManagementScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
         SectionTitle("Manage your plan", event.title)
         StatusPill(event.statusAt(now).name.lowercase())
         InfoCard("At a glance", "${state.confirmed(event.id).size} / ${event.capacity} confirmed\n${state.waitlist(event.id).size} waitlisted\n${state.checkIns.count { it.eventId == event.id }} Demo check-ins")
-        InfoCard("Meeting information", "${displayTime(event.startAt)} – ${displayTime(event.endAt)}\n${event.city} · ${event.location}\n${event.notes}")
+        InfoCard("Event schedule", "${displayTime(event.startAt)} – ${displayTime(event.endAt)}\n${event.city} · ${event.location}\n${event.notes}")
+        MeetingEditor(event, now, busy, updateMeeting)
+        AnnouncementSection(event, state)
         InfoCard("Participation information", buildString {
             append(event.experienceRequirement.label)
             append("\nGuidance: ${if (event.beginnerGuidance) "Provided" else "Not provided"}")
             append("\nBring: ${event.requiredItems.ifBlank { "Nothing specific" }}")
             append("\nSpare equipment: ${event.spareEquipment.ifBlank { "None listed" }}")
         })
-        MeetingMapButton("${event.city} ${event.location}")
+        MeetingMapButton("${event.city} ${event.meetingLocation ?: event.location}")
         OutlinedButton(onClick = reuse, enabled = !busy,
             modifier = Modifier.fillMaxWidth().testTag("reuse_event")) {
             Text("Reuse as a new event")
@@ -57,9 +60,11 @@ fun ManagementScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
                 Text(if (event.demoCheckInOpen) "Close Demo check-in" else "Open Demo check-in")
             }
             OutlinedTextField(announcement, { announcement = it }, label = { Text("Organizer announcement") },
-                supportingText = { Text("Local in-app inbox · up to 500 characters") }, minLines = 3, modifier = Modifier.fillMaxWidth())
-            OutlinedButton(onClick = { announce(announcement); announcement = "" }, enabled = !busy && announcement.trim().length in 1..500,
-                modifier = Modifier.fillMaxWidth()) { Text("Post announcement") }
+                enabled = !busy, isError = announcement.length > 500,
+                supportingText = { Text("${announcement.length}/500 characters · participant inbox") }, minLines = 3,
+                modifier = Modifier.fillMaxWidth().testTag("announcement_input"))
+            OutlinedButton(onClick = { announce(announcement) { announcement = "" } }, enabled = !busy && announcement.trim().length in 1..500,
+                modifier = Modifier.fillMaxWidth().testTag("post_announcement")) { Text(if (busy) "Publishing…" else "Post announcement") }
             if (now < event.startAt) OutlinedButton(onClick = { confirmation = true }, enabled = !busy,
                 modifier = Modifier.fillMaxWidth().testTag("cancel_event")) { Text("Cancel event") }
         }

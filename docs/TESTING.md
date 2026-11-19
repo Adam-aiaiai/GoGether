@@ -127,3 +127,32 @@ Windows 内存紧张时，可仅为本次验证指定参数：
 新注册流程在输入昵称后先收起键盘、等待布局并检查按钮可用，再点击创建。首轮该步骤发生一次等待超时；修正测试操作后专项三条用例全部通过。原有应用功能和测试用例保留。
 
 当前标准设备报告为最终三条专项用例。本机保留的首轮完整报告与最终专项报告分别在 `verification/a-b-20261119/full-suite/` 和 `verification/a-b-20261119/integration-suite/`；首轮报告中仍可追溯上述超时。报告和构建产物不加入 Git。
+
+## A/B/D 第一阶段验证（2026-11-19）
+
+分支 `integration/member-a-b-d`，合并范围、冲突处理和手动检查路径见 [INTEGRATION_A_B_D](INTEGRATION_A_B_D.md)。完整最终验证结果：
+
+| 检查 | 结果 |
+| --- | --- |
+| Debug APK | 构建成功 |
+| JVM 业务测试 | 61/61；包含全部原 A/B 用例和 4 条新增跨模块用例 |
+| Android 17 模拟器 | 42/42；包含原 A/B 21 条、D 17 条及新增 4 条跨模块/存档用例 |
+| 失败 / 错误 / 跳过 | 两套 Android/JVM 报告均为 0 / 0 / 0 |
+| Lint | 0 错误，13 条依赖更新、KTX 和版本目录建议 |
+| D 后端参数校验 | `node --test firebase/functions/validation.test.js`：3/3 |
+
+`CoordinationTest` 原有 10 条测试改在设备上执行，因为统一后使用 A/B 的 Android AtomicFile/JSON 存储；改为显式加载，保留失败回滚、取消一致性、权限、持久化和用户隔离检查。`AbdPersistenceTest` 读取真实的干净 A/B 版本 1 演示存档，验证数据不丢失和版本 2 往返。`AbdFlowTest` 检查 B 编辑与 D 集合时间约束的衔接、公告唯一性、旧通知兼容和非成员隔离。
+
+本机最终命令（使用 Android Studio bundled JDK）：
+
+```bash
+./gradlew :app:assembleDebug :app:testDebugUnitTest :app:connectedDebugAndroidTest :app:lintDebug \
+  --no-daemon --console=plain --max-workers=2 \
+  -Dorg.gradle.jvmargs='-Xmx1536m -Dfile.encoding=UTF-8' \
+  -Dhttp.proxyHost= -Dhttps.proxyHost= -DsocksProxyHost= \
+  -PmavenCentralMirror=https://maven-central.storage-download.googleapis.com/maven2
+```
+
+本次构建清除了旧输出目录中带 ` 2.jar` 后缀的重复产物。上面的代理清空参数仅用于本次命令，处理本机已有失效代理，不修改共享设置。最终验证用时 8 分 56 秒，实际设备 XML 记录了 42 条执行结果。报告与截图副本位于本机 `verification/abd-20261119/`。
+
+自动化测试使用独立数据。此环境的 connected 测试结束时会卸载目标应用，因此测试前应备份用户存档；本轮验收后重新安装整合 APK，并从加入 D 前的备份恢复干净 A/B 存档。云端认证、跨设备同步、远程推送及 Firebase 集成测试未在此阶段验收；问答功能未实现。

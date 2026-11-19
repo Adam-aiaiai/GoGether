@@ -42,7 +42,7 @@ fun ReuseEventScreen(event: Event, busy: Boolean, onCreate: (EventDraft) -> Unit
     val draft = remember(event.id) { event.reuseDraft() }
     val template = remember(event.id) {
         event.copy(id = "reuse-${event.id}", startAt = draft.startAt, endAt = draft.endAt,
-            registrationDeadline = draft.registrationDeadline, status = EventStatus.OPEN, demoCheckInOpen = false)
+            registrationDeadline = draft.registrationDeadline, status = EventStatus.OPEN, demoCheckInOpen = false, meetingAt = null)
     }
     EventFormScreen(template, FormMode.REUSE, busy, onCreate)
 }
@@ -89,6 +89,8 @@ private fun EventFormScreen(
     var spareEquipment by rememberSaveable(initial?.id) { mutableStateOf(retained?.spareEquipment ?: initial?.spareEquipment.orEmpty()) }
     var imageUri by rememberSaveable(initial?.id) { mutableStateOf(retained?.imageUri ?: initial?.imageUri.orEmpty()) }
     var error by rememberSaveable(initial?.id) { mutableStateOf<String?>(null) }
+    var meetingDate by rememberSaveable(initial?.id) { mutableStateOf(initial?.meetingAt?.let { formatDate(it, zone) }.orEmpty()) }
+    var meetingTime by rememberSaveable(initial?.id) { mutableStateOf(initial?.meetingAt?.let { formatClock(it, zone) }.orEmpty()) }
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) imageUri = uri.toString()
     }
@@ -184,6 +186,15 @@ private fun EventFormScreen(
                 "${prefix}_deadline_time", Modifier.weight(0.65f), "HH:mm")
         }
 
+        if (editing && initial?.meetingAt != null) {
+            Text("Meeting time", style = MaterialTheme.typography.titleMedium)
+            Text("Adjust this too if you move the event's end time. The meeting place and notes stay unchanged.", style = MaterialTheme.typography.bodySmall)
+            FormField("Meeting date", meetingDate, { meetingDate = it }, "edit_meeting_date")
+            FormField("Meeting time", meetingTime, { meetingTime = it }, "edit_meeting_time")
+        }
+        if (mode == FormMode.REUSE && initial?.meetingLocation != null) {
+            InfoCard("Meeting point", "${initial.meetingLocation}\nThe meeting time defaults to this new event's start time. You can adjust it in Manage event.")
+        }
         HorizontalDivider()
         FormSectionHeader("03", "Participation")
         OutlinedTextField(capacity, { capacity = it }, label = { Text("Maximum participants") },
@@ -227,6 +238,8 @@ private fun EventFormScreen(
                     experienceRequirement = ExperienceRequirement.valueOf(experience),
                     beginnerGuidance = beginnerGuidance, requiredItems = requiredItems,
                     spareEquipment = spareEquipment, imageUri = imageUri,
+                    meetingAt = if (editing && initial?.meetingAt != null) parseEventDateTime(meetingDate, meetingTime) else null,
+                    meetingLocation = initial?.meetingLocation, meetingNotes = initial?.meetingNotes.orEmpty(),
                 )
                 RegistrationEngine.validateDraft(draft, System.currentTimeMillis(), allowClosedDeadline = editing)
                 error = null

@@ -13,10 +13,9 @@ import com.gogether.app.feature.coordination.NotificationSection
 @Composable
 fun ProfileScreen(state: AppSnapshot, now: Long, busy: Boolean, mode: AccountMode, storageDescription: String,
                   edit: () -> Unit, switchUser: (String) -> Unit, logout: () -> Unit,
-                  read: (String) -> Unit, openEvent: (String) -> Unit) {
+                  read: (String) -> Unit, readAll: () -> Unit, explore: () -> Unit, openEvent: (String) -> Unit) {
     val user = state.currentUser ?: return
     val history = personalEvents(state, PersonalEventTab.HISTORY, now)
-    val notifications = state.notifications.filter { it.userId == user.id }
     var confirmLogout by remember(user.id) { mutableStateOf(false) }
     Page {
         SectionTitle("Hey, ${user.displayName}", "Make room for a little more together.")
@@ -37,7 +36,7 @@ fun ProfileScreen(state: AppSnapshot, now: Long, busy: Boolean, mode: AccountMod
         }
         TextButton(onClick = { confirmLogout = true }, enabled = !busy,
             modifier = Modifier.fillMaxWidth().testTag("logout")) { Text("Log out") }
-        NotificationSection(notifications, busy, read, openEvent)
+        NotificationSection(state, busy, read, readAll, openEvent, explore)
         Text("Activity history", style = MaterialTheme.typography.titleLarge)
         if (history.isEmpty()) Text("Your past plans will appear here.")
         history.forEach { event ->

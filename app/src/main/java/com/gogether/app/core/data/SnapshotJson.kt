@@ -18,7 +18,7 @@ object SnapshotJson {
     }
 
     fun encode(s: AppSnapshot): String = obj(
-        "version" to 1, "currentUserId" to s.currentUserId,
+        "version" to 2, "currentUserId" to s.currentUserId,
         "users" to list(s.users) { u -> obj("id" to u.id, "name" to u.displayName,
             "interests" to JSONArray(u.interests.map { it.name }), "createdAt" to u.createdAt,
             "status" to u.status.name, "email" to u.email) },
@@ -29,7 +29,8 @@ object SnapshotJson {
             "createdAt" to e.createdAt, "updatedAt" to e.updatedAt, "status" to e.status.name,
             "checkInOpen" to e.demoCheckInOpen, "experience" to e.experienceRequirement.name,
             "guidance" to e.beginnerGuidance, "requiredItems" to e.requiredItems,
-            "spareEquipment" to e.spareEquipment, "imageUri" to e.imageUri) },
+            "spareEquipment" to e.spareEquipment, "imageUri" to e.imageUri,
+            "meetingAt" to e.meetingAt, "meetingLocation" to e.meetingLocation, "meetingNotes" to e.meetingNotes) },
         "registrations" to list(s.registrations) { r -> obj("id" to r.id, "eventId" to r.eventId,
             "userId" to r.userId, "status" to r.status.name, "joinedAt" to r.joinedAt,
             "updatedAt" to r.updatedAt, "queueOrder" to r.queueOrder) },
@@ -37,7 +38,9 @@ object SnapshotJson {
             "userId" to c.userId, "at" to c.checkedInAt, "status" to c.status.name) },
         "notifications" to list(s.notifications) { n -> obj("id" to n.id, "userId" to n.userId,
             "eventId" to n.eventId, "type" to n.type.name, "content" to n.content,
-            "createdAt" to n.createdAt, "isRead" to n.isRead) },
+            "createdAt" to n.createdAt, "isRead" to n.isRead, "announcementId" to n.announcementId) },
+        "announcements" to list(s.announcements) { a -> obj("id" to a.id, "eventId" to a.eventId,
+            "authorId" to a.authorId, "content" to a.content, "createdAt" to a.createdAt) },
         "feedback" to list(s.feedback) { f -> obj("id" to f.id, "eventId" to f.eventId,
             "userId" to f.userId, "rating" to f.rating, "comment" to f.comment,
             "createdAt" to f.createdAt, "status" to f.status.name) },
@@ -45,7 +48,7 @@ object SnapshotJson {
 
     fun decode(text: String): AppSnapshot {
         val root = JSONObject(text)
-        require(root.getInt("version") == 1) { "This saved data version is not supported." }
+        require(root.getInt("version") in 1..2) { "This saved data version is not supported." }
         val users = root.items("users") { u ->
             val interests = u.getJSONArray("interests")
             User(u.getString("id"), u.getString("name"), (0 until interests.length()).map {
@@ -63,7 +66,9 @@ object SnapshotJson {
                 status = EventStatus.valueOf(e.getString("status")), demoCheckInOpen = e.optBoolean("checkInOpen"),
                 experienceRequirement = ExperienceRequirement.valueOf(e.getString("experience")),
                 beginnerGuidance = e.optBoolean("guidance"), requiredItems = e.text("requiredItems"),
-                spareEquipment = e.text("spareEquipment"), imageUri = e.text("imageUri")) },
+                spareEquipment = e.text("spareEquipment"), imageUri = e.text("imageUri"),
+                meetingAt = if (e.has("meetingAt") && !e.isNull("meetingAt")) e.getLong("meetingAt") else null,
+                meetingLocation = e.nullable("meetingLocation"), meetingNotes = e.text("meetingNotes")) },
             registrations = root.items("registrations") { r -> Registration(r.getString("id"), r.getString("eventId"),
                 r.getString("userId"), RegistrationStatus.valueOf(r.getString("status")), r.getLong("joinedAt"),
                 r.getLong("updatedAt"), r.getLong("queueOrder")) },
@@ -71,7 +76,11 @@ object SnapshotJson {
                 c.getString("userId"), c.getLong("at"), CheckInStatus.valueOf(c.getString("status"))) },
             notifications = root.items("notifications") { n -> Notification(n.getString("id"), n.getString("userId"),
                 n.getString("eventId"), NotificationType.valueOf(n.getString("type")), n.getString("content"),
-                n.getLong("createdAt"), n.getBoolean("isRead")) },
+                n.getLong("createdAt"), n.getBoolean("isRead"), n.nullable("announcementId")) },
+            announcements = if (root.has("announcements")) root.items("announcements") { a ->
+                Announcement(a.getString("id"), a.getString("eventId"), a.getString("authorId"),
+                    a.getString("content"), a.getLong("createdAt"))
+            } else emptyList(),
             feedback = root.items("feedback") { f -> Feedback(f.getString("id"), f.getString("eventId"),
                 f.getString("userId"), f.getInt("rating"), f.getString("comment"), f.getLong("createdAt"),
                 FeedbackStatus.valueOf(f.getString("status"))) })

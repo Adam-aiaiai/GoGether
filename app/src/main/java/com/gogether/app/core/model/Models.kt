@@ -12,7 +12,7 @@ enum class ExperienceRequirement(val label: String) {
 }
 enum class UserStatus { DEMO, ACCOUNT }
 enum class CheckInStatus { DEMO_RECORDED }
-enum class NotificationType { PROMOTED, EVENT_CANCELLED, ANNOUNCEMENT }
+enum class NotificationType { PROMOTED, EVENT_CANCELLED, ANNOUNCEMENT, MEETING_UPDATED }
 enum class FeedbackStatus { SUBMITTED }
 
 data class User(
@@ -31,6 +31,9 @@ data class Event(
     val requiredItems: String = "",
     val spareEquipment: String = "",
     val imageUri: String = "",
+    val meetingAt: Long? = null,
+    val meetingLocation: String? = null,
+    val meetingNotes: String = "",
 ) {
     fun acceptsRegistration(now: Long) = status == EventStatus.OPEN &&
         now < registrationDeadline && now < startAt && now < endAt
@@ -47,11 +50,15 @@ data class CheckIn(
 data class Notification(
     val id: String, val userId: String, val eventId: String, val type: NotificationType,
     val content: String, val createdAt: Long, val isRead: Boolean = false,
+    val announcementId: String? = null,
 )
 data class Feedback(
     val id: String, val eventId: String, val userId: String, val rating: Int,
     val comment: String, val createdAt: Long, val status: FeedbackStatus = FeedbackStatus.SUBMITTED,
 )
+data class Announcement(val id: String, val eventId: String, val authorId: String,
+    val content: String, val createdAt: Long)
+data class MeetingUpdate(val meetingAt: Long, val location: String, val notes: String)
 data class EventDraft(
     val title: String, val category: Category, val description: String, val startAt: Long,
     val location: String, val city: String, val capacity: Int,
@@ -62,6 +69,9 @@ data class EventDraft(
     val requiredItems: String = "",
     val spareEquipment: String = "",
     val imageUri: String = "",
+    val meetingAt: Long? = null,
+    val meetingLocation: String? = null,
+    val meetingNotes: String = "",
 )
 
 /** One immutable snapshot is published for every transaction, including promotions and notifications. */
@@ -72,6 +82,7 @@ data class AppSnapshot(
     val feedback: List<Feedback> = emptyList(),
     val sessionRestoring: Boolean = false,
     val sessionError: String? = null,
+    val announcements: List<Announcement> = emptyList(),
 ) {
     val currentUser: User? get() = users.find { it.id == currentUserId }
     fun event(id: String) = events.find { it.id == id }

@@ -52,7 +52,7 @@ Demo 签到要求组织者开启、活动未取消 / 未结束、当前用户正
 
 Activity 旋转不重建 Application Repository。运行版本通过 `FileSnapshotStore` 原子保存版本化 JSON 快照，包含测试身份、资料及 B/C/E 的本地活动记录；测试可省略存储并继续使用纯内存 Fake。首次启动生成六个用户、五个未来活动和一个历史活动，此后从磁盘恢复。保存失败会回滚内存操作；无法读取的文件不被自动覆盖。切换用户重新建立导航与表单组合，不会将旧页面继续作为新用户的操作上下文。
 
-保持手动构造依赖；暂不引入 Hilt、Room、网络客户端、图片加载库或多模块结构。后端实现由 Application 注入，UI 保持面向接口。接口目前以整份快照简化 MVP；后续可按功能拆分流，但应保留跨记录事务一致性。
+保持手动构造依赖；暂不引入 Hilt、Room、图片加载库或多模块结构。后端实现由 Application 注入，UI 保持面向接口。接口目前以整份快照简化 MVP；后续可按功能拆分流，但应保留跨记录事务一致性。
 
 ## A 账号接入与个人活动
 
@@ -61,3 +61,13 @@ Activity 旋转不重建 Application Repository。运行版本通过 `FileSnapsh
 `PersonalEvents` 从同一快照派生个人列表，使用 B 的 `statusAt`；Joined/Waitlisted 只含未结束的有效报名，Created 保留全部自己发布的活动，History 包括结束、取消与退出记录。签到和评价只显示当前用户自己的记录。导航中的各功能 ViewModel 按用户区分，排队中的旧会话操作在身份切换后被拒绝。
 
 当前 `FakeGogetherRepository` 的活动部分始终是本地演示。接入账号服务不会自动使活动跨设备同步；正式后端仍应实现完整 Repository 契约和可信事务。参见 ACCOUNT_HANDOFF。
+
+## A/B/D 第一阶段（2026-11-19）
+
+公告记录存于 `AppSnapshot.announcements`，每次发布仅生成一条公告；各正式与候补成员分别收到含 `announcementId` 的通知。详情页根据当前成员资格展示公告，兼容旧 A/B 中无关联 ID 的公告通知。收件箱在 Profile 和 Notifications 页面共用，筛选及批量已读均限定当前用户。
+
+集合时间、地点与说明是 `Event` 的独立可选字段；缺省时间和地点回退为活动开始时间和地址。D 的集合编辑只更新这三个字段，并与通知一起原子保存。B 的活动编辑保留集合信息，缩短结束时间时必须同时解决集合时间冲突；复用复制集合地点和说明，新时间随新活动开始时间，不复制原活动记录。
+
+沿用 A/B 的 `FileSnapshotStore`、AtomicFile、启动加载及失败回滚。文件名保持 `demo-snapshot-v1.json`，内部格式升级为版本 2；解码兼容版本 1，新增字段使用默认值。版本 1 应用不能读取版本 2，因此回退需要同时恢复备份 APK 和旧存档。
+
+D 的 Firebase 数据源、后端函数和规则保留为后续准备，并加入相应编译依赖；Application 没有注入云端数据源，没有 Firebase 配置或部署。当前通知是应用内本地通知。完整范围与验收见 [INTEGRATION_A_B_D](INTEGRATION_A_B_D.md)。
