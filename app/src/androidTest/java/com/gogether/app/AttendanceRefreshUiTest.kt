@@ -41,9 +41,9 @@ class AttendanceRefreshUiTest {
         val qr = compose.onNodeWithTag("prototype_qr").fetchSemanticsNode().boundsInRoot
         compose.onNodeWithTag("attendance_loading").assertIsDisplayed()
         compose.onNodeWithTag("attendance_refresh").assertIsNotEnabled()
-        compose.onNodeWithText("暂无正式参与者").assertDoesNotExist()
+        compose.onNodeWithText("No confirmed participants yet").assertDoesNotExist()
         compose.runOnIdle { state = state.copy(attendance = AttendanceLoadState(session, error = "failure")) }
-        compose.onNodeWithContentDescription("重试加载名单").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Retry loading attendance").assertIsDisplayed()
         val before = calls
         compose.onNodeWithTag("attendance_refresh").performClick()
         compose.runOnIdle { assertEquals(before + 1, calls) }
@@ -52,9 +52,9 @@ class AttendanceRefreshUiTest {
                 attendance = AttendanceLoadState(session, loaded = true, updatedAt = time))
         }
         compose.onNodeWithTag("attendee_bob").assertIsDisplayed().performClick()
-        compose.onNodeWithTag("attendance_detail").assertTextContains("签到时间", substring = true)
+        compose.onNodeWithTag("attendance_detail").assertTextContains("Time:", substring = true)
         compose.runOnIdle { state = state.copy(attendance = state.attendance.copy(error = "offline")) }
-        compose.onNodeWithText("更新失败，显示上次结果").assertIsDisplayed()
+        compose.onNodeWithText("Update failed. Showing previous results.").assertIsDisplayed()
         compose.onNodeWithTag("attendance_detail").assertIsDisplayed()
         capture("attendance-refresh-failure.png")
         compose.runOnIdle {
@@ -68,7 +68,7 @@ class AttendanceRefreshUiTest {
         compose.onNodeWithTag("attendee_david").assertIsDisplayed()
         assertEquals(qr, compose.onNodeWithTag("prototype_qr").assertIsDisplayed().fetchSemanticsNode().boundsInRoot)
         compose.runOnIdle { state = state.copy(attendees = emptyList()) }
-        compose.onNodeWithText("暂无正式参与者").assertIsDisplayed()
+        compose.onNodeWithText("No confirmed participants yet").assertIsDisplayed()
     }
 
     @Test fun endedOldActivityHasReadOnlyAttendanceSearchAndTimeWithoutCurrentQr() {
@@ -84,7 +84,7 @@ class AttendanceRefreshUiTest {
         compose.runOnIdle { assertEquals(old, requested) }
         compose.onNodeWithTag("prototype_qr").assertDoesNotExist()
         compose.onNodeWithTag("prototype_show").assertDoesNotExist()
-        compose.onNodeWithText("活动已结束").assertIsDisplayed()
+        compose.onNodeWithText("Event ended").assertIsDisplayed()
         // Old/current activities must never share displayed people while the new load is pending.
         compose.onNodeWithTag("attendance_search_open").assertIsNotEnabled()
         compose.runOnIdle {
@@ -92,17 +92,17 @@ class AttendanceRefreshUiTest {
                 attendance = AttendanceLoadState(old, loaded = true, updatedAt = time))
         }
         compose.onNodeWithTag("attendee_bob").performClick()
-        compose.onNodeWithTag("attendance_detail").assertTextContains("签到时间", substring = true)
+        compose.onNodeWithTag("attendance_detail").assertTextContains("Time:", substring = true)
         capture("attendance-ended-record.png")
-        compose.onNodeWithContentDescription("收起签到信息").performClick()
+        compose.onNodeWithContentDescription("Hide check-in details").performClick()
         compose.onNodeWithTag("attendance_search_open").performClick()
         compose.onNodeWithTag("attendance_search_input").performTextInput("carol")
         compose.onNodeWithTag("attendance_search_input").performImeAction()
         compose.onNodeWithTag("search_person_carol").assertIsDisplayed().performClick()
-        compose.onNodeWithTag("attendance_detail").assertTextEquals("尚未签到")
+        compose.onNodeWithTag("attendance_detail").assertTextEquals("Not checked in")
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
         compose.waitForIdle()
-        compose.onNodeWithText("< 返回").performClick()
+        compose.onNodeWithText("< Back").performClick()
         compose.onNodeWithTag("history_open_attendance").assertExists()
         compose.runOnIdle { assertEquals(session, state.session) }
     }

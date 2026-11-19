@@ -44,31 +44,31 @@ class ParticipantCheckInPanelTest {
 
     private fun verifyFlow(fontScale: Float) {
         launch(fontScale)
-        compose.onNodeWithText("当前状态").assertDoesNotExist()
-        compose.onNodeWithText("报名状态").assertDoesNotExist()
-        compose.onNodeWithTag("participant_status_title").assertTextEquals("到场后扫码签到")
+        compose.onNodeWithText("Status").assertDoesNotExist()
+        compose.onNodeWithText("Registration status").assertDoesNotExist()
+        compose.onNodeWithTag("participant_status_title").assertTextEquals("Scan to check in on arrival")
         capture("participant-ready-$fontScale.png")
         compose.onNodeWithTag("prototype_scan").assertIsDisplayed().performClick()
         assertEquals(1, scans)
         val buttonBounds = compose.onNodeWithTag("prototype_scan").fetchSemanticsNode().boundsInRoot
         compose.runOnIdle { state = state.copy(busy = true, scanStage = ParticipantScanStage.VERIFYING) }
         compose.onNodeWithTag("prototype_scan").assertIsDisplayed().assertIsNotEnabled()
-        compose.onNodeWithTag("participant_status_title").assertTextEquals("正在核验签到")
+        compose.onNodeWithTag("participant_status_title").assertTextEquals("Verifying check-in")
         compose.runOnIdle { state = state.copy(busy = false, scanStage = ParticipantScanStage.SUCCESS,
             receipt = PrototypeReceipt("f23e4af8-b3ed-49ef-a7ee-d7c1cf2bf317", "bob", now)) }
-        compose.onNodeWithTag("participant_status_title").assertTextEquals("签到成功")
+        compose.onNodeWithTag("participant_status_title").assertTextEquals("Checked in successfully")
         val receipt = compose.onNodeWithTag("prototype_receipt").performScrollTo().assertIsDisplayed().fetchSemanticsNode().boundsInRoot
         assertTrue("Receipt fits above the pinned button", receipt.bottom <= buttonBounds.top)
         assertEquals(buttonBounds, compose.onNodeWithTag("prototype_scan").assertIsDisplayed().fetchSemanticsNode().boundsInRoot)
         compose.onNodeWithTag("participant_help").assertIsDisplayed()
         capture("participant-result-$fontScale.png")
-        compose.runOnIdle { state = state.copy(scanStage = ParticipantScanStage.ATTENTION, message = "二维码已过期，请重新扫码。") }
-        compose.onNodeWithText("二维码已过期，请重新扫码。").performScrollTo().assertIsDisplayed()
+        compose.runOnIdle { state = state.copy(scanStage = ParticipantScanStage.ATTENTION, message = "This QR code has expired. Please scan again.") }
+        compose.onNodeWithText("This QR code has expired. Please scan again.").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("prototype_receipt").assertDoesNotExist()
-        compose.onNodeWithTag("participant_status_title").assertTextEquals("签到提示")
+        compose.onNodeWithTag("participant_status_title").assertTextEquals("Check-in notice")
         compose.onNodeWithTag("prototype_scan").assertIsDisplayed().assertIsEnabled()
         compose.runOnIdle { state = state.copy(scanStage = ParticipantScanStage.READY) }
-        compose.onNodeWithTag("participant_status_title").assertTextEquals("已签到")
+        compose.onNodeWithTag("participant_status_title").assertTextEquals("Checked in")
         compose.runOnIdle { actor = "carol" }
         compose.onNodeWithTag("prototype_receipt").assertDoesNotExist()
     }
@@ -77,7 +77,7 @@ class ParticipantCheckInPanelTest {
         launch(width = 640, height = 360)
         compose.onNodeWithTag("prototype_scan").assertIsDisplayed()
         compose.onNodeWithTag("participant_help").assertIsDisplayed().performClick()
-        compose.onNodeWithText("签到说明").assertIsDisplayed()
+        compose.onNodeWithText("Check-in guide").assertIsDisplayed()
         compose.onNodeWithTag("participant_settings").performScrollTo().performClick()
         assertEquals(1, settings)
         compose.onNodeWithTag("prototype_scan").assertIsDisplayed()
@@ -87,19 +87,19 @@ class ParticipantCheckInPanelTest {
         state = PrototypeUiState(participantSession = session,
             history = listOf(PrototypeHistoryEntry(session, null, null, false)))
         launch(width = 360, height = 720)
-        compose.onNodeWithTag("participant_event_title").assertTextEquals("羽毛球交流")
-        compose.onNodeWithText("Alice 发起").assertIsDisplayed()
+        compose.onNodeWithTag("participant_event_title").assertTextEquals("Badminton Meetup")
+        compose.onNodeWithText("Hosted by Alice").assertIsDisplayed()
         compose.onNodeWithTag("participant_location").assertIsDisplayed()
-        compose.onNodeWithTag("participant_status_title").assertTextEquals("现在可以签到")
+        compose.onNodeWithTag("participant_status_title").assertTextEquals("Ready to check in")
         capture("participant-event-ready.png")
         val receipt = PrototypeReceipt(session.id, "bob", now)
         compose.runOnIdle { state = state.copy(receipt = receipt, scanStage = ParticipantScanStage.SUCCESS,
             history = listOf(PrototypeHistoryEntry(session, receipt, null, false))) }
-        compose.onNodeWithTag("participant_status_title").assertTextEquals("签到成功")
+        compose.onNodeWithTag("participant_status_title").assertTextEquals("Checked in successfully")
         capture("participant-event-success.png")
         compose.onNodeWithTag("prototype_scan").performClick()
         compose.onNodeWithTag("history_detail").assertIsDisplayed()
-        compose.onNodeWithTag("history_checkin").assertTextContains("已签到", substring = true)
+        compose.onNodeWithTag("history_checkin").assertTextContains("Checked in", substring = true)
         assertEquals(0, scans)
     }
 
@@ -111,11 +111,11 @@ class ParticipantCheckInPanelTest {
             history = listOf(PrototypeHistoryEntry(ended, null, null, false)))
         launch()
         compose.onNodeWithTag("participant_location").performClick()
-        compose.onNodeWithText("集合位置").assertIsDisplayed()
+        compose.onNodeWithText("Meeting location").assertIsDisplayed()
         compose.onNodeWithTag("participant_map").assertIsDisplayed()
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
         compose.waitForIdle()
-        compose.onNodeWithText("评价活动").assertIsDisplayed().performClick()
+        compose.onNodeWithText("Review event").assertIsDisplayed().performClick()
         compose.onNodeWithTag("feedback_rating_4").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("feedback_submit").assertIsNotEnabled()
     }
@@ -125,7 +125,7 @@ class ParticipantCheckInPanelTest {
             receipt = PrototypeReceipt("414f1652-7e75-4d90-9cd7-c42f3665623a", "bob", now))
         launch()
         compose.onNodeWithTag("prototype_receipt").assertDoesNotExist()
-        compose.onNodeWithTag("participant_status_title").assertTextEquals("现在可以签到")
+        compose.onNodeWithTag("participant_status_title").assertTextEquals("Ready to check in")
         compose.runOnIdle { state = state.copy(history = listOf(PrototypeHistoryEntry(session, null, null, true))) }
         compose.onNodeWithTag("prototype_scan").assertIsNotEnabled()
         compose.onNodeWithTag("participant_help").performClick()
@@ -144,16 +144,16 @@ class ParticipantCheckInPanelTest {
     @Test fun locationRetryChangesToRescanAtExpiryWithoutMovingThePrimaryAction() {
         state = PrototypeUiState(participantSession = session, scanned = PrototypeCode(session, now, now + 30_000),
             locationRetryAvailable = true, scanStage = ParticipantScanStage.ATTENTION,
-            message = "暂时无法定位，请到开阔处重试。")
+            message = "Could not get your location. Move to an open area and try again.")
         launch()
-        compose.onNodeWithText("重新定位").assertIsDisplayed().performClick()
+        compose.onNodeWithText("Retry location").assertIsDisplayed().performClick()
         assertEquals(1, retries)
         assertEquals(0, scans)
         val bounds = compose.onNodeWithTag("prototype_scan").fetchSemanticsNode().boundsInRoot
         capture("participant-location-retry.png")
         compose.runOnIdle { displayTime = now + 30_000 }
-        compose.onNodeWithText("签到码已过期，请扫描组织者的新码。").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("重新扫码").assertIsDisplayed().performClick()
+        compose.onNodeWithText("Check-in code expired. Scan the organizer's new code.").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Scan again").assertIsDisplayed().performClick()
         assertEquals(1, retries)
         assertEquals(1, scans)
         assertEquals(bounds, compose.onNodeWithTag("prototype_scan").fetchSemanticsNode().boundsInRoot)
@@ -164,9 +164,9 @@ class ParticipantCheckInPanelTest {
         state = PrototypeUiState(participantSession = session,
             pendingSubmission = CheckInAttempt("request-1", "bob", session),
             scanStage = ParticipantScanStage.RESOLVING, busy = true,
-            message = "正在核对上次签到结果，请稍候…")
+            message = "Checking your previous check-in. Please wait…")
         launch()
-        compose.onNodeWithTag("participant_status_title").assertTextEquals("正在核对签到结果")
+        compose.onNodeWithTag("participant_status_title").assertTextEquals("Checking your check-in result")
         compose.onNodeWithTag("prototype_scan").assertIsDisplayed().assertIsNotEnabled()
         val bounds = compose.onNodeWithTag("prototype_scan").fetchSemanticsNode().boundsInRoot
         compose.runOnIdle {
@@ -174,10 +174,10 @@ class ParticipantCheckInPanelTest {
             state = state.copy(busy = false, scanStage = ParticipantScanStage.ATTENTION,
                 registration = CheckInRegistration.NONE,
                 history = listOf(PrototypeHistoryEntry(session, null, null, true)),
-                message = "请稍后核对，无需重复扫码。")
+                message = "Check the result later. No need to scan again.")
         }
-        compose.onNodeWithTag("participant_status_title").assertTextEquals("签到结果待确认")
-        compose.onNodeWithText("核对签到结果").assertIsDisplayed().performClick()
+        compose.onNodeWithTag("participant_status_title").assertTextEquals("Check-in unconfirmed")
+        compose.onNodeWithText("Check result").assertIsDisplayed().performClick()
         assertEquals(1, resolutions)
         assertEquals(0, scans)
         assertEquals(bounds, compose.onNodeWithTag("prototype_scan").fetchSemanticsNode().boundsInRoot)
@@ -194,14 +194,14 @@ class ParticipantCheckInPanelTest {
             pendingSubmission = CheckInAttempt("pending-history", "bob", session),
             scanStage = ParticipantScanStage.ATTENTION,
             history = listOf(PrototypeHistoryEntry(session, null, null, true)),
-            message = "请稍后核对，无需重复扫码。")
+            message = "Check the result later. No need to scan again.")
         launch()
         compose.onNodeWithTag("open_history").performClick()
-        compose.onNodeWithText("签到结果待确认").assertIsDisplayed()
+        compose.onNodeWithText("Check-in unconfirmed").assertIsDisplayed()
         compose.onNodeWithTag("history_${session.id}").performClick()
         compose.onNodeWithTag("history_checkin").assertDoesNotExist()
         compose.onNodeWithTag("history_resolve_checkin").performScrollTo().performClick()
-        compose.onNodeWithText("核对签到结果").assertIsDisplayed().performClick()
+        compose.onNodeWithText("Check result").assertIsDisplayed().performClick()
         assertEquals(1, resolutions)
         assertEquals(0, scans)
     }

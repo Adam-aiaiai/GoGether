@@ -85,7 +85,7 @@ class FeedbackPrivacyUiTest {
                 DeviceConfigurationOverride(DeviceConfigurationOverride.ForcedSize(DpSize(320.dp, 568.dp)) then
                     DeviceConfigurationOverride.FontScale(scale)) {
                     GogetherTheme { PrototypeHistoryScreen(actor, records, time, false, message, {}, { id, score, comment, details ->
-                        if (failSubmission) message = "保存失败，请重试。"
+                        if (failSubmission) message = "Could not save. Please try again."
                         else { backend.submitFeedback(actor, id, score, comment, details); records = backend.history(actor); message = "" }
                     }, initialSessionId = session.id) }
                 }
@@ -102,11 +102,11 @@ class FeedbackPrivacyUiTest {
             find("feedback_add_photo").performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithTag("feedback_photo_2").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithTag("feedback_add_photo").assertDoesNotExist()
-            compose.waitUntil(10_000) { compose.onAllNodesWithContentDescription("查看第 1 张图片").fetchSemanticsNodes().isNotEmpty() }
+            compose.waitUntil(10_000) { compose.onAllNodesWithContentDescription("View photo 1").fetchSemanticsNodes().isNotEmpty() }
             capture("feedback-photos.png")
             compose.onNodeWithTag("feedback_photo_0").performClick()
             compose.onNodeWithTag("feedback_photo_preview").assertIsDisplayed()
-            compose.onAllNodesWithText("< 返回").onLast().performClick()
+            compose.onAllNodesWithText("< Back").onLast().performClick()
             compose.onNodeWithTag("feedback_photo_preview").assertDoesNotExist()
             find("feedback_remove_photo_1").performScrollTo().assertIsDisplayed().performClick()
             find("feedback_add_photo").assertExists()
@@ -120,7 +120,7 @@ class FeedbackPrivacyUiTest {
             find("feedback_photo_1").assertExists()
             compose.runOnIdle { failSubmission = true }
             compose.onNodeWithTag("feedback_submit").performClick()
-            compose.onNodeWithText("保存失败，请重试。").assertIsDisplayed()
+            compose.onNodeWithText("Could not save. Please try again.").assertIsDisplayed()
             find("feedback_anonymous").assertIsOn()
             compose.runOnIdle { failSubmission = false }
             compose.onNodeWithTag("feedback_submit").performClick()
@@ -130,8 +130,8 @@ class FeedbackPrivacyUiTest {
             assertTrue(saved.details.anonymous)
             assertEquals(FeedbackVisibility.ORGANIZER_ONLY, saved.details.visibility)
             assertTrue(backend.reviews("carol", session).isEmpty())
-            assertEquals("匿名参与者", backend.reviews("alice", session).single().authorName)
-            find("feedback_privacy_saved").assertTextEquals("匿名评价  |  仅组织者可见")
+            assertEquals("Anonymous participant", backend.reviews("alice", session).single().authorName)
+            find("feedback_privacy_saved").assertTextEquals("Anonymous review  |  Organizer only")
             capture("feedback-private-saved.png")
         } finally { cleanup() }
     }
@@ -162,23 +162,23 @@ class FeedbackPrivacyUiTest {
     @Test fun organizerSeesAnonymousPrivateFeedbackAndParticipantsOnlySeePublicReviews() {
         try {
             listOf("alice", "bob", "carol").forEach { store.rememberSession(it, session) }
-            backend.submitFeedback("bob", session.id, 3, "请改善集合说明",
+            backend.submitFeedback("bob", session.id, 3, "Please make the meeting point easier to find.",
                 FeedbackDetails(anonymous = true, visibility = FeedbackVisibility.ORGANIZER_ONLY))
-            backend.submitFeedback("carol", session.id, 5, "大家很友好")
+            backend.submitFeedback("carol", session.id, 5, "Everyone was really welcoming.")
             actor = "alice"
             compose.setContent { GogetherTheme {
                 ActivityReviewsScreen(actor, session, backend.reviews(actor, session), false, "", {}, {})
             } }
-            compose.onNodeWithText("匿名参与者").assertIsDisplayed()
-            compose.onNodeWithText("请改善集合说明").assertExists()
+            compose.onNodeWithText("Anonymous participant").assertIsDisplayed()
+            compose.onNodeWithText("Please make the meeting point easier to find.").assertExists()
             compose.onNodeWithText("Bob").assertDoesNotExist()
-            compose.onNodeWithText("仅组织者可见").assertExists()
+            compose.onNodeWithText("Organizer only").assertExists()
             capture("feedback-organizer-reviews.png")
             compose.runOnIdle { actor = "carol" }
-            compose.onNodeWithText("匿名参与者").assertDoesNotExist()
-            compose.onNodeWithText("请改善集合说明").assertDoesNotExist()
-            compose.onNodeWithText("Carol（我）").assertIsDisplayed()
-            compose.onNodeWithText("大家很友好").assertIsDisplayed()
+            compose.onNodeWithText("Anonymous participant").assertDoesNotExist()
+            compose.onNodeWithText("Please make the meeting point easier to find.").assertDoesNotExist()
+            compose.onNodeWithText("Carol (you)").assertIsDisplayed()
+            compose.onNodeWithText("Everyone was really welcoming.").assertIsDisplayed()
         } finally { cleanup() }
     }
 

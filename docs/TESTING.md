@@ -296,3 +296,34 @@ Windows 内存紧张时，可仅为本次验证指定参数：
 - assembleDebug 与 assembleDebugAndroidTest 成功。首轮相关 19 项通过 17 项，两个真实双指测试发现图片与父级翻页的手势冲突；改为优先识别双指并保留普通单指翻页后，图片预览 5 项复测通过。相关测试去重 19 项最终通过，包括 FeedbackPrivacyUiTest、FeedbackPhotoStoreTest、MultiActivityIntegrationTest、FeedbackDraftUiTest 的 14 项回归。
 - 日志：app/build/reports/feedback-photo-preview-tests.txt、app/build/reports/feedback-photo-preview-gesture-retest.txt。已检查全屏查看截图的返回、张数及前后切换按钮，主页面缩略图区域未增加内容。
 - 图片读取沿用原有权限检查，最多三张及公开 / 仅组织者可见规则不变；切换账号 / 活动 / 图片集合会关闭旧预览。此次仅修改 E 图片组件、E 测试及文档，仍在 dev/hcc-mvp，未提交或推送；未进行实体手机手势验收，未重新运行单元测试或 lint。
+
+## 2026-11-19 C/E 集成：统一 E 评价入口、结束判断与姓名来源
+
+- 基线为 integration/member-c-e-attendance，HEAD 860b809cc84703e4500fd13b363f176fbe1d9cc5，开始时工作区干净。本轮修改 E 适配层、界面、存储兼容、相关测试及文档；未修改 C 报名 / 候补 / 头像模块，未提交或推送。
+- 正常历史活动详情中的 Leave feedback 统一进入 E 完整表单。没有设置 GPS 集合点、没有签到记录的结束活动也能按现有正式报名资格评价；无地点的历史记录不能签发二维码或用于签到。保留最多三张图片、匿名、公开 / 仅组织者可见、分项评分、标签和账号 / 活动隔离的持久草稿。
+- 结束判断统一为活动标记 COMPLETED 或到达 endAt；取消活动不能提交，候补 / 未报名者不能提交。旧普通评价可读取并参与防重；姓名读取当前用户数据，改名后更新，匿名仍隐藏身份。活动归属变化时拒绝旧记录访问。
+- 历史会话存储改为独立的版本化记录，可读取此前 QR 字符串格式；不会把无地点的记录补成假坐标。原有评价、图片及草稿格式和隔离键保留。
+- 最终 JVM 152 / 152 通过，应用与测试 APK 构建成功。新增 RegistrationAttendanceBridgeTest 5 项，覆盖未绑定地点、显式完成、取消、资格、错误身份 / 活动、姓名更新、隐私、归属变化及旧评价防重。
+- API 37 模拟器完整设备回归 91 / 91 通过，包含 C 名单 / 候补联动和 E 签到 / 出席 / 评价 / 图片功能；随后补齐旧个人页姓名解析接入并重新构建，相关入口、身份生命周期及隐私测试 8 / 8 再次通过。新增 RepositoryFeedbackIntegrationTest 3 项，验证正常入口、图片草稿恢复和提交、账号往返切换、候补拦截、旧存储兼容及无地点记录隔离。初轮新增测试的 JUnit 返回类型问题已修正，不涉及放宽业务断言。
+- 日志位于 app/build/reports/e-feedback-unification-final-build.txt、e-feedback-unification-final-device-tests.txt、e-feedback-unification-final-entry-tests.txt。最终 lint 为 0 错误 / 26 警告（与基线数量一致），日志 e-feedback-unification-final-lint.txt；git diff --check 通过。
+- 已通过模拟器手动操作 Bob 登录 → Profile → 历史阅读活动 → Leave feedback，并查看实际完整表单截图 app/build/reports/e-feedback-unified.png。表单内容滚动、提交区固定，紫色主题保留；没有新增主页面卡片。
+- 数据仍在本机，未接入真实后端；本轮结果不代表跨设备同步、服务端权限或实体手机现场验收。
+
+## 2026-11-19 C/E 集成：全应用英文界面检查
+
+- 在 integration/member-c-e-attendance 上继续，HEAD 为 860b809cc84703e4500fd13b363f176fbe1d9cc5；保留此前尚未提交的评价整合改动，本轮没有切换分支、提交或推送。
+- 检查整个 app/src/main，将中文界面标题、按钮、说明、错误提示、无障碍标签和内置模拟文案改为英文。日期使用英文月份，出席分组缩短为 Checked in / Pending，保持紫色主题、原有手机布局及业务权限。
+- 新增 EnglishUiCopyTest：扫描生产 Kotlin 字符串和 XML，防止中文界面文案回归；检查中文系统语言下日期仍为英文。最终 JVM 154 / 154 通过，应用和测试 APK 构建成功。日志 english-ui-build-final.txt。
+- API 37 模拟器完整设备回归首轮 91 项中 90 项通过；图片大小限制测试仍匹配旧写法 10MB，更新为英文提示中的 10 MB 后，FeedbackPhotoStoreTest 4 / 4 复测通过。按不同用例计，本轮 91 项最终均通过；日志 english-ui-device-tests.txt、english-ui-photo-retest.txt，测试包复建日志 english-ui-test-rebuild.txt。
+- lint 为 0 错误 / 26 警告，与此前数量一致；日志 english-ui-lint.txt。app/src/main 全文 Han 字符扫描无匹配，git diff --check 通过。测试夹具中保留 Unicode 用户输入，文档可继续使用中文。
+- 实际查看普通及大字号评价页、组织者二维码页和参与者签到成功截图，英文可换行、操作按钮可见。相关截图：english-feedback-top.png、english-feedback-large-text.png、english-organizer.png、english-participant-success.png，均位于 app/build/reports。
+- 安装保留数据后手动验证 Bob 登录 → Profile → 历史阅读活动 → Leave feedback：英文表单恢复原评分、评论 Draft preview only. Not submitted.、两张照片、匿名和仅组织者可见选项。没有提交该草稿。截图 english-bob-draft.png、english-bob-privacy.png。
+- 用户文字和原照片不翻译、不删除；原草稿照片是旧中文 UI 截图，照片内文字不属于新版应用文案。系统权限弹窗由 Android 系统语言控制。本轮未进行实体手机或跨设备后端验证。
+
+## 2026-11-19 C/E 集成：测试与演示输入也统一为英文
+
+- 根据用户补充要求，自动化测试和人工演示同样面向英语使用者；将测试里的评论、草稿、姓名、搜索词、模拟错误及旧存储样本改为英文，同时更新相应断言。500 / 501 字符边界仍保留，换行、引号、emoji、账号及活动隔离验证不变。
+- EnglishUiCopyTest 的扫描范围从 app/src/main 扩展到全部 app/src，包括 test 和 androidTest。全文 Han 字符扫描无匹配；新增文案约定写入 MEMBER_C_E_INTEGRATION.md。此前“测试夹具中保留中文输入”的说明由本次要求取代。
+- 本轮未修改生产业务代码。154 / 154 JVM 测试通过，测试 APK 构建成功，日志 app/build/reports/english-fixtures-build.txt。
+- 只读核实 GitHub 集成分支仍为 860b809cc84703e4500fd13b363f176fbe1d9cc5；本轮及之前的未提交改动均保留在本地，没有提交、推送或修改其他分支。
+- 模拟器相关回归 22 / 22 通过：英文评论与字数验证、草稿字段及跨账号恢复、匿名和可见范围、正常活动入口、英文长姓名、小屏、大字号及横屏布局。日志 app/build/reports/english-fixtures-device-tests.txt。git diff --check 通过；未重复运行与本轮测试文案无关的全套设备测试或 lint。

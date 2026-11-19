@@ -14,7 +14,7 @@ class MultiActivityIsolationTest {
     private val c = scenario.carolEvent
     private val store = MemoryPrototypeStore().also(scenario::seed)
     private val backend = LocalPrototypeBackend(store, { now }, { 0 }, scenario.registrations, scenario.activities)
-    private fun fix(session: PrototypeSession) = PositionFix(session.meeting, 10.0, 0)
+    private fun fix(session: PrototypeSession) = PositionFix(requireNotNull(session.meeting), 10.0, 0)
     private fun code(session: PrototypeSession) = PrototypeCodeCodec.encode(backend.issue(scenario.activities.activity(session).organizerId, session, fix(session)))
 
     @Test fun eachOrganizerCanIssueAndViewOnlyTheirOwnActivities() {
@@ -68,17 +68,17 @@ class MultiActivityIsolationTest {
         // An associated history record does not grant organizational privileges or registration.
         store.rememberSession("alice", c)
         store.rememberSession("carol", b)
-        backend.submitFeedback("bob", a.id, 4, "只给 Alice", FeedbackDetails(anonymous = true, visibility = FeedbackVisibility.ORGANIZER_ONLY))
-        backend.submitFeedback("bob", c.id, 3, "只给 Carol", FeedbackDetails(anonymous = true, visibility = FeedbackVisibility.ORGANIZER_ONLY))
-        backend.submitFeedback("david", c.id, 5, "公开慢跑评价")
-        assertEquals(listOf("只给 Alice"), backend.reviews("alice", a).map { it.comment })
+        backend.submitFeedback("bob", a.id, 4, "Please allow a little more time for the warm-up.", FeedbackDetails(anonymous = true, visibility = FeedbackVisibility.ORGANIZER_ONLY))
+        backend.submitFeedback("bob", c.id, 3, "Please share the route before the next run.", FeedbackDetails(anonymous = true, visibility = FeedbackVisibility.ORGANIZER_ONLY))
+        backend.submitFeedback("david", c.id, 5, "A lovely route and a friendly running group.")
+        assertEquals(listOf("Please allow a little more time for the warm-up."), backend.reviews("alice", a).map { it.comment })
         assertTrue(backend.reviews("carol", a).isEmpty())
-        assertEquals(setOf("只给 Carol", "公开慢跑评价"), backend.reviews("carol", c).map { it.comment }.toSet())
-        assertEquals(listOf("公开慢跑评价"), backend.reviews("alice", c).map { it.comment })
-        assertEquals("匿名参与者", backend.reviews("carol", c).single { it.comment == "只给 Carol" }.authorName)
-        assertThrows(IllegalArgumentException::class.java) { backend.submitFeedback("bob", b.id, 5, "候补不能评价") }
-        assertThrows(IllegalArgumentException::class.java) { backend.submitFeedback("alice", c.id, 5, "非报名不能评价") }
-        assertThrows(IllegalArgumentException::class.java) { backend.submitFeedback("bob", c.id, 5, "重复评价") }
+        assertEquals(setOf("Please share the route before the next run.", "A lovely route and a friendly running group."), backend.reviews("carol", c).map { it.comment }.toSet())
+        assertEquals(listOf("A lovely route and a friendly running group."), backend.reviews("alice", c).map { it.comment })
+        assertEquals("Anonymous participant", backend.reviews("carol", c).single { it.comment == "Please share the route before the next run." }.authorName)
+        assertThrows(IllegalArgumentException::class.java) { backend.submitFeedback("bob", b.id, 5, "I hope a place opens up next time.") }
+        assertThrows(IllegalArgumentException::class.java) { backend.submitFeedback("alice", c.id, 5, "I hope to take part next time.") }
+        assertThrows(IllegalArgumentException::class.java) { backend.submitFeedback("bob", c.id, 5, "I would love to take part again.") }
         assertTrue(backend.reviews("alice", b).isEmpty())
     }
 
@@ -92,10 +92,10 @@ class MultiActivityIsolationTest {
         backend.submit("bob", code(a), fix(a))
         assertThrows(IllegalArgumentException::class.java) { backend.issue("carol", c, fix(c)) }
         now = b.endAt
-        backend.submitFeedback("david", b.id, 4, "桌游已结束")
-        assertThrows(IllegalArgumentException::class.java) { backend.submitFeedback("bob", a.id, 4, "羽毛球还没结束") }
+        backend.submitFeedback("david", b.id, 4, "The board games were a lot of fun.")
+        assertThrows(IllegalArgumentException::class.java) { backend.submitFeedback("bob", a.id, 4, "Looking forward to the rest of the games.") }
         now = a.endAt
-        assertThrows(IllegalArgumentException::class.java) { backend.submitFeedback("bob", c.id, 4, "取消不能新评价") }
+        assertThrows(IllegalArgumentException::class.java) { backend.submitFeedback("bob", c.id, 4, "I was looking forward to this event.") }
         assertEquals(4, backend.history("david").single { it.session == b }.feedback!!.rating)
     }
 }

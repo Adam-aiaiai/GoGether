@@ -2,8 +2,8 @@ package com.gogether.app.feature.checkin.prototype
 
 /** E-owned read-only B seam. Organizer identity never comes from the scanning user or QR payload. */
 data class CheckInActivityInfo(val session: PrototypeSession, val organizerId: String,
-    val title: String = "羽毛球交流", val meetingName: String = "组织者指定集合点",
-    val introduction: String = "一起挥拍，认识新朋友。活动前先到集合点碰面，再一起前往场地。",
+    val title: String = "Badminton Meetup", val meetingName: String = "Organizer's meeting point",
+    val introduction: String = "Play badminton and meet new people. Meet up before heading to the court together.",
     val sourceEventId: String? = null, val organizerDisplayName: String? = null) {
     val organizerName: String get() = organizerDisplayName ?: prototypeParticipants.find { it.userId == organizerId }?.name ?: organizerId
 }
@@ -26,8 +26,8 @@ class MockActivityCatalog(records: List<CheckInActivityInfo>) : CheckInActivityS
         require(records.all { it.organizerId.isNotBlank() })
     }
     override fun activity(session: PrototypeSession): CheckInActivityInfo {
-        val info = requireNotNull(records[session.id]) { "未找到本场活动资料。" }
-        require(info.session == session) { "活动资料已变化，请重新进入。" }
+        val info = requireNotNull(records[session.id]) { "Event details could not be found." }
+        require(info.session == session) { "Event details have changed. Reopen the event." }
         return info
     }
     override fun isCatalogActivity(session: PrototypeSession) = records[session.id]?.session == session

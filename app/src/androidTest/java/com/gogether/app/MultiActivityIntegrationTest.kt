@@ -71,10 +71,10 @@ class MultiActivityIntegrationTest {
         assertEquals("carol", restarted.activityInfo(c).organizerId)
         assertEquals(c, restarted.hostedSession("carol", c))
         assertNull(restarted.hostedSession("alice", c))
-        assertEquals("匿名参与者", restarted.reviews("carol", c).single().authorName)
+        assertEquals("Anonymous participant", restarted.reviews("carol", c).single().authorName)
         assertEquals(listOf("carol", "bob", "david"), restarted.attendance("carol", c).map { it.userId })
         store.rememberSession("alice", c)
-        assertThrows(IllegalArgumentException::class.java) { restarted.submitFeedback("alice", c.id, 5, "不是本场报名者") }
+        assertThrows(IllegalArgumentException::class.java) { restarted.submitFeedback("alice", c.id, 5, "I would like to join next time.") }
         val restoredC = StoredMockCheckInRegistrations(PreferencesPrototypeStore(context))
         assertEquals(CheckInRegistration.WAITLISTED, restoredC.status(b.id, "bob"))
         assertEquals(CheckInRegistration.NONE, restoredC.status(c.id, "alice"))
@@ -97,19 +97,19 @@ class MultiActivityIntegrationTest {
                 }
             }
         }
-        compose.onNodeWithText("轻松慢跑").assertIsDisplayed()
-        compose.onNodeWithText("Carol 组织").assertIsDisplayed()
+        compose.onNodeWithText("Easy Jog").assertIsDisplayed()
+        compose.onNodeWithText("Hosted by Carol").assertIsDisplayed()
         compose.onNodeWithTag("history_open_attendance").assertExists()
         compose.runOnIdle { selected = a }
-        compose.onNodeWithText("羽毛球交流").assertIsDisplayed()
-        compose.onNodeWithText("Alice 组织").assertIsDisplayed()
+        compose.onNodeWithText("Badminton Meetup").assertIsDisplayed()
+        compose.onNodeWithText("Hosted by Alice").assertIsDisplayed()
         compose.onNodeWithTag("history_open_attendance").assertDoesNotExist()
         compose.runOnIdle { actor = "alice"; selected = b }
-        compose.onNodeWithText("晚间桌游").assertIsDisplayed()
+        compose.onNodeWithText("Board Game Evening").assertIsDisplayed()
         compose.onNodeWithTag("history_open_attendance").assertExists()
         compose.runOnIdle { selected = c }
         compose.onNodeWithTag("history_open_attendance").assertDoesNotExist()
-        compose.onNodeWithText("Carol 组织").assertIsDisplayed()
+        compose.onNodeWithText("Hosted by Carol").assertIsDisplayed()
     }
 
     @Test fun organizerAndParticipantPanelsSwitchRoleWithoutReusingRoster() {
@@ -136,11 +136,11 @@ class MultiActivityIntegrationTest {
         compose.runOnIdle { selected = a }
         compose.onNodeWithTag("organizer_panel").assertDoesNotExist()
         compose.onNodeWithTag("participant_panel").assertIsDisplayed()
-        compose.onNodeWithTag("participant_event_title").assertTextEquals("羽毛球交流")
+        compose.onNodeWithTag("participant_event_title").assertTextEquals("Badminton Meetup")
         compose.runOnIdle { actor = "alice"; selected = c }
-        compose.onNodeWithTag("participant_status_title").assertTextEquals("尚未报名")
-        compose.onNodeWithTag("participant_event_title").assertTextEquals("轻松慢跑")
-        compose.onNodeWithText("Carol 发起").assertIsDisplayed()
+        compose.onNodeWithTag("participant_status_title").assertTextEquals("Not registered")
+        compose.onNodeWithTag("participant_event_title").assertTextEquals("Easy Jog")
+        compose.onNodeWithText("Hosted by Carol").assertIsDisplayed()
         compose.runOnIdle { selected = b }
         compose.onNodeWithTag("organizer_panel").assertIsDisplayed()
         compose.onNodeWithTag("participant_panel").assertDoesNotExist()
@@ -150,23 +150,23 @@ class MultiActivityIntegrationTest {
         seed()
         store.rememberSession("alice", c)
         val local = backend()
-        local.submitFeedback("bob", a.id, 4, "仅给羽毛球组织者", FeedbackDetails(anonymous = true, visibility = FeedbackVisibility.ORGANIZER_ONLY))
-        local.submitFeedback("bob", c.id, 3, "仅给慢跑组织者", FeedbackDetails(anonymous = true, visibility = FeedbackVisibility.ORGANIZER_ONLY))
-        local.submitFeedback("david", c.id, 5, "公开慢跑评价")
+        local.submitFeedback("bob", a.id, 4, "A longer warm-up would help before badminton.", FeedbackDetails(anonymous = true, visibility = FeedbackVisibility.ORGANIZER_ONLY))
+        local.submitFeedback("bob", c.id, 3, "Please consider a slower pace for the next run.", FeedbackDetails(anonymous = true, visibility = FeedbackVisibility.ORGANIZER_ONLY))
+        local.submitFeedback("david", c.id, 5, "A lovely route and a friendly running group.")
         compose.setContent { CompositionLocalProvider(LocalCheckInActivities provides fixtures.activities) {
             GogetherTheme { ActivityReviewsScreen(actor, selected, local.reviews(actor, selected), false, "", {}, {}) }
         } }
-        compose.onNodeWithText("仅给慢跑组织者").assertExists()
-        compose.onNodeWithText("匿名参与者").assertExists()
+        compose.onNodeWithText("Please consider a slower pace for the next run.").assertExists()
+        compose.onNodeWithText("Anonymous participant").assertExists()
         compose.onNodeWithText("Bob").assertDoesNotExist()
         compose.runOnIdle { actor = "alice" }
-        compose.onNodeWithText("仅给慢跑组织者").assertDoesNotExist()
-        compose.onNodeWithText("公开慢跑评价").assertExists()
+        compose.onNodeWithText("Please consider a slower pace for the next run.").assertDoesNotExist()
+        compose.onNodeWithText("A lovely route and a friendly running group.").assertExists()
         compose.runOnIdle { selected = a }
-        compose.onNodeWithText("仅给羽毛球组织者").assertExists()
-        compose.onNodeWithText("公开慢跑评价").assertDoesNotExist()
+        compose.onNodeWithText("A longer warm-up would help before badminton.").assertExists()
+        compose.onNodeWithText("A lovely route and a friendly running group.").assertDoesNotExist()
         compose.runOnIdle { actor = "carol" }
-        compose.onNodeWithText("仅给羽毛球组织者").assertDoesNotExist()
-        compose.onNodeWithText("暂时没有可查看的评价").assertExists()
+        compose.onNodeWithText("A longer warm-up would help before badminton.").assertDoesNotExist()
+        compose.onNodeWithText("No reviews to show yet").assertExists()
     }
 }

@@ -38,14 +38,14 @@ internal fun OrganizerCheckInPanel(state: PrototypeUiState, now: Long, back: () 
     }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp).testTag("organizer_panel")) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(shape = CheckInStyle.shape, onClick = back) { Text("< 返回") }
-            Text(LocalCheckInActivities.current.infoOrNull(session)?.title ?: "现场签到", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium,
+            TextButton(shape = CheckInStyle.shape, onClick = back) { Text("< Back") }
+            Text(LocalCheckInActivities.current.infoOrNull(session)?.title ?: "Event check-in", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
             IconButton(onClick = { searchOpen = true }, enabled = preview ||
                 (state.attendance.session == session && state.attendance.loaded), modifier = Modifier.testTag("attendance_search_open")) {
-                Icon(Icons.Default.Search, contentDescription = "查找参与者")
+                Icon(Icons.Default.Search, contentDescription = "Find participants")
             }
-            TextButton(shape = CheckInStyle.shape, onClick = { more = true }, modifier = Modifier.testTag("organizer_more")) { Text("更多") }
+            TextButton(shape = CheckInStyle.shape, onClick = { more = true }, modifier = Modifier.testTag("organizer_more")) { Text("More") }
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(bottom = 8.dp)) {
             val people = if (preview) previewPeople else state.attendees
@@ -75,19 +75,19 @@ internal fun OrganizerCheckInPanel(state: PrototypeUiState, now: Long, back: () 
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("活动信息与操作", style = MaterialTheme.typography.titleLarge)
-            TextButton(shape = CheckInStyle.shape, onClick = { more = false; history() }, modifier = Modifier.testTag("open_history")) { Text("我的记录") }
-            CheckInInfoCard("当前状态", state.message)
+            Text("Event details and actions", style = MaterialTheme.typography.titleLarge)
+            TextButton(shape = CheckInStyle.shape, onClick = { more = false; history() }, modifier = Modifier.testTag("open_history")) { Text("My records") }
+            CheckInInfoCard("Status", state.message)
             MeetingSummary(session)
-            Text("组织者和参与者均需在集合点 200 米内。只在操作时获取精确位置。")
-            TextButton(shape = CheckInStyle.shape, onClick = { more = false; settings() }) { Text("打开应用权限设置") }
+            Text("Organizers and participants must be within 200 m. Precise location is used only for check-in actions.")
+            TextButton(shape = CheckInStyle.shape, onClick = { more = false; settings() }) { Text("Open permission settings") }
             if (!integrated) TextButton(shape = CheckInStyle.shape, onClick = { preview = !preview; more = false }, modifier = Modifier.testTag("attendance_preview")) {
-                Text(if (preview) "返回当前名单" else "预览多人名单")
+                Text(if (preview) "Back to current attendance" else "Preview larger attendance list")
             }
             if (!integrated && !state.cancelled && now < session.startAt) OutlinedButton(shape = CheckInStyle.shape,
-                onClick = { more = false; cancel() }, enabled = !state.busy) { Text("取消这场活动") }
-            if (!integrated) TextButton(shape = CheckInStyle.shape, onClick = { more = false; newMeeting() }, enabled = !state.busy) { Text("另建一场活动") }
-            else Text("活动取消请返回活动管理，报名与候补会一并更新。")
+                onClick = { more = false; cancel() }, enabled = !state.busy) { Text("Cancel event") }
+            if (!integrated) TextButton(shape = CheckInStyle.shape, onClick = { more = false; newMeeting() }, enabled = !state.busy) { Text("Create another event") }
+            else Text("Cancel from event management to update registrations and the waitlist together.")
         }
     }
 }
@@ -99,10 +99,10 @@ private fun OrganizerCode(state: PrototypeUiState, now: Long, show: () -> Unit, 
         now >= session.startAt - PrototypePolicy.HALF_HOUR_MS && now <= session.startAt + PrototypePolicy.HALF_HOUR_MS
     val code = state.code?.takeIf { available && now >= it.issuedAt - 5_000 && now < it.expiresAt }
     val status = when {
-        state.cancelled -> "活动已取消，不能出码"
-        !available -> "当前不在签到时段"
-        code != null -> "剩余 ${(code.expiresAt - now + 999) / 1000} 秒，自动刷新"
-        state.busy -> "正在确认位置…"
+        state.cancelled -> "Event cancelled. Codes are unavailable."
+        !available -> "Outside the check-in window"
+        code != null -> "Refreshes in ${(code.expiresAt - now + 999) / 1000}s"
+        state.busy -> "Checking location…"
         else -> state.message
     }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally,
@@ -112,10 +112,10 @@ private fun OrganizerCode(state: PrototypeUiState, now: Long, show: () -> Unit, 
             if (code != null) {
                 val bitmap = remember(code) { BarcodeEncoder().encodeBitmap(
                     PrototypeCodeCodec.encode(code), BarcodeFormat.QR_CODE, 720, 720).asImageBitmap() }
-                Image(bitmap, "动态签到二维码", Modifier.size(side).background(Color.White).testTag("prototype_qr"))
+                Image(bitmap, "Refreshing check-in QR code", Modifier.size(side).background(Color.White).testTag("prototype_qr"))
             } else Surface(Modifier.size(side), shape = CheckInStyle.shape, color = MaterialTheme.colorScheme.surfaceContainerLow) {
                 Box(Modifier.padding(12.dp), contentAlignment = Alignment.Center) {
-                    Text(if (state.busy) "定位中…" else "等待出码", style = MaterialTheme.typography.bodyMedium)
+                    Text(if (state.busy) "Locating…" else "Waiting for a code", style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }
@@ -123,7 +123,7 @@ private fun OrganizerCode(state: PrototypeUiState, now: Long, show: () -> Unit, 
             maxLines = 2, overflow = TextOverflow.Ellipsis)
         Button(shape = CheckInStyle.shape, onClick = show, enabled = !state.busy && available,
             modifier = Modifier.fillMaxWidth().testTag("prototype_show")) {
-            Text(if (code != null) "刷新二维码" else "定位并出码", maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(if (code != null) "Refresh code" else "Get location and show code", maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }

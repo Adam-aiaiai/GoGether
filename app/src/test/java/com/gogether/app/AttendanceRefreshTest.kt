@@ -65,10 +65,10 @@ class AttendanceRefreshTest {
         assertTrue(model.state.value.attendance.loaded)
         assertNotNull(model.state.value.attendance.error)
         failure = false
-        people = listOf(PrototypeAttendee("bob", "Bob 新昵称", time), PrototypeAttendee("david", "David"))
+        people = listOf(PrototypeAttendee("bob", "Bob New Name", time), PrototypeAttendee("david", "David"))
         model.refreshAttendance(session); runCurrent()
         assertEquals(people, model.state.value.attendees)
-        assertEquals("Bob 新昵称 刚刚签到", model.state.value.notice!!.text)
+        assertEquals("Bob New Name just checked in", model.state.value.notice!!.text)
         model.dismissNotice(model.state.value.notice!!.id)
         model.refreshAttendance(session); runCurrent()
         assertNull(model.state.value.notice)

@@ -18,7 +18,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 fun displayTime(epoch: Long): String = Instant.ofEpochMilli(epoch).atZone(ZoneId.systemDefault())
-    .format(DateTimeFormatter.ofPattern("EEE, d MMM · HH:mm"))
+    .format(DateTimeFormatter.ofPattern("EEE, d MMM · HH:mm", java.util.Locale.ENGLISH))
 
 @Composable
 fun Page(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {

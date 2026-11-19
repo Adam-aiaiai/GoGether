@@ -21,9 +21,9 @@ interface CheckInSubmissionSource {
 class LocalCheckInSubmissionSource(private val backend: PrototypeCheckInBackend) : CheckInSubmissionSource {
     override suspend fun submit(attempt: CheckInAttempt, raw: String, fix: PositionFix): PrototypeReceipt {
         try {
-            require(PrototypeCodeCodec.decode(raw).session == attempt.session) { "活动信息不一致，请重新扫码。" }
+            require(PrototypeCodeCodec.decode(raw).session == attempt.session) { "Event details do not match. Scan again." }
             return backend.submit(attempt.actor, raw, fix)
-        } catch (e: IllegalArgumentException) { throw CheckInRejected(e.message ?: "签到未通过校验。") }
+        } catch (e: IllegalArgumentException) { throw CheckInRejected(e.message ?: "Check-in validation failed.") }
     }
 
     override suspend fun resolve(attempt: CheckInAttempt): CheckInResolution {
@@ -43,7 +43,7 @@ class MemoryPendingCheckInStore : PendingCheckInStore {
     override fun get(actor: String, sessionId: String) = pending[actor to sessionId]
     override fun save(attempt: CheckInAttempt) {
         val key = attempt.actor to attempt.session.id
-        check(pending[key] == null || pending[key] == attempt) { "请先核对上次签到结果。" }
+        check(pending[key] == null || pending[key] == attempt) { "Check the result of your previous check-in first." }
         pending[key] = attempt
     }
     override fun remove(attempt: CheckInAttempt) {

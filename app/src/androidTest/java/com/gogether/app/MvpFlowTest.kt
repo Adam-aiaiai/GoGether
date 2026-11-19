@@ -110,7 +110,7 @@ class MvpFlowTest {
         scrollClick("event_event-1")
         scrollClick("open_checkin")
         compose.onNodeWithTag("demo_checkin").assertDoesNotExist()
-        compose.onNodeWithTag("meeting_setup_status").assertTextEquals("组织者尚未确认集合点，请稍后重新进入。")
+        compose.onNodeWithTag("meeting_setup_status").assertTextEquals("The organizer has not set the meeting point. Try again later.")
         assertTrue(repo.state.value.checkIns.isEmpty())
     }
 

@@ -24,7 +24,7 @@ data class PrototypeUiState(
     val candidate: PositionFix? = null,
     val receipt: PrototypeReceipt? = null,
     val busy: Boolean = false,
-    val message: String = "请选择操作。",
+    val message: String = "Choose an action.",
     val cancelled: Boolean = false,
     val checkInClosed: Boolean = false,
     val attendees: List<PrototypeAttendee> = emptyList(),
@@ -85,7 +85,7 @@ class PrototypeViewModel(
         registration = registrations.status(initialParticipant?.id, actor),
         participants = registrations.participants(initialParticipant?.id), pendingSubmission = initialPending,
         scanStage = if (initialPending == null) ParticipantScanStage.READY else ParticipantScanStage.ATTENTION,
-        message = if (initialPending == null) "请选择操作。" else "上次签到结果待确认，请先核对。"))
+        message = if (initialPending == null) "Choose an action." else "Your last check-in is unconfirmed. Check its status first."))
     val state = mutableState.asStateFlow()
     private var operation: Job? = null
     private var displaying: Job? = null
@@ -111,7 +111,7 @@ class PrototypeViewModel(
         entryGeneration++
         seenCheckIns.clear()
         mutableState.value = PrototypeUiState(ownerUserId = actor, identityExpired = true,
-            message = "账号已变化，请重新进入签到。")
+            message = "Your account has changed. Reopen check-in.")
         return false
     }
 
@@ -129,7 +129,7 @@ class PrototypeViewModel(
             attendees = emptyList(), attendance = AttendanceLoadState(), reviewSessionId = null, reviews = emptyList(),
             cancelled = backend.isCancelled(session), checkInClosed = backend.isCheckInClosed(session),
             receipt = receipt, history = records, scanned = null, notice = null,
-            pendingSubmission = pending, message = if (pending == null) "" else "上次签到结果待确认，请先核对。",
+            pendingSubmission = pending, message = if (pending == null) "" else "Your last check-in is unconfirmed. Check its status first.",
             scanStage = if (pending == null) ParticipantScanStage.READY else ParticipantScanStage.ATTENTION,
             registration = registrations.status(session.id, actor),
             participants = registrations.participants(session.id)) }
@@ -163,7 +163,7 @@ class PrototypeViewModel(
         if (closed || !valid) stopDisplaying()
         update { it.copy(registration = registrations.status(session.id, actor),
             participants = registrations.participants(session.id), cancelled = cancelled, checkInClosed = closed,
-            message = if (!valid) "活动资料已变化，请返回重新进入。" else it.message) }
+            message = if (!valid) "Event details have changed. Go back and reopen the event." else it.message) }
     }
 
     fun dismissNotice(id: Long) { update { if (it.notice?.id == id) it.copy(notice = null) else it } }
@@ -194,7 +194,7 @@ class PrototypeViewModel(
             } catch (e: CancellationException) { throw e }
             catch (_: Exception) {
                 if (refreshIdentity() && generation == attendanceGeneration) update {
-                    it.copy(attendance = it.attendance.copy(error = "名单加载失败，请重试"))
+                    it.copy(attendance = it.attendance.copy(error = "Could not load attendance. Try again."))
                 }
             } finally {
                 if (generation == attendanceGeneration) update { it.copy(attendance = it.attendance.copy(loading = false)) }
@@ -214,7 +214,7 @@ class PrototypeViewModel(
         val arrivals = people.filter { it.checkedInAt != null && seenCheckIns.add(it.userId) }
             .takeIf { hadSnapshot && now() < session.endAt && !backend.isCancelled(session) }.orEmpty()
         val notice = arrivals.firstOrNull()?.let {
-            PrototypeNotice(++noticeSequence, if (arrivals.size == 1) "${it.name} 刚刚签到" else "${it.name} 等 ${arrivals.size} 人刚刚签到")
+            PrototypeNotice(++noticeSequence, if (arrivals.size == 1) "${it.name} just checked in" else "${arrivals.size} people just checked in, including ${it.name}")
         }
         update { it.copy(attendees = people, notice = notice ?: it.notice,
             attendance = AttendanceLoadState(session, loaded = true, updatedAt = now())) }
@@ -233,28 +233,28 @@ class PrototypeViewModel(
             if (!refreshIdentity()) return@launch
             try { work() }
             catch (e: CancellationException) { throw e }
-            catch (e: Exception) { if (generation == operationGeneration) update { it.copy(code = null, message = e.message ?: "操作失败，请重试。",
+            catch (e: Exception) { if (generation == operationGeneration) update { it.copy(code = null, message = e.message ?: "Something went wrong. Try again.",
                 scanStage = if (scanOperation) ParticipantScanStage.ATTENTION else it.scanStage) } }
             finally { if (generation == operationGeneration) update { it.copy(busy = false) } }
         }
     }
 
     fun locateMeeting() {
-        if (state.value.entry is CheckInEntry.Activity) return message("请由活动资料提供本场集合点，不能另建活动替代。")
+        if (state.value.entry is CheckInEntry.Activity) return message("Use the meeting point from this event. Do not create a replacement event.")
         stopDisplaying()
         runOperation {
-            message("正在定位测试集合点…")
+            message("Locating the test meeting point…")
             val fix = position.locate()
             currentCoroutineContext().ensureActive()
             if (!refreshIdentity()) return@runOperation
-            update { it.copy(candidate = fix, message = "请确认将当前位置固定为本次测试集合点。") }
+            update { it.copy(candidate = fix, message = "Confirm your current location as the fixed test meeting point.") }
         }
     }
     fun dismissMeeting() { update { it.copy(candidate = null) } }
     fun confirmMeeting() = runOperation {
         stopAttendance()
-        require(state.value.entry !is CheckInEntry.Activity) { "指定活动入口不能另建活动。" }
-        val fix = requireNotNull(state.value.candidate) { "请先定位集合点。" }
+        require(state.value.entry !is CheckInEntry.Activity) { "You cannot create another event from this event's check-in page." }
+        val fix = requireNotNull(state.value.candidate) { "Locate the meeting point first." }
         update { it.copy(candidate = null) }
         val session = backend.createMeeting(actor, fix)
         seenCheckIns.clear()
@@ -262,28 +262,28 @@ class PrototypeViewModel(
             notice = null,
             attendees = emptyList(), attendance = AttendanceLoadState(),
             history = backend.history(actor),
-            message = "测试集合点已固定。活动 10 分钟后开始，可现在试用签到。") }
+            message = "Meeting point saved. The event starts in 10 minutes; you can try check-in now.") }
     }
 
     fun showCode() {
         if (!refreshIdentity() || state.value.busy) return
         stopDisplaying()
-        val session = state.value.session ?: return message("请先确认测试集合点。")
+        val session = state.value.session ?: return message("Confirm the test meeting point first.")
         val generation = displayGeneration
         displaying = viewModelScope.launch {
             try {
                 while (true) {
-                    update { it.copy(code = null, busy = true, message = "正在确认组织者位置…") }
+                    update { it.copy(code = null, busy = true, message = "Checking the organizer's location…") }
                     val fix = position.locate()
                     currentCoroutineContext().ensureActive()
                     if (!refreshIdentity()) return@launch
                     val code = backend.issue(actor, session, fix)
                     update { it.copy(code = code, busy = false,
-                        message = "位置验证通过，请让参与者扫码。") }
+                        message = "Location verified. Participants can now scan your code.") }
                     delay(PrototypePolicy.REFRESH_MS)
                 }
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { update { it.copy(code = null, message = e.message ?: "刷新失败，请重试。") } }
+            catch (e: Exception) { update { it.copy(code = null, message = e.message ?: "Could not refresh. Please try again.") } }
             finally { if (generation == displayGeneration) update { it.copy(code = null, busy = false) } }
         }
     }
@@ -303,8 +303,8 @@ class PrototypeViewModel(
         try {
             val code = PrototypeCodeCodec.decode(raw)
             (target as? CheckInEntry.Activity)?.session?.let { expected ->
-                require(code.session.id == expected.id) { "这不是本场活动的签到码，请扫描本场组织者出示的二维码。" }
-                require(code.session == expected) { "二维码中的活动信息与当前活动不一致，请重新获取活动信息。" }
+                require(code.session.id == expected.id) { "This code is for another event. Scan this event's organizer code." }
+                require(code.session == expected) { "The code does not match this event. Reload the event details." }
             }
             pendingSubmissions.get(actor, code.session.id)?.let { pending ->
                 update { it.copy(participantSession = pending.session, pendingSubmission = pending,
@@ -321,7 +321,7 @@ class PrototypeViewModel(
                 receipt = it.receipt?.takeIf { receipt -> receipt.userId == actor && receipt.sessionId == code.session.id },
                 registration = registrations.status(code.session.id, actor), participants = registrations.participants(code.session.id),
                 history = backend.history(actor), scanStage = ParticipantScanStage.VERIFYING,
-                message = "已识别本场活动，正在获取精确位置…") }
+                message = "Event recognized. Getting your precise location…") }
             runOperation(scanOperation = true) {
                 val fix = try { position.locate() }
                 catch (e: CancellationException) { throw e }
@@ -332,7 +332,7 @@ class PrototypeViewModel(
                 }
                 currentCoroutineContext().ensureActive()
                 if (!refreshIdentity()) return@runOperation
-                update { it.copy(message = "正在核验距离、报名资格与签到时间…") }
+                update { it.copy(message = "Checking distance, registration and check-in time…") }
                 val attempt = CheckInAttempt(UUID.randomUUID().toString(), actor, code.session)
                 pendingSubmissions.save(attempt)
                 update { it.copy(pendingSubmission = attempt, locationRetryAvailable = false) }
@@ -350,7 +350,7 @@ class PrototypeViewModel(
                     throw e
                 } catch (_: Exception) { resolveAttempt(attempt) }
             }
-        } catch (e: IllegalArgumentException) { message(e.message ?: "二维码无效。") }
+        } catch (e: IllegalArgumentException) { message(e.message ?: "Invalid QR code.") }
     }
 
     /** Only a failed location acquisition may reuse a code, with all checks performed again. */
@@ -375,7 +375,7 @@ class PrototypeViewModel(
         currentCoroutineContext().ensureActive()
         if (!refreshIdentity() || state.value.pendingSubmission != attempt) return
         update { it.copy(scanStage = ParticipantScanStage.RESOLVING, scanned = null,
-            locationRetryAvailable = false, message = "正在核对上次签到结果，请稍候…") }
+            locationRetryAvailable = false, message = "Checking your previous check-in. Please wait…") }
         try {
             val result = withTimeout(10_000) { submissions.resolve(attempt) }
             currentCoroutineContext().ensureActive()
@@ -385,7 +385,7 @@ class PrototypeViewModel(
                 CheckInResolution.NotSubmitted -> {
                     pendingSubmissions.remove(attempt)
                     update { it.copy(pendingSubmission = null, scanStage = ParticipantScanStage.ATTENTION,
-                        message = "已确认上次未完成签到，请重新扫码。") }
+                        message = "Your previous check-in was not completed. Scan again.") }
                 }
                 CheckInResolution.Unknown -> unresolvedCheckIn()
             }
@@ -399,11 +399,11 @@ class PrototypeViewModel(
 
     private fun unresolvedCheckIn() {
         update { it.copy(scanStage = ParticipantScanStage.ATTENTION, notice = null,
-            message = "请稍后核对，无需重复扫码。") }
+            message = "Check the result later. No need to scan again.") }
     }
 
     private fun completeCheckIn(attempt: CheckInAttempt, receipt: PrototypeReceipt) {
-        require(receipt.userId == actor && receipt.sessionId == attempt.session.id) { "签到结果与账号或活动不匹配。" }
+        require(receipt.userId == actor && receipt.sessionId == attempt.session.id) { "The check-in result does not match this account or event." }
         if (state.value.pendingSubmission != attempt || state.value.participantSession != attempt.session) return
         // A confirmed reply remains useful even if a separate history refresh fails.
         val records = runCatching { backend.history(actor) }.getOrDefault(state.value.history)
@@ -414,7 +414,7 @@ class PrototypeViewModel(
         pendingSubmissions.remove(attempt)
         update { it.copy(receipt = receipt, scanned = null, history = updated, pendingSubmission = null,
             locationRetryAvailable = false, scanStage = ParticipantScanStage.SUCCESS,
-            notice = PrototypeNotice(++noticeSequence, "签到成功"), message = "签到成功，已确认签到记录。") }
+            notice = PrototypeNotice(++noticeSequence, "Checked in successfully"), message = "Check-in successful. Your record is confirmed.") }
     }
 
     fun openHistory() {
@@ -424,7 +424,7 @@ class PrototypeViewModel(
 
     fun submitFeedback(sessionId: String, rating: Int, comment: String, details: FeedbackDetails = FeedbackDetails()) = runOperation {
         backend.submitFeedback(actor, sessionId, rating, comment, details)
-        update { it.copy(history = backend.history(actor), message = "评价已保存。") }
+        update { it.copy(history = backend.history(actor), message = "Review saved.") }
     }
 
     fun loadReviews(session: PrototypeSession) {
@@ -437,7 +437,7 @@ class PrototypeViewModel(
         stopDisplaying()
         runOperation {
             backend.cancel(actor, requireNotNull(state.value.session))
-            update { it.copy(cancelled = true, notice = null, history = backend.history(actor), message = "活动已取消。已发出的码最多仍可使用 30 秒。") }
+            update { it.copy(cancelled = true, notice = null, history = backend.history(actor), message = "Event cancelled. Previously issued codes may remain valid for up to 30 seconds.") }
         }
     }
     fun stopDisplaying() {
@@ -454,6 +454,6 @@ class PrototypeViewModel(
         update { it.copy(busy = false, candidate = null, scanned = null, notice = null, locationRetryAvailable = false,
             scanStage = if (it.pendingSubmission != null) ParticipantScanStage.ATTENTION
                 else if (it.scanStage == ParticipantScanStage.VERIFYING) ParticipantScanStage.READY else it.scanStage,
-            message = if (it.pendingSubmission != null) "上次签到结果待确认，请先核对。" else it.message) }
+            message = if (it.pendingSubmission != null) "Your last check-in is unconfirmed. Check its status first." else it.message) }
     }
 }

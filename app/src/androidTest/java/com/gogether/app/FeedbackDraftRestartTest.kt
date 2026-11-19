@@ -28,7 +28,7 @@ class FeedbackDraftRestartTest {
         val bytes = ByteArrayOutputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it); it.toByteArray() }
         bitmap.recycle()
         val id = photos.importImage(actor, session, ByteArrayInputStream(bytes))
-        drafts.save(actor, session, FeedbackDraft(4, "退出应用后继续填写", FeedbackDetails(5, 3, 4,
+        drafts.save(actor, session, FeedbackDraft(4, "I will finish this review when I reopen the app.", FeedbackDetails(5, 3, 4,
             listOf("welcoming"), true, FeedbackVisibility.ORGANIZER_ONLY, listOf(id))))
         assertEquals(4, drafts.load(actor, session).rating)
     }
@@ -37,7 +37,7 @@ class FeedbackDraftRestartTest {
         val restored = drafts.load(actor, session)
         try {
             assertEquals(4, restored.rating)
-            assertEquals("退出应用后继续填写", restored.comment)
+            assertEquals("I will finish this review when I reopen the app.", restored.comment)
             assertEquals(5, restored.details.organization)
             assertEquals(3, restored.details.venue)
             assertEquals(4, restored.details.atmosphere)

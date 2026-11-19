@@ -38,7 +38,7 @@ class CheckInEntryUiTest {
         compose.onNodeWithTag("prototype_scan").performClick()
         compose.onNodeWithTag("feedback_rating_4").performScrollTo().performClick()
         compose.onNodeWithTag("history_detail").performScrollToNode(hasTestTag("feedback_comment"))
-        compose.onNodeWithTag("feedback_comment").performScrollTo().performTextInput("Bob 的私人草稿")
+        compose.onNodeWithTag("feedback_comment").performScrollTo().performTextInput("I enjoyed meeting everyone. I will finish this review later.")
         compose.runOnIdle { actor = "carol" }
         compose.onNodeWithTag("checkin_identity_expired").assertIsDisplayed()
         compose.onNodeWithTag("participant_event_title").assertDoesNotExist()

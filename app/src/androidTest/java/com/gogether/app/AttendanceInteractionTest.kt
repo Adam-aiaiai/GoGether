@@ -27,8 +27,8 @@ class AttendanceInteractionTest {
     private var state by mutableStateOf(PrototypeUiState(session = session,
         attendance = AttendanceLoadState(session, loaded = true, updatedAt = now),
         code = PrototypeCode(session, now, now + 30_000),
-        attendees = listOf(PrototypeAttendee("bob", "Bob", now), PrototypeAttendee("carol", "小陈"),
-            PrototypeAttendee("chen", "小陈", now - 60_000))))
+        attendees = listOf(PrototypeAttendee("bob", "Bob", now), PrototypeAttendee("carol", "Chris"),
+            PrototypeAttendee("chen", "Chris", now - 60_000))))
 
     private fun launch(actor: String = "alice", fontScale: Float = 1f) {
         compose.setContent {
@@ -44,19 +44,19 @@ class AttendanceInteractionTest {
         launch()
         val qr = compose.onNodeWithTag("prototype_qr").fetchSemanticsNode().boundsInRoot
         compose.onNodeWithTag("attendee_bob").performClick()
-        val date = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(now))
-        compose.onNodeWithTag("attendance_detail").assertTextContains("签到时间：$date", substring = true)
+        val date = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH).format(Date(now))
+        compose.onNodeWithTag("attendance_detail").assertTextContains("Time: $date", substring = true)
         compose.onNode(isDialog()).assertDoesNotExist()
         assertEquals(qr, compose.onNodeWithTag("prototype_qr").assertIsDisplayed().fetchSemanticsNode().boundsInRoot)
         capture("attendance-time-radius12.png")
-        compose.onNodeWithContentDescription("收起签到信息").performClick()
+        compose.onNodeWithContentDescription("Hide check-in details").performClick()
         compose.onNodeWithTag("attendance_pending_tab").performClick()
         compose.onNodeWithTag("attendee_carol").performClick()
-        compose.onNodeWithTag("attendance_detail").assertTextEquals("尚未签到")
+        compose.onNodeWithTag("attendance_detail").assertTextEquals("Not checked in")
         compose.runOnIdle { state = state.copy(attendees = state.attendees.map {
             if (it.userId == "carol") it.copy(checkedInAt = now) else it
         }) }
-        compose.onNodeWithTag("attendance_detail").assertTextContains("签到时间：$date", substring = true)
+        compose.onNodeWithTag("attendance_detail").assertTextContains("Time: $date", substring = true)
         compose.runOnIdle { state = state.copy(attendees = state.attendees.filterNot { it.userId == "carol" }) }
         compose.onNodeWithTag("attendance_detail").assertDoesNotExist()
     }
@@ -70,20 +70,20 @@ class AttendanceInteractionTest {
         input.performImeAction()
         compose.onNodeWithTag("search_person_bob").assertIsDisplayed()
         compose.onNodeWithTag("search_person_carol").assertDoesNotExist()
-        input.performTextReplacement("小陈")
+        input.performTextReplacement("Chris")
         input.performImeAction()
         compose.onNodeWithTag("search_person_carol").assertIsDisplayed()
         compose.onNodeWithTag("search_person_chen").assertIsDisplayed()
         capture("attendance-search-radius12.png")
         compose.onNodeWithTag("search_person_carol").performClick()
-        compose.onNodeWithTag("attendance_detail").assertTextEquals("尚未签到")
+        compose.onNodeWithTag("attendance_detail").assertTextEquals("Not checked in")
         compose.onNodeWithTag("search_person_carol").performClick()
         compose.onNodeWithTag("attendance_detail").assertDoesNotExist()
-        input.performTextReplacement("不存在")
+        input.performTextReplacement("Nobody Matches This Name")
         input.performImeAction()
-        compose.onNodeWithText("没有找到这个名字，请换个名字试试。").assertIsDisplayed()
-        compose.onNodeWithContentDescription("清空查找").performClick()
-        compose.onNodeWithText("找到 3 人").assertIsDisplayed()
+        compose.onNodeWithText("No matching names. Try another name.").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Clear search").performClick()
+        compose.onNodeWithText("3 people found").assertIsDisplayed()
         // Dismiss the modal through the platform back event; the underlying QR never moves.
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
         compose.waitForIdle()
@@ -95,12 +95,12 @@ class AttendanceInteractionTest {
         launch("bob")
         compose.onNodeWithTag("checkin_notice").assertDoesNotExist()
         compose.mainClock.autoAdvance = false
-        compose.runOnIdle { state = state.copy(scanStage = ParticipantScanStage.SUCCESS, notice = PrototypeNotice(1, "签到成功")) }
+        compose.runOnIdle { state = state.copy(scanStage = ParticipantScanStage.SUCCESS, notice = PrototypeNotice(1, "Checked in successfully")) }
         compose.mainClock.advanceTimeBy(32)
         compose.onNodeWithTag("checkin_notice").assertIsDisplayed()
         capture("participant-success-compact.png")
         compose.mainClock.advanceTimeBy(2_000)
-        compose.runOnIdle { state = state.copy(notice = PrototypeNotice(2, "签到成功")) }
+        compose.runOnIdle { state = state.copy(notice = PrototypeNotice(2, "Checked in successfully")) }
         compose.mainClock.advanceTimeBy(1_000)
         compose.onNodeWithTag("checkin_notice").assertIsDisplayed()
         compose.mainClock.advanceTimeBy(2_000)
@@ -111,7 +111,7 @@ class AttendanceInteractionTest {
         launch()
         val qr = compose.onNodeWithTag("prototype_qr").fetchSemanticsNode().boundsInRoot
         compose.mainClock.autoAdvance = false
-        compose.runOnIdle { state = state.copy(notice = PrototypeNotice(1, "Bob 刚刚签到")) }
+        compose.runOnIdle { state = state.copy(notice = PrototypeNotice(1, "Bob just checked in")) }
         compose.mainClock.advanceTimeBy(32)
         val notice = compose.onNodeWithTag("checkin_notice").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
         assertTrue(notice.top >= qr.bottom)

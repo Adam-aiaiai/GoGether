@@ -24,7 +24,7 @@ class PrototypeViewModelTest {
             val backend = LocalPrototypeBackend(store, { time }, { 0 })
             var failPosition = false
             val model = PrototypeViewModel("bob", backend, PositionSource {
-                if (failPosition) error("无法获取位置") else fix
+                if (failPosition) error("Could not get your location") else fix
             }, now = { time })
             model.receiveScan(PrototypeCodeCodec.encode(host.issue("alice", first, fix))); runCurrent()
             val second = host.createMeeting("alice", fix)
@@ -55,7 +55,7 @@ class PrototypeViewModelTest {
             assertEquals(ParticipantScanStage.ATTENTION, model.state.value.scanStage)
             model.receiveScan(raw); runCurrent()
             val notice = model.state.value.notice!!
-            assertEquals("签到成功", notice.text)
+            assertEquals("Checked in successfully", notice.text)
             assertEquals(ParticipantScanStage.SUCCESS, model.state.value.scanStage)
             assertNotNull(store.receipt(session.id, "bob"))
             assertEquals(session, model.state.value.participantSession)
@@ -88,14 +88,14 @@ class PrototypeViewModelTest {
             assertNull(model.state.value.notice)
             store.save(PrototypeReceipt(session.id, "bob", time + 1))
             model.refreshAttendance(session); runCurrent()
-            assertEquals("Bob 刚刚签到", model.state.value.notice!!.text)
+            assertEquals("Bob just checked in", model.state.value.notice!!.text)
             model.dismissNotice(model.state.value.notice!!.id)
             model.refreshAttendance(session); runCurrent()
             assertNull(model.state.value.notice)
             store.save(PrototypeReceipt(session.id, "carol", time + 2))
             store.save(PrototypeReceipt(session.id, "david", time + 3))
             model.refreshAttendance(session); runCurrent()
-            assertEquals("Carol 等 2 人刚刚签到", model.state.value.notice!!.text)
+            assertEquals("2 people just checked in, including Carol", model.state.value.notice!!.text)
             model.leaveForeground(); runCurrent()
             assertNull(model.state.value.notice)
             model.locateMeeting(); runCurrent(); model.confirmMeeting(); runCurrent()
@@ -104,7 +104,7 @@ class PrototypeViewModelTest {
             model.refreshAttendance(next); runCurrent()
             store.save(PrototypeReceipt(next.id, "bob", time + 30_000))
             model.refreshAttendance(next); runCurrent()
-            assertEquals("Bob 刚刚签到", model.state.value.notice!!.text)
+            assertEquals("Bob just checked in", model.state.value.notice!!.text)
             model.leaveForeground(); runCurrent()
         } finally { Dispatchers.resetMain() }
     }
@@ -123,11 +123,11 @@ class PrototypeViewModelTest {
             assertNotNull(model.state.value.history.single().receipt)
             clock = session.endAt
             model.openHistory(); runCurrent()
-            model.submitFeedback(session.id, 4, "很开心"); runCurrent()
-            assertEquals("很开心", model.state.value.history.single().feedback!!.comment)
-            model.submitFeedback(session.id, 2, "重复"); runCurrent()
+            model.submitFeedback(session.id, 4, "I had a great time"); runCurrent()
+            assertEquals("I had a great time", model.state.value.history.single().feedback!!.comment)
+            model.submitFeedback(session.id, 2, "I would join again."); runCurrent()
             assertEquals(4, model.state.value.history.single().feedback!!.rating)
-            assertTrue(model.state.value.message.contains("已评价"))
+            assertTrue(model.state.value.message.contains("already reviewed"))
             assertTrue(PrototypeViewModel("carol", backend, PositionSource { fix }).state.value.history.isEmpty())
         } finally { Dispatchers.resetMain() }
     }
@@ -168,7 +168,7 @@ class PrototypeViewModelTest {
             current = MeetingPoint(point.latitude + 0.01, point.longitude)
             advanceTimeBy(10_000); runCurrent()
             assertNull(model.state.value.code)
-            assertTrue(model.state.value.message.contains("超过 200 米"))
+            assertTrue(model.state.value.message.contains("Move within 200 m"))
             assertEquals(session.meeting, model.state.value.session!!.meeting)
             model.leaveForeground()
         } finally { Dispatchers.resetMain() }
@@ -185,18 +185,18 @@ class PrototypeViewModelTest {
             val backend = LocalPrototypeBackend(attendeeStore, { time }, { 0 })
             var denied = true
             val model = PrototypeViewModel("bob", backend, PositionSource {
-                require(!denied) { "需要精确位置权限" }; fix
+                require(!denied) { "Precise location permission is required" }; fix
             }, now = { time })
             model.receiveScan(raw); runCurrent()
             assertNull(model.state.value.receipt)
             assertTrue(attendeeStore.receipts.isEmpty())
-            assertTrue(model.state.value.message.contains("权限"))
+            assertTrue(model.state.value.message.contains("permission"))
             denied = false
             model.receiveScan(raw); runCurrent()
             assertEquals("bob", model.state.value.receipt!!.userId)
             model.receiveScan(raw); runCurrent()
             assertEquals(1, attendeeStore.receipts.size)
-            assertTrue(model.state.value.message.contains("已签到"))
+            assertTrue(model.state.value.message.contains("already checked in"))
         } finally { Dispatchers.resetMain() }
     }
 
@@ -213,7 +213,7 @@ class PrototypeViewModelTest {
             }, now = { time + testScheduler.currentTime })
             model.receiveScan(raw); advanceUntilIdle()
             assertTrue(store.receipts.isEmpty())
-            assertTrue(model.state.value.message.contains("过期"))
+            assertTrue(model.state.value.message.contains("expired"))
         } finally { Dispatchers.resetMain() }
     }
 

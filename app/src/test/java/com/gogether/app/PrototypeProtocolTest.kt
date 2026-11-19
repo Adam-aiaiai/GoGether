@@ -16,11 +16,11 @@ internal class MemoryPrototypeStore : PrototypeStore {
     override fun cancel(id: String) { cancelled += id }
     override fun receipt(sessionId: String, userId: String) = receipts[sessionId to userId]
     @Synchronized override fun save(receipt: PrototypeReceipt) {
-        require(receipts[receipt.sessionId to receipt.userId] == null) { "你已签到，无需重复提交。" }
+        require(receipts[receipt.sessionId to receipt.userId] == null) { "You are already checked in." }
         receipts[receipt.sessionId to receipt.userId] = receipt
     }
     @Synchronized override fun rememberSession(userId: String, session: PrototypeSession) {
-        require(known[session.id] == null || known[session.id] == session) { "活动信息与已保存记录不一致。" }
+        require(known[session.id] == null || known[session.id] == session) { "The event details do not match the saved record." }
         known[session.id] = session
         members.getOrPut(userId) { mutableSetOf() }.add(session.id)
     }
@@ -28,7 +28,7 @@ internal class MemoryPrototypeStore : PrototypeStore {
     override fun feedback(sessionId: String, userId: String) = feedbacks[sessionId to userId]
     override fun feedbackForSession(sessionId: String) = feedbacks.values.filter { it.sessionId == sessionId }
     @Synchronized override fun saveFeedback(feedback: PrototypeFeedback) {
-        require(feedbacks[feedback.sessionId to feedback.userId] == null) { "你已评价，无需重复提交。" }
+        require(feedbacks[feedback.sessionId to feedback.userId] == null) { "You have already reviewed this event." }
         feedbacks[feedback.sessionId to feedback.userId] = feedback
     }
 }

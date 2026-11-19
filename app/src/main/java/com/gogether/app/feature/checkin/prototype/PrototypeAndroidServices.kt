@@ -33,61 +33,61 @@ class PreferencesPrototypeStore(private val context: Context) : PrototypeStore {
         val value = JSONObject().put("participants", JSONArray(snapshot.participants.map {
             JSONObject().put("id", it.userId).put("name", it.name)
         })).put("waiting", JSONArray(snapshot.waitlisted.toList()))
-        check(prefs.edit().putString("registrations.$id", value.toString()).commit()) { "报名资料保存失败，请重试。" }
+        check(prefs.edit().putString("registrations.$id", value.toString()).commit()) { "Could not save registration details. Try again." }
     }
     override fun activityInfo(id: String): CheckInActivityInfo? = prefs.getString("activity-info.$id", null)?.let { raw ->
         val value = JSONObject(raw)
-        CheckInActivityInfo(PrototypeCodeCodec.decode(value.getString("session")).session,
+        CheckInActivityInfo(PrototypeSessionStorage.decode(value.getString("session")),
             value.getString("organizer"), value.getString("title"), value.getString("meeting"), value.getString("introduction"),
             value.optString("sourceEventId").takeIf { it.isNotBlank() },
             value.optString("organizerName").takeIf { it.isNotBlank() })
     }
     override fun rememberActivityInfo(info: CheckInActivityInfo) = synchronized(writeLock) {
         val previous = activityInfo(info.session.id)
-        require(previous == null || previous == info) { "活动归属或资料与已保存记录不一致。" }
+        require(previous == null || previous == info) { "The organizer or event details do not match the saved record." }
         if (previous == info) return@synchronized
-        val value = JSONObject().put("session", PrototypeCodeCodec.encode(PrototypeCode(info.session, info.session.startAt, info.session.startAt + 30_000)))
+        val value = JSONObject().put("session", PrototypeSessionStorage.encode(info.session))
             .put("organizer", info.organizerId).put("title", info.title).put("meeting", info.meetingName).put("introduction", info.introduction)
             .put("sourceEventId", info.sourceEventId)
             .put("organizerName", info.organizerDisplayName)
-        check(prefs.edit().putString("activity-info.${info.session.id}", value.toString()).commit()) { "活动资料保存失败，请重试。" }
+        check(prefs.edit().putString("activity-info.${info.session.id}", value.toString()).commit()) { "Could not save event details. Try again." }
     }
     override var hostedSession: PrototypeSession?
         get() = prefs.getString("hosted", null)?.let {
-            runCatching { PrototypeCodeCodec.decode(it).session }.getOrNull()
+            runCatching { PrototypeSessionStorage.decode(it) }.getOrNull()
         }
         set(value) {
-            val raw = value?.let { PrototypeCodeCodec.encode(PrototypeCode(it, it.startAt, it.startAt + 30_000)) }
-            require(prefs.edit().putString("hosted", raw).commit()) { "无法保存测试活动，请重试。" }
+            val raw = value?.let { PrototypeSessionStorage.encode(it) }
+            require(prefs.edit().putString("hosted", raw).commit()) { "Could not save the test event. Try again." }
         }
     override fun isCancelled(id: String) = prefs.getBoolean("cancelled.$id", false)
     override fun cancel(id: String) {
-        require(prefs.edit().putBoolean("cancelled.$id", true).commit()) { "取消记录保存失败。" }
+        require(prefs.edit().putBoolean("cancelled.$id", true).commit()) { "Could not save the cancellation." }
     }
     override fun receipt(sessionId: String, userId: String): PrototypeReceipt? {
         val time = prefs.getLong("receipt.$sessionId.$userId", 0)
         return if (time > 0) PrototypeReceipt(sessionId, userId, time) else null
     }
     override fun save(receipt: PrototypeReceipt) = synchronized(writeLock) {
-        require(this.receipt(receipt.sessionId, receipt.userId) == null) { "你已签到，无需重复提交。" }
+        require(this.receipt(receipt.sessionId, receipt.userId) == null) { "You are already checked in." }
         require(prefs.edit().putLong("receipt.${receipt.sessionId}.${receipt.userId}", receipt.checkedInAt).commit()) {
-            "签到记录保存失败，请重试。"
+            "Could not save check-in. Try again."
         }
     }
     override fun rememberSession(userId: String, session: PrototypeSession) = synchronized(writeLock) {
         val key = "session.${session.id}"
-        val previous = prefs.getString(key, null)?.let { PrototypeCodeCodec.decode(it).session }
-        require(previous == null || previous == session) { "活动信息与已保存记录不一致，请重新获取活动码。" }
-        val raw = PrototypeCodeCodec.encode(PrototypeCode(session, session.startAt, session.startAt + 30_000))
+        val previous = prefs.getString(key, null)?.let { PrototypeSessionStorage.decode(it) }
+        require(previous == null || previous == session) { "Event details do not match the saved record. Get a new code." }
+        val raw = PrototypeSessionStorage.encode(session)
         require(prefs.edit().putString(key, raw).putBoolean("member.${session.id}.$userId", true).commit()) {
-            "活动记录保存失败，请重试。"
+            "Could not save the event record. Try again."
         }
     }
     override fun sessions(userId: String): List<PrototypeSession> = prefs.all.entries
         .filter { it.key.startsWith("member.") && it.key.endsWith(".$userId") && it.value == true }
         .mapNotNull {
             val id = it.key.removePrefix("member.").removeSuffix(".$userId")
-            prefs.getString("session.$id", null)?.let { raw -> runCatching { PrototypeCodeCodec.decode(raw).session }.getOrNull() }
+            prefs.getString("session.$id", null)?.let { raw -> runCatching { PrototypeSessionStorage.decode(raw) }.getOrNull() }
         }
     override fun feedback(sessionId: String, userId: String): PrototypeFeedback? =
         prefs.getString("feedback.$sessionId.$userId", null)?.let {
@@ -111,10 +111,10 @@ class PreferencesPrototypeStore(private val context: Context) : PrototypeStore {
         .mapNotNull { feedback(sessionId, it.removePrefix("feedback.$sessionId.")) }
     override fun saveFeedback(feedback: PrototypeFeedback) = synchronized(writeLock) {
         val key = "feedback.${feedback.sessionId}.${feedback.userId}"
-        require(!prefs.contains(key)) { "你已评价，无需重复提交。" }
+        require(!prefs.contains(key)) { "You have already reviewed this event." }
         feedback.details.requireValid()
         val photoStore = FeedbackPhotoStore(context)
-        require(feedback.details.photos.all { photoStore.isOwned(it, feedback.userId, feedback.sessionId) }) { "图片已失效，请移除后重新选择。" }
+        require(feedback.details.photos.all { photoStore.isOwned(it, feedback.userId, feedback.sessionId) }) { "This photo is no longer available. Remove it and choose it again." }
         val draftPhotos = runCatching { FeedbackDraftStore(context).load(feedback.userId, feedback.sessionId).details.photos }.getOrDefault(emptyList())
         val value = JSONObject().put("rating", feedback.rating).put("comment", feedback.comment).put("createdAt", feedback.createdAt)
             .put("details", JSONObject().put("organization", feedback.details.organization).put("venue", feedback.details.venue)
@@ -122,7 +122,7 @@ class PreferencesPrototypeStore(private val context: Context) : PrototypeStore {
                 .put("anonymous", feedback.details.anonymous).put("visibility", feedback.details.visibility.name)
                 .put("photos", JSONArray(feedback.details.photos)))
         require(prefs.edit().putString(key, value.toString())
-            .remove(FeedbackDraftStore.key(feedback.userId, feedback.sessionId)).commit()) { "评价保存失败，请重试。" }
+            .remove(FeedbackDraftStore.key(feedback.userId, feedback.sessionId)).commit()) { "Could not save your review. Try again." }
         draftPhotos.filterNot { it in feedback.details.photos }.forEach {
             runCatching { photoStore.removeDraft(it, feedback.userId, feedback.sessionId) }
         }
@@ -140,12 +140,12 @@ fun interface PositionSource { suspend fun locate(): PositionFix }
 class AndroidPositionSource(private val context: Context) : PositionSource {
     override suspend fun locate(): PositionFix {
         require(ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
-            PackageManager.PERMISSION_GRANTED) { "需要精确位置权限才能检查 200 米范围，请在设置中允许。" }
+            PackageManager.PERMISSION_GRANTED) { "Allow precise location in settings to check the 200 m distance." }
         val manager = context.getSystemService(LocationManager::class.java)
         val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
             .filter { manager.allProviders.contains(it) && manager.isProviderEnabled(it) }
-        require(providers.isNotEmpty()) { "手机定位服务未开启，请开启后重试。" }
-        var reason = "未取得位置，请到开阔处重试，并检查手机定位设置。"
+        require(providers.isNotEmpty()) { "Location services are off. Enable them and try again." }
+        var reason = "Could not get your location. Try in an open area and check location settings."
         return withTimeoutOrNull(20_000) {
             suspendCancellableCoroutine { continuation ->
                 val listener = object : LocationListener {
@@ -173,7 +173,7 @@ class AndroidPositionSource(private val context: Context) : PositionSource {
                 } catch (e: SecurityException) {
                     manager.removeUpdates(listener)
                     if (continuation.isActive) continuation.resumeWithException(
-                        IllegalArgumentException("位置权限已改变，请重新授权。", e))
+                        IllegalArgumentException("Location permission has changed. Grant permission again.", e))
                 } catch (e: IllegalArgumentException) {
                     manager.removeUpdates(listener)
                     if (continuation.isActive) continuation.resumeWithException(e)

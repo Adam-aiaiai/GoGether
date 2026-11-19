@@ -49,20 +49,20 @@ internal fun AttendancePanel(state: PrototypeUiState, session: PrototypeSession,
     val header: @Composable () -> Unit = {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(if (load.loaded) "参与者 ${people.size} 人，已签到 ${people.count { it.checkedInAt != null }} 人"
-                    else "出席名单", style = MaterialTheme.typography.bodySmall,
+                Text(if (load.loaded) "${people.size} participants, ${people.count { it.checkedInAt != null }} checked in"
+                    else "Attendance", style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.testTag("attendance_summary"))
                 Text(when {
-                    load.loading -> if (load.loaded) "正在更新名单…" else "正在加载名单…"
-                    load.error != null -> if (load.loaded) "更新失败，显示上次结果" else "名单加载失败，请重试"
-                    load.updatedAt != null -> "更新于 ${attendanceTime(load.updatedAt).takeLast(8)}"
-                    else -> "等待加载"
+                    load.loading -> if (load.loaded) "Updating attendance…" else "Loading attendance…"
+                    load.error != null -> if (load.loaded) "Update failed. Showing previous results." else "Could not load attendance. Try again."
+                    load.updatedAt != null -> "Updated ${attendanceTime(load.updatedAt).takeLast(8)}"
+                    else -> "Waiting to load"
                 }, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     color = if (load.error != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.testTag("attendance_load_status"))
             }
             IconButton(onClick = refresh, enabled = !load.loading, modifier = Modifier.testTag("attendance_refresh")) {
-                Icon(Icons.Default.Refresh, if (load.error != null) "重试加载名单" else "刷新出席名单")
+                Icon(Icons.Default.Refresh, if (load.error != null) "Retry loading attendance" else "Refresh attendance")
             }
         }
     }
@@ -72,7 +72,7 @@ internal fun AttendancePanel(state: PrototypeUiState, session: PrototypeSession,
         header()
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
             if (load.loading) CircularProgressIndicator(Modifier.size(24.dp).testTag("attendance_loading"))
-            else Text("加载后可查看出席情况", style = MaterialTheme.typography.bodySmall)
+            else Text("Attendance will appear once loaded", style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -84,15 +84,15 @@ internal fun AttendanceRecordScreen(state: PrototypeUiState, session: PrototypeS
     BackHandler { back() }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp).testTag("attendance_record_screen")) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = back, shape = CheckInStyle.shape) { Text("< 返回") }
-            Text("出席记录", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+            TextButton(onClick = back, shape = CheckInStyle.shape) { Text("< Back") }
+            Text("Attendance record", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
             IconButton(onClick = { search = true }, enabled = state.attendance.session == session && state.attendance.loaded,
-                modifier = Modifier.testTag("attendance_search_open")) { Icon(Icons.Default.Search, "查找参与者") }
+                modifier = Modifier.testTag("attendance_search_open")) { Icon(Icons.Default.Search, "Find participants") }
         }
-        Text(LocalCheckInActivities.current.infoOrNull(session)?.title ?: "活动资料不可用", style = MaterialTheme.typography.titleMedium)
+        Text(LocalCheckInActivities.current.infoOrNull(session)?.title ?: "Event details unavailable", style = MaterialTheme.typography.titleMedium)
         Text(attendanceTime(session.startAt), style = MaterialTheme.typography.bodySmall)
-        Text(if (state.history.find { it.session == session }?.cancelled == true) "活动已取消，保留出席记录"
-            else if (now >= session.endAt) "活动已结束" else "活动尚未结束", style = MaterialTheme.typography.bodySmall)
+        Text(if (state.history.find { it.session == session }?.cancelled == true) "Event cancelled. Attendance records are kept."
+            else if (now >= session.endAt) "Event ended" else "This event has not ended yet", style = MaterialTheme.typography.bodySmall)
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
         key(session) {
             AttendancePanel(state, session, Modifier.weight(1f).padding(bottom = 8.dp), search,

@@ -36,7 +36,7 @@ class CheckInSubmissionRecoveryTest {
             override suspend fun resolve(attempt: CheckInAttempt): CheckInResolution { queries++; return query(attempt) }
         }
         fun model(pending: PendingCheckInStore = journal) = PrototypeViewModel("bob", backend,
-            PositionSource { locations++; PositionFix(session.meeting, 10.0, 0) }, now = { clock },
+            PositionSource { locations++; PositionFix(requireNotNull(session.meeting), 10.0, 0) }, now = { clock },
             entry = CheckInEntry.Activity(session), identity = CheckInIdentitySource { user },
             submissions = source, pendingSubmissions = pending)
     }
@@ -65,7 +65,7 @@ class CheckInSubmissionRecoveryTest {
         assertTrue(model.state.value.busy)
         advanceTimeBy(10_000); runCurrent()
         assertFalse(model.state.value.busy)
-        assertTrue(model.state.value.message.contains("已确认上次未完成"))
+        assertTrue(model.state.value.message.contains("previous check-in was not completed"))
         assertNull(model.state.value.pendingSubmission)
         assertEquals(1, f.submits)
         f.send = { f.store.save(f.receipt); f.receipt }
@@ -113,13 +113,13 @@ class CheckInSubmissionRecoveryTest {
 
     @Test fun definiteRejectionClearsAttemptAndDoesNotQueryOrClaimSuccess() = scenario {
         val f = Fixture()
-        f.send = { throw CheckInRejected("当前用户已不具备报名资格。") }
+        f.send = { throw CheckInRejected("The current user no longer has registration eligibility.") }
         val model = f.model()
         model.receiveScan(raw); runCurrent()
         assertEquals(0, f.queries)
         assertNull(f.journal.get("bob", session.id))
         assertNull(model.state.value.notice)
-        assertTrue(model.state.value.message.contains("报名资格"))
+        assertTrue(model.state.value.message.contains("registration eligibility"))
     }
 
     @Test fun mismatchedReplyAndLookupCannotDisplayAnotherUsersReceipt() = scenario {
@@ -188,13 +188,13 @@ class CheckInSubmissionRecoveryTest {
     @Test fun progressStorageFailurePreventsSendingRequest() = scenario {
         val f = Fixture()
         val broken = object : PendingCheckInStore by f.journal {
-            override fun save(attempt: CheckInAttempt) { error("无法保存签到进度") }
+            override fun save(attempt: CheckInAttempt) { error("Could not save check-in progress") }
         }
         val model = f.model(broken)
         model.receiveScan(raw); runCurrent()
         assertEquals(0, f.submits)
         assertNull(model.state.value.notice)
-        assertTrue(model.state.value.message.contains("无法保存"))
+        assertTrue(model.state.value.message.contains("Could not save"))
     }
 
     @Test fun unresolvedActivityDoesNotBlockAnotherActivityAndIsRecoveredWhenScannedAgain() = scenario {

@@ -25,7 +25,7 @@ fun ProfileScreen(state: AppSnapshot, now: Long, busy: Boolean, switchUser: (Str
         InfoCard("Your interests", user.interests.joinToString { it.label }.ifEmpty { "Ready to try something new" })
         InfoCard("This demo session", "Profiles and activities are shared within this app process. Restarting the process resets all changes. Separate devices have separate data.")
         OutlinedButton(onClick = { context.startActivity(Intent(context, PrototypeCheckInActivity::class.java)) },
-            modifier = Modifier.fillMaxWidth().testTag("checkin_prototype")) { Text("扫码签到原型 · 两台手机试用") }
+            modifier = Modifier.fillMaxWidth().testTag("checkin_prototype")) { Text("Try QR check-in on two phones") }
         Text("Switch test user", style = MaterialTheme.typography.titleLarge)
         state.users.filter { it.id != user.id }.forEach { target ->
             OutlinedButton(onClick = { switchUser(target.id) }, enabled = !busy,

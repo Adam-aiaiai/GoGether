@@ -21,14 +21,14 @@ internal fun FeedbackDimension(label: String, key: String, rating: Int, busy: Bo
     Column {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(label, style = MaterialTheme.typography.bodyMedium)
-            Text(if (rating == 0) "未评分" else "$rating 分", style = MaterialTheme.typography.bodySmall,
+            Text(if (rating == 0) "Not rated" else "$rating / 5", style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Row(Modifier.fillMaxWidth().selectableGroup()) {
             (1..5).forEach { score ->
                 Box(Modifier.weight(1f).heightIn(min = 48.dp).clip(CheckInStyle.shape)
                     .selectable(rating == score, enabled = !busy, role = Role.RadioButton, onClick = { choose(score) })
-                    .semantics { contentDescription = "$label $score 分" }.testTag("feedback_${key}_$score"),
+                    .semantics { contentDescription = "$label: $score out of 5" }.testTag("feedback_${key}_$score"),
                     contentAlignment = Alignment.Center) {
                     Icon(Icons.Default.Star, null, Modifier.size(26.dp),
                         tint = if (score <= rating) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
@@ -42,8 +42,8 @@ internal fun FeedbackDimension(label: String, key: String, rating: Int, busy: Bo
 @Composable
 internal fun FeedbackTags(improvement: Boolean, selected: List<String>, busy: Boolean, toggle: (String) -> Unit) {
     Column(Modifier.testTag(if (improvement) "feedback_improvements" else "feedback_likes")) {
-        Text(if (improvement) "希望改进" else "喜欢的地方", style = MaterialTheme.typography.titleMedium)
-        Text("选填，可多选", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(if (improvement) "What could improve" else "What went well", style = MaterialTheme.typography.titleMedium)
+        Text("Optional. Select any that apply.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         FlowRow(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)) {
             feedbackTags.filter { it.improvement == improvement }.forEach { tag ->
@@ -63,9 +63,9 @@ internal fun FeedbackTags(improvement: Boolean, selected: List<String>, busy: Bo
 @Composable
 internal fun SavedFeedbackDetails(details: FeedbackDetails) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        val dimensions = listOf("组织安排" to details.organization, "场地体验" to details.venue, "活动氛围" to details.atmosphere)
+        val dimensions = listOf("Organization" to details.organization, "Venue" to details.venue, "Atmosphere" to details.atmosphere)
         if (dimensions.any { it.second > 0 }) {
-            Text("分项体验", style = MaterialTheme.typography.titleMedium)
+            Text("Experience ratings", style = MaterialTheme.typography.titleMedium)
             dimensions.filter { it.second > 0 }.forEach { (label, score) ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(label, style = MaterialTheme.typography.bodyMedium)
@@ -76,7 +76,7 @@ internal fun SavedFeedbackDetails(details: FeedbackDetails) {
         listOf(false, true).forEach { improvement ->
             val selected = feedbackTags.filter { it.improvement == improvement && it.id in details.tags }
             if (selected.isNotEmpty()) {
-                Text(if (improvement) "希望改进" else "喜欢的地方", style = MaterialTheme.typography.titleSmall)
+                Text(if (improvement) "What could improve" else "What went well", style = MaterialTheme.typography.titleSmall)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     selected.forEach { tag ->
                         Surface(shape = CheckInStyle.shape, color = MaterialTheme.colorScheme.primaryContainer) {

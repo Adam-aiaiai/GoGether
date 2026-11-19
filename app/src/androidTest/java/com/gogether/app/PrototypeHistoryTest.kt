@@ -52,15 +52,15 @@ class PrototypeHistoryTest {
         capture("prototype-feedback-form.png")
         compose.onNodeWithTag("feedback_rating_4").performScrollTo().performClick()
         compose.onNodeWithTag("history_detail").performScrollToNode(hasTestTag("feedback_comment"))
-        compose.onNodeWithTag("feedback_comment").performScrollTo().performTextInput("集合点说明很清楚")
+        compose.onNodeWithTag("feedback_comment").performScrollTo().performTextInput("The meeting instructions were clear.")
         androidx.test.espresso.Espresso.closeSoftKeyboard()
         compose.onNodeWithTag("feedback_submit").assertIsDisplayed().assertIsEnabled().performClick()
         compose.runOnIdle { assertEquals("Submission must actually reach the callback", 1, calls) }
         // The long form keeps its scroll position; locate the saved summary before checking visibility.
         compose.onNodeWithTag("history_detail").performScrollToNode(hasTestTag("feedback_saved"))
         compose.onNodeWithTag("feedback_saved").assertIsDisplayed()
-        compose.onNodeWithTag("history_detail").performScrollToNode(hasText("集合点说明很清楚"))
-        compose.onNodeWithText("集合点说明很清楚").assertIsDisplayed()
+        compose.onNodeWithTag("history_detail").performScrollToNode(hasText("The meeting instructions were clear."))
+        compose.onNodeWithText("The meeting instructions were clear.").assertIsDisplayed()
         compose.onNodeWithTag("feedback_submit").assertDoesNotExist()
         capture("prototype-feedback-saved.png")
         assertEquals(1, calls)
@@ -71,20 +71,20 @@ class PrototypeHistoryTest {
         var message by mutableStateOf("")
         var records by mutableStateOf(listOf(entry(false)))
         compose.setContent { GogetherTheme {
-            PrototypeHistoryScreen(actor, records, session.endAt, false, message, {}, { _, _, _, _ -> message = "保存失败，请重试。" })
+            PrototypeHistoryScreen(actor, records, session.endAt, false, message, {}, { _, _, _, _ -> message = "Could not save. Please try again." })
         } }
         compose.onNodeWithTag("history_${session.id}").performClick()
         compose.onNodeWithTag("feedback_rating_3").performScrollTo().performClick()
         compose.onNodeWithTag("history_detail").performScrollToNode(hasTestTag("feedback_comment"))
-        compose.onNodeWithTag("feedback_comment").performScrollTo().performTextInput("保留这条评论")
+        compose.onNodeWithTag("feedback_comment").performScrollTo().performTextInput("The meeting point was easy to find.")
         compose.onNodeWithTag("feedback_submit").performClick()
-        compose.onNodeWithText("保存失败，请重试。").assertIsDisplayed()
-        compose.onNodeWithTag("feedback_comment").assertTextContains("保留这条评论")
+        compose.onNodeWithText("Could not save. Please try again.").assertIsDisplayed()
+        compose.onNodeWithTag("feedback_comment").assertTextContains("The meeting point was easy to find.")
         compose.onNodeWithTag("history_detail").performScrollToNode(hasTestTag("feedback_rating_3"))
         compose.onNodeWithTag("feedback_rating_3").assertIsSelected()
         compose.runOnIdle { actor = "carol"; records = emptyList() }
         compose.onNodeWithTag("feedback_comment").assertDoesNotExist()
-        compose.onNodeWithText("参与活动后，签到和评价会保存在这里。").assertExists()
+        compose.onNodeWithText("Your check-ins and reviews will appear here after taking part.").assertExists()
     }
 
     @Test fun crossingEndTimeEnablesReviewButCancellationRemovesIt() {
@@ -97,14 +97,14 @@ class PrototypeHistoryTest {
         compose.onNodeWithTag("feedback_submit").assertExists()
         compose.runOnIdle { records = listOf(entry(false, cancelled = true)) }
         compose.onNodeWithTag("feedback_submit").assertDoesNotExist()
-        compose.onNodeWithText("活动已取消，不能评价。").assertExists()
+        compose.onNodeWithText("This event is cancelled. You cannot review it.").assertExists()
     }
 
     @Test fun actualDiskStoreKeepsHistoryAndBlocksDuplicatesAcrossServiceInstances() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val prefs = context.getSharedPreferences("checkin_prototype_v1", 0)
         var clock = start
-        val fix = PositionFix(session.meeting, 10.0, 0)
+        val fix = PositionFix(requireNotNull(session.meeting), 10.0, 0)
         val code = PrototypeCodeCodec.encode(PrototypeCode(session, clock, clock + 30_000))
         fun service() = LocalPrototypeBackend(PreferencesPrototypeStore(context), { clock }, { 0 })
         val pool = Executors.newFixedThreadPool(4)
@@ -117,13 +117,13 @@ class PrototypeHistoryTest {
             assertThrows(IllegalArgumentException::class.java) { service().submit("bob", code, fix) }
             clock = session.endAt
             val details = FeedbackDetails(5, 0, 4, listOf("welcoming", "more_guidance"))
-            val reviews = pool.invokeAll((1..8).map { Callable { runCatching { service().submitFeedback("bob", session.id, 4, "一起打球\n\"很开心\" 🏸", details) }.isSuccess } })
+            val reviews = pool.invokeAll((1..8).map { Callable { runCatching { service().submitFeedback("bob", session.id, 4, "Great game\n\"I had a great time\" 🏸", details) }.isSuccess } })
             assertEquals(1, reviews.count { it.get() })
             val restored = service().history("bob").single { it.session.id == session.id }
             assertEquals(4, restored.feedback!!.rating)
             assertEquals(details, restored.feedback!!.details)
-            assertEquals("一起打球\n\"很开心\" 🏸", restored.feedback!!.comment)
-            assertThrows(IllegalArgumentException::class.java) { service().submitFeedback("bob", session.id, 5, "重复") }
+            assertEquals("Great game\n\"I had a great time\" 🏸", restored.feedback!!.comment)
+            assertThrows(IllegalArgumentException::class.java) { service().submitFeedback("bob", session.id, 5, "I would join again.") }
         } finally {
             pool.shutdownNow()
             prefs.edit().also { edit -> prefs.all.keys.filter { it.contains(session.id) }.forEach(edit::remove) }.commit()
@@ -135,9 +135,9 @@ class PrototypeHistoryTest {
         val prefs = context.getSharedPreferences("checkin_prototype_v1", 0)
         val key = "feedback.${session.id}.bob"
         try {
-            assertTrue(prefs.edit().putString(key, """{"rating":4,"comment":"旧评价","createdAt":$start}""").commit())
+            assertTrue(prefs.edit().putString(key, """{"rating":4,"comment":"I enjoyed our last event.","createdAt":$start}""").commit())
             val saved = PreferencesPrototypeStore(context).feedback(session.id, "bob")!!
-            assertEquals("旧评价", saved.comment)
+            assertEquals("I enjoyed our last event.", saved.comment)
             assertEquals(FeedbackDetails(), saved.details)
         } finally { prefs.edit().remove(key).commit() }
     }

@@ -53,7 +53,7 @@ class MemberCEIntegrationTest {
         compose.onNodeWithTag("participant_name_bob", useUnmergedTree = true).assertExists()
         compose.onNodeWithTag("open_checkin").performScrollTo().performClick()
         compose.onNodeWithTag("participant_event_title").assertTextEquals("Badminton, anyone?")
-        compose.onNodeWithTag("participant_status_title").assertTextEquals("已签到")
+        compose.onNodeWithTag("participant_status_title").assertTextEquals("Checked in")
         compose.onNodeWithTag("demo_checkin").assertDoesNotExist()
         compose.onNodeWithTag("participant_panel").assertIsDisplayed()
     }

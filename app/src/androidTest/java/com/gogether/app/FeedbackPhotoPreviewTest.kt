@@ -54,12 +54,12 @@ class FeedbackPhotoPreviewTest {
     private fun open(index: Int = 0) {
         compose.onNodeWithTag("feedback_photo_$index").performClick()
         compose.waitUntil(10_000) {
-            compose.onAllNodesWithContentDescription("活动照片预览").fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithContentDescription("Event photo preview").fetchSemanticsNodes().isNotEmpty()
         }
     }
     private fun zoom(id: String) = compose.onNodeWithTag("photo_zoom_$id")
     private fun scale(id: String): Int = zoom(id).fetchSemanticsNode().config[SemanticsProperties.StateDescription]
-        .removePrefix("缩放 ").removeSuffix("%").toInt()
+        .removePrefix("Zoom ").removeSuffix("%").toInt()
 
     @After fun cleanup() { ids.forEach { store.removeDraft(it, "bob", session) } }
 
@@ -73,13 +73,13 @@ class FeedbackPhotoPreviewTest {
         }
         compose.onNodeWithTag("photo_pager").performTouchInput { swipeLeft() }
         compose.onNodeWithTag("photo_page_count").assertTextEquals("3 / 3")
-        compose.onNodeWithText("下一张").assertIsNotEnabled()
+        compose.onNodeWithText("Next").assertIsNotEnabled()
         compose.onNodeWithTag("photo_pager").performTouchInput { swipeRight() }
         compose.onNodeWithTag("photo_page_count").assertTextEquals("2 / 3")
-        compose.onNodeWithText("上一张").performClick()
+        compose.onNodeWithText("Previous").performClick()
         compose.onNodeWithTag("photo_page_count").assertTextEquals("1 / 3")
-        compose.onNodeWithText("上一张").assertIsNotEnabled()
-        compose.onNodeWithText("< 返回").performClick()
+        compose.onNodeWithText("Previous").assertIsNotEnabled()
+        compose.onNodeWithText("< Back").performClick()
         compose.onNodeWithTag("feedback_photo_preview").assertDoesNotExist()
     }
 
@@ -102,8 +102,8 @@ class FeedbackPhotoPreviewTest {
     @Test fun singlePhotoHasNoNextPage() {
         launch(1); open()
         compose.onNodeWithTag("photo_page_count").assertTextEquals("1 / 1")
-        compose.onNodeWithText("上一张").assertIsNotEnabled()
-        compose.onNodeWithText("下一张").assertIsNotEnabled()
+        compose.onNodeWithText("Previous").assertIsNotEnabled()
+        compose.onNodeWithText("Next").assertIsNotEnabled()
         compose.onNodeWithTag("photo_pager").performTouchInput { swipeLeft() }
         compose.onNodeWithTag("photo_page_count").assertTextEquals("1 / 1")
     }
@@ -115,9 +115,9 @@ class FeedbackPhotoPreviewTest {
                 Offset(center.x - 130, center.y), Offset(center.x + 130, center.y))
         }
         assertTrue(scale(ids[0]) > 100)
-        compose.onNodeWithText("下一张").performClick()
+        compose.onNodeWithText("Next").performClick()
         compose.onNodeWithTag("photo_page_count").assertTextEquals("2 / 3")
-        compose.onNodeWithText("上一张").performClick()
+        compose.onNodeWithText("Previous").performClick()
         assertEquals(100, scale(ids[0]))
     }
 
@@ -126,13 +126,13 @@ class FeedbackPhotoPreviewTest {
         compose.runOnIdle { viewer = "carol" }
         compose.onNodeWithTag("feedback_photo_preview").assertDoesNotExist()
         compose.onNodeWithTag("feedback_photo_0").performClick()
-        compose.waitUntil(10_000) { compose.onAllNodesWithText("图片不可用").fetchSemanticsNodes().isNotEmpty() }
-        compose.onAllNodesWithContentDescription("活动照片预览").assertCountEquals(0)
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("Photo unavailable").fetchSemanticsNodes().isNotEmpty() }
+        compose.onAllNodesWithContentDescription("Event photo preview").assertCountEquals(0)
         compose.runOnIdle { viewer = "bob"; activity = "other-event" }
         compose.onNodeWithTag("feedback_photo_preview").assertDoesNotExist()
         compose.onNodeWithTag("feedback_photo_0").performClick()
-        compose.waitUntil(10_000) { compose.onAllNodesWithText("图片不可用").fetchSemanticsNodes().isNotEmpty() }
-        compose.onAllNodesWithContentDescription("活动照片预览").assertCountEquals(0)
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("Photo unavailable").fetchSemanticsNodes().isNotEmpty() }
+        compose.onAllNodesWithContentDescription("Event photo preview").assertCountEquals(0)
         compose.runOnIdle { activity = session }
         open()
         compose.runOnIdle { photos = photos.drop(1) }

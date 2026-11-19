@@ -36,13 +36,13 @@ class PrototypeFeedbackTest {
         val service = backend()
         service.submit("bob", raw(session), fix)
         time = session.endAt
-        val result = service.submitFeedback("bob", session.id, 4, "  集合说明很清楚  ")
-        assertEquals("集合说明很清楚", result.comment)
+        val result = service.submitFeedback("bob", session.id, 4, "  The meeting instructions were clear.  ")
+        assertEquals("The meeting instructions were clear.", result.comment)
         val restored = backend().history("bob").single()
         assertNotNull(restored.receipt)
         assertEquals(result, restored.feedback)
         assertEquals(session, restored.session)
-        assertThrows(IllegalArgumentException::class.java) { backend().submitFeedback("bob", session.id, 5, "再次提交") }
+        assertThrows(IllegalArgumentException::class.java) { backend().submitFeedback("bob", session.id, 5, "I enjoyed the event and would join again.") }
     }
 
     @Test fun reviewsOpenExactlyAtEndAndPreserveExistingNoCheckInRequirement() {
@@ -78,9 +78,9 @@ class PrototypeFeedbackTest {
         for (rating in listOf(0, 6)) assertThrows(IllegalArgumentException::class.java) {
             backend().submitFeedback("bob", session.id, rating, "")
         }
-        assertThrows(IllegalArgumentException::class.java) { backend().submitFeedback("bob", session.id, 5, "字".repeat(501)) }
+        assertThrows(IllegalArgumentException::class.java) { backend().submitFeedback("bob", session.id, 5, "a".repeat(501)) }
         assertNull(backend().history("bob").single().feedback)
-        backend().submitFeedback("bob", session.id, 1, "字".repeat(500))
+        backend().submitFeedback("bob", session.id, 1, "a".repeat(500))
         assertEquals(500, backend().history("bob").single().feedback!!.comment.length)
     }
 

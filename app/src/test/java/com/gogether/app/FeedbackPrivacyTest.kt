@@ -11,11 +11,11 @@ class FeedbackPrivacyTest {
     private fun backend() = LocalPrototypeBackend(store, { 2_000 }, { 0 })
 
     @Test fun anonymousPublicReviewRedactsIdentityForBothOrganizerAndParticipantsButKeepsInternalAuthor() {
-        val saved = backend().submitFeedback("bob", session.id, 4, "很开心", FeedbackDetails(anonymous = true))
+        val saved = backend().submitFeedback("bob", session.id, 4, "I had a great time", FeedbackDetails(anonymous = true))
         assertEquals("bob", saved.userId)
         listOf("alice", "carol", "bob").forEach { viewer ->
             val visible = backend().reviews(viewer, session).single()
-            assertEquals("匿名参与者", visible.authorName)
+            assertEquals("Anonymous participant", visible.authorName)
             assertTrue(visible.anonymous)
             assertEquals(viewer == "bob", visible.own)
         }
@@ -24,11 +24,11 @@ class FeedbackPrivacyTest {
 
     @Test fun organizerOnlyReviewIsHiddenFromOthersIncludingPhotoReferences() {
         val photo = UUID.randomUUID().toString()
-        backend().submitFeedback("bob", session.id, 3, "给组织者的反馈",
+        backend().submitFeedback("bob", session.id, 3, "Please allow more time for introductions.",
             FeedbackDetails(anonymous = true, visibility = FeedbackVisibility.ORGANIZER_ONLY, photos = listOf(photo)))
         assertTrue(backend().reviews("carol", session).isEmpty())
         assertEquals(listOf(photo), backend().reviews("alice", session).single().details.photos)
-        assertEquals("匿名参与者", backend().reviews("alice", session).single().authorName)
+        assertEquals("Anonymous participant", backend().reviews("alice", session).single().authorName)
         assertEquals(1, backend().reviews("bob", session).size)
         assertNull(store.feedback(session.id, "bob")!!.visibleTo("", "alice"))
         assertThrows(IllegalArgumentException::class.java) { backend().reviews("unknown", session) }

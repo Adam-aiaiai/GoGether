@@ -43,18 +43,18 @@ internal fun FeedbackPhotoPreview(photos: List<String>, initialPage: Int, viewer
     Dialog(onDismissRequest = close, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(Modifier.fillMaxSize().background(Color.Black).safeDrawingPadding().testTag("feedback_photo_preview")) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = close) { Text("< 返回", color = Color.White) }
+                TextButton(onClick = close) { Text("< Back", color = Color.White) }
                 Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     Text("${pager.currentPage + 1} / ${photos.size}", color = Color.White,
                         modifier = Modifier.testTag("photo_page_count"))
                 }
                 // Explicit navigation remains available while an enlarged photo consumes horizontal drags.
                 TextButton(enabled = pager.currentPage > 0, onClick = { scope.launch { pager.scrollToPage(pager.currentPage - 1) } }) {
-                    Text("上一张", color = if (pager.currentPage > 0) Color.White else Color.Gray)
+                    Text("Previous", color = if (pager.currentPage > 0) Color.White else Color.Gray)
                 }
                 TextButton(enabled = pager.currentPage < photos.lastIndex,
                     onClick = { scope.launch { pager.scrollToPage(pager.currentPage + 1) } }) {
-                    Text("下一张", color = if (pager.currentPage < photos.lastIndex) Color.White else Color.Gray)
+                    Text("Next", color = if (pager.currentPage < photos.lastIndex) Color.White else Color.Gray)
                 }
             }
             HorizontalPager(state = pager, userScrollEnabled = !zoomed,
@@ -95,7 +95,7 @@ private fun ZoomableFeedbackPhoto(id: String, viewer: String, sessionId: String,
     }
     Box(Modifier.fillMaxSize().clipToBounds().onSizeChanged { viewport = it }
         .testTag("photo_zoom_$id")
-        .semantics { stateDescription = "缩放 ${(scale * 100).toInt()}%" }
+        .semantics { stateDescription = "Zoom ${(scale * 100).toInt()}%" }
         .pointerInput(id, bitmap) { detectTapGestures(onDoubleTap = { reset() }) }
         .pointerInput(id, bitmap, viewport) {
             if (bitmap == null) return@pointerInput
@@ -117,10 +117,10 @@ private fun ZoomableFeedbackPhoto(id: String, viewer: String, sessionId: String,
             }
         },
         contentAlignment = Alignment.Center) {
-        if (bitmap != null) Image(bitmap.asImageBitmap(), "活动照片预览", contentScale = ContentScale.Fit,
+        if (bitmap != null) Image(bitmap.asImageBitmap(), "Event photo preview", contentScale = ContentScale.Fit,
             modifier = Modifier.fillMaxSize().graphicsLayer {
                 scaleX = scale; scaleY = scale; translationX = offset.x; translationY = offset.y
             })
-        else Text(if (result == null) "读取中" else "图片不可用", color = Color.White)
+        else Text(if (result == null) "Loading" else "Photo unavailable", color = Color.White)
     }
 }

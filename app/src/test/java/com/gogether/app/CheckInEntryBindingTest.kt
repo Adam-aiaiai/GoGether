@@ -26,7 +26,7 @@ class CheckInEntryBindingTest {
         val model = PrototypeViewModel("bob", service(store), PositionSource { locations++; fix }, now = { time },
             entry = CheckInEntry.Activity(first))
         model.receiveScan(raw(second), model.beginScan()); runCurrent()
-        assertTrue(model.state.value.message.contains("不是本场活动"))
+        assertTrue(model.state.value.message.contains("another event"))
         assertEquals(first, model.state.value.participantSession)
         assertTrue(store.sessions("bob").isEmpty())
         assertTrue(store.receipts.isEmpty())
@@ -41,7 +41,7 @@ class CheckInEntryBindingTest {
         val model = PrototypeViewModel("bob", service(store), PositionSource { error("Must not locate") }, now = { time },
             entry = CheckInEntry.Activity(first))
         model.receiveScan(raw(first.copy(meeting = MeetingPoint(32.0, 120.0)))); runCurrent()
-        assertTrue(model.state.value.message.contains("信息与当前活动不一致"))
+        assertTrue(model.state.value.message.contains("does not match this event"))
         assertTrue(store.sessions("bob").isEmpty())
         assertEquals(first, model.state.value.participantSession)
     }
@@ -54,7 +54,7 @@ class CheckInEntryBindingTest {
         assertNull(model.state.value.code)
         assertTrue(model.state.value.attendees.isEmpty())
         model.locateMeeting(); runCurrent()
-        assertTrue(model.state.value.message.contains("不能另建活动"))
+        assertTrue(model.state.value.message.contains("Do not create a replacement event"))
         assertEquals(second, store.hostedSession)
     }
 
@@ -191,7 +191,7 @@ class CheckInEntryBindingTest {
         assertEquals(1, model.state.value.participants!!.size)
         model.receiveScan(raw(first)); runCurrent()
         assertTrue(store.receipts.isEmpty())
-        assertTrue(model.state.value.message.contains("未正式报名"))
+        assertTrue(model.state.value.message.contains("do not have a confirmed place"))
         assertThrows(IllegalArgumentException::class.java) { backend.submit("bob", raw(second), fix) }
     }
 
@@ -201,7 +201,7 @@ class CheckInEntryBindingTest {
         val backend = LocalPrototypeBackend(store, { first.endAt }, { 0 })
         var user: String? = "bob"
         val model = PrototypeViewModel("bob", backend, PositionSource { fix }, identity = CheckInIdentitySource { user })
-        model.submitFeedback(first.id, 5, "Bob 的评价")
+        model.submitFeedback(first.id, 5, "A friendly group and a well-organized event.")
         user = "carol"
         runCurrent()
         assertNull(store.feedback(first.id, "bob"))

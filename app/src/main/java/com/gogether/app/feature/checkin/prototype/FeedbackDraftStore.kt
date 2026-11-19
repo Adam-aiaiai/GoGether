@@ -40,7 +40,7 @@ class FeedbackDraftStore(private val context: Context) {
         require(draft.rating in 0..5)
         draft.details.requireValid()
         require(draft.details.photos.all { FeedbackPhotoStore(context).isOwned(it, actor, sessionId) }) {
-            "图片已失效，请移除后重新选择。"
+            "This photo is no longer available. Remove it and choose it again."
         }
         val details = draft.details
         val value = JSONObject().put("rating", draft.rating).put("comment", draft.comment)
@@ -49,7 +49,7 @@ class FeedbackDraftStore(private val context: Context) {
             .put("visibility", details.visibility.name).put("photos", JSONArray(details.photos))
         val edit = prefs.edit()
         if (draft == FeedbackDraft()) edit.remove(key(actor, sessionId)) else edit.putString(key(actor, sessionId), value.toString())
-        check(edit.commit()) { "草稿保存失败，点此重试" }
+        check(edit.commit()) { "Could not save draft. Tap to retry." }
     }
 
     internal fun references(actor: String, sessionId: String, photo: String): Boolean =

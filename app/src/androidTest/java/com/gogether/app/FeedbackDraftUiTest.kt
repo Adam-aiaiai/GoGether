@@ -38,7 +38,7 @@ class FeedbackDraftUiTest {
                         val session = sessions[activity]
                         PrototypeHistoryScreen(actor, listOf(PrototypeHistoryEntry(session, null, saved, false)), time, false, message,
                             { showing = false }, { _, rating, comment, details ->
-                                if (fail) message = "保存失败，请重试。"
+                                if (fail) message = "Could not save. Please try again."
                                 else {
                                     val review = PrototypeFeedback(session.id, actor, rating, comment, time, details)
                                     PreferencesPrototypeStore(context).saveFeedback(review)
@@ -70,15 +70,15 @@ class FeedbackDraftUiTest {
         find("feedback_venue_3").performClick()
         find("feedback_atmosphere_4").performClick()
         find("feedback_tag_welcoming").performClick()
-        find("feedback_comment").performTextInput("下次继续参加")
+        find("feedback_comment").performTextInput("I would love to join again.")
         Espresso.closeSoftKeyboard()
         find("feedback_anonymous").performClick()
         find("feedback_visibility_ORGANIZER_ONLY").performClick()
         // Real navigation removes the form from composition, rather than relying on instance-state restore.
-        compose.onNodeWithText("< 返回").performClick()
+        compose.onNodeWithText("< Back").performClick()
         compose.onNodeWithTag("history_list").assertExists()
         compose.onNodeWithTag("history_${sessions[0].id}").performClick()
-        find("feedback_comment").assertTextContains("下次继续参加")
+        find("feedback_comment").assertTextContains("I would love to join again.")
         find("feedback_organization_5").assertIsSelected()
         find("feedback_venue_3").assertIsSelected()
         find("feedback_atmosphere_4").assertIsSelected()
@@ -87,39 +87,39 @@ class FeedbackDraftUiTest {
         find("feedback_visibility_ORGANIZER_ONLY").assertIsSelected()
         compose.runOnIdle { actor = "carol" }
         compose.onNodeWithTag("feedback_submit").assertIsNotEnabled()
-        find("feedback_comment").performTextInput("Carol 的草稿")
+        find("feedback_comment").performTextInput("The venue was comfortable and easy to find.")
         Espresso.closeSoftKeyboard()
-        compose.onAllNodesWithText("下次继续参加", substring = true).assertCountEquals(0)
+        compose.onAllNodesWithText("I would love to join again.", substring = true).assertCountEquals(0)
         find("feedback_anonymous").assertIsOff()
         find("feedback_visibility_PUBLIC").assertIsSelected()
         compose.runOnIdle { actor = "bob"; activity = 1 }
         compose.onNodeWithTag("feedback_submit").assertIsNotEnabled()
         find("feedback_rating_2").performClick()
-        find("feedback_comment").performTextInput("另一场活动的感受")
+        find("feedback_comment").performTextInput("This event had a relaxed and friendly atmosphere.")
         Espresso.closeSoftKeyboard()
         compose.runOnIdle { activity = 0 }
         find("feedback_rating_4").assertIsSelected()
-        find("feedback_comment").assertTextContains("下次继续参加")
-        assertEquals("Carol 的草稿", drafts.load("carol", sessions[0].id).comment)
-        assertEquals("另一场活动的感受", drafts.load("bob", sessions[1].id).comment)
+        find("feedback_comment").assertTextContains("I would love to join again.")
+        assertEquals("The venue was comfortable and easy to find.", drafts.load("carol", sessions[0].id).comment)
+        assertEquals("This event had a relaxed and friendly atmosphere.", drafts.load("bob", sessions[1].id).comment)
     }
 
     @Test fun failedSubmitAndFullPageRecreationPreserveDraftSuccessfulSubmitRemovesIt() {
         launch(1.6f)
         find("feedback_rating_4").performClick()
-        find("feedback_comment").performTextInput("先写一半")
+        find("feedback_comment").performTextInput("A good start. I will finish this review later.")
         Espresso.closeSoftKeyboard()
         compose.onNodeWithTag("feedback_submit").assertIsDisplayed().performClick()
-        compose.onNodeWithText("保存失败，请重试。").assertIsDisplayed()
+        compose.onNodeWithText("Could not save. Please try again.").assertIsDisplayed()
         compose.runOnIdle { showing = false }
         compose.onNodeWithTag("history_screen").assertDoesNotExist()
         compose.runOnIdle { showing = true; message = "" }
-        find("feedback_comment").assertTextContains("先写一半")
+        find("feedback_comment").assertTextContains("A good start. I will finish this review later.")
         compose.onNodeWithTag("feedback_submit").assertIsDisplayed()
         compose.runOnIdle { fail = false }
         compose.onNodeWithTag("feedback_submit").performClick()
         compose.onNodeWithTag("feedback_saved").assertExists()
         assertFalse(prefs.contains(FeedbackDraftStore.key("bob", sessions[0].id)))
-        assertEquals("先写一半", PreferencesPrototypeStore(context).feedback(sessions[0].id, "bob")!!.comment)
+        assertEquals("A good start. I will finish this review later.", PreferencesPrototypeStore(context).feedback(sessions[0].id, "bob")!!.comment)
     }
 }

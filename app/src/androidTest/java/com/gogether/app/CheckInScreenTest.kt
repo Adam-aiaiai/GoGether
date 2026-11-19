@@ -151,10 +151,10 @@ class CheckInScreenTest {
             initial.registrations.first { it.eventId == event.id && it.userId == "bob" }.copy(id = "carol-test", userId = "carol"))
         launch()
         compose.onNodeWithText("4").performScrollTo().performClick()
-        compose.onNode(hasSetTextAction()).performScrollTo().performTextInput("Bob 的草稿")
+        compose.onNode(hasSetTextAction()).performScrollTo().performTextInput("The group was welcoming. I will add more later.")
         compose.runOnIdle { state = state.copy(currentUserId = "carol") }
         compose.onNodeWithText("Submit feedback").performScrollTo().assertIsNotEnabled()
-        compose.onNodeWithText("Bob 的草稿").assertDoesNotExist()
+        compose.onNodeWithText("The group was welcoming. I will add more later.").assertDoesNotExist()
         compose.onNodeWithText("4").performScrollTo().assertIsNotSelected()
     }
 }

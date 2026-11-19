@@ -19,7 +19,28 @@ class RegistrationAttendanceBridge(
 
     private fun event(key: String?) = snapshot().events.find { key(it) == key }
     fun session(event: Event): PrototypeSession? = store.activityInfo(key(event))?.session?.takeIf {
-        it.startAt == event.startAt && it.endAt == event.endAt
+        it.meeting != null && it.startAt == event.startAt && it.endAt == event.endAt
+    }
+    private fun recordSession(event: Event): PrototypeSession? {
+        val stored = store.activityInfo(key(event))?.session
+        return if (stored == null) PrototypeSession(key(event), null, event.startAt, event.endAt)
+            else stored.takeIf { it.startAt == event.startAt && it.endAt == event.endAt }
+    }
+    fun hasEnded(event: Event, time: Long) = event.status == EventStatus.COMPLETED || time >= event.endAt
+
+    /** Feedback does not require GPS or prior check-in. This record cannot issue a QR credential. */
+    fun prepareFeedback(actor: String, eventId: String): PrototypeSession {
+        requireActor(actor)
+        val event = requireNotNull(snapshot().event(eventId)) { "Event not found." }
+        require(hasEnded(event, now()) || event.status == EventStatus.CANCELLED) { "You can review after the event ends." }
+        val record = requireNotNull(recordSession(event)) { "Event details have changed. Reopen the event." }
+        rememberRecord(actor, record)
+        return record
+    }
+    private fun rememberRecord(actor: String, record: PrototypeSession) {
+        val info = activity(record)
+        if (store.activityInfo(record.id) == null) store.rememberActivityInfo(info)
+        store.rememberSession(actor, record)
     }
     override fun status(activityId: String?, userId: String): CheckInRegistration {
         val event = event(activityId) ?: return CheckInRegistration.NONE
@@ -37,8 +58,11 @@ class RegistrationAttendanceBridge(
         }
     }
     override fun activity(session: PrototypeSession): CheckInActivityInfo {
-        val event = requireNotNull(event(session.id)) { "当前活动已不存在，请返回活动列表。" }
-        require(this.session(event) == session) { "活动或集合点已变化，请重新进入。" }
+        val event = requireNotNull(event(session.id)) { "This event no longer exists. Return to the event list." }
+        require(recordSession(event) == session) { "The event or meeting point has changed. Reopen the event." }
+        store.activityInfo(session.id)?.let {
+            require(it.organizerId == event.organizerId && it.sourceEventId == event.id) { "The event organizer has changed. Reopen the event." }
+        }
         return CheckInActivityInfo(session, event.organizerId, event.title,
             "${event.city} ${event.location}", event.description, event.id, snapshot().userName(event.organizerId))
     }
@@ -49,9 +73,9 @@ class RegistrationAttendanceBridge(
      */
     fun prepare(actor: String, eventId: String, fix: PositionFix): PrototypeSession {
         requireActor(actor)
-        val event = requireNotNull(snapshot().event(eventId)) { "活动不存在。" }
-        require(event.organizerId == actor) { "只有本场组织者可以设置集合点。" }
-        require(event.status == EventStatus.OPEN && now() < event.endAt) { "活动已关闭，不能设置集合点。" }
+        val event = requireNotNull(snapshot().event(eventId)) { "Event not found." }
+        require(event.organizerId == actor) { "Only this event's organizer can set the meeting point." }
+        require(event.status == EventStatus.OPEN && now() < event.endAt) { "This event is closed. The meeting point cannot be set." }
         validatePosition(fix, elapsedNow())
         session(event)?.let { return it }
         val session = PrototypeSession(key(event), fix.point, event.startAt, event.endAt)
@@ -62,20 +86,23 @@ class RegistrationAttendanceBridge(
     }
 
     private fun requireActor(actor: String) {
-        require(snapshot().currentUserId == actor && snapshot().users.any { it.id == actor }) { "账号已变化，请重新进入。" }
+        require(snapshot().currentUserId == actor && snapshot().users.any { it.id == actor }) { "Your account has changed. Reopen this page." }
     }
     private fun requireOpen(session: PrototypeSession) {
         activity(session)
-        require(event(session.id)?.status == EventStatus.OPEN) { "活动已取消或完成，不能签到。" }
+        requireNotNull(session.meeting) { "The check-in meeting point has not been set." }
+        require(event(session.id)?.status == EventStatus.OPEN) { "This event is cancelled or completed. Check-in is closed." }
     }
     private val liveStore = object : PrototypeStore by store {
         override fun isCancelled(id: String) = event(id)?.status == EventStatus.CANCELLED || store.isCancelled(id)
     }
-    private val local = LocalPrototypeBackend(liveStore, now, elapsedNow, this, this)
+    private val local = LocalPrototypeBackend(liveStore, now, elapsedNow, this, this,
+        completed = { event(it.id)?.status == EventStatus.COMPLETED },
+        userName = { id -> snapshot().users.find { it.id == id }?.displayName ?: "Participant" })
 
     /** Local trusted boundary only. No network synchronization or signed tokens are claimed. */
     val backend: PrototypeCheckInBackend = object : PrototypeCheckInBackend by local {
-        override fun isCheckInClosed(session: PrototypeSession) = event(session.id)?.status != EventStatus.OPEN ||
+        override fun isCheckInClosed(session: PrototypeSession) = session.meeting == null || event(session.id)?.status != EventStatus.OPEN ||
             !isCatalogActivity(session) || local.isCancelled(session)
         override fun hostedSession(actor: String): PrototypeSession? {
             requireActor(actor)
@@ -88,7 +115,8 @@ class RegistrationAttendanceBridge(
         override fun history(actor: String): List<PrototypeHistoryEntry> {
             requireActor(actor)
             snapshot().events.filter { it.organizerId == actor || status(key(it), actor) == CheckInRegistration.CONFIRMED }
-                .mapNotNull(::session).forEach { store.rememberSession(actor, it) }
+                .mapNotNull { event -> session(event) ?: recordSession(event).takeIf { hasEnded(event, now()) } }
+                .forEach { rememberRecord(actor, it) }
             return local.history(actor).filter { isCatalogActivity(it.session) }.map { record ->
                 val event = requireNotNull(event(record.session.id))
                 val previous = snapshot().feedback.find { it.eventId == event.id && it.userId == actor }
@@ -109,12 +137,12 @@ class RegistrationAttendanceBridge(
         override fun submit(actor: String, raw: String, fix: PositionFix): PrototypeReceipt = synchronized(LocalDataLock.monitor) {
             requireActor(actor); requireOpen(PrototypeCodeCodec.decode(raw).session)
             val event = requireNotNull(event(PrototypeCodeCodec.decode(raw).session.id))
-            require(snapshot().checkIns.none { it.eventId == event.id && it.userId == actor }) { "你已签到，无需重复提交。" }
+            require(snapshot().checkIns.none { it.eventId == event.id && it.userId == actor }) { "You are already checked in." }
             local.submit(actor, raw, fix)
         }
         override fun attendance(actor: String, session: PrototypeSession): List<PrototypeAttendee> {
             requireActor(actor)
-            require(activity(session).organizerId == actor) { "只有组织者可以查看名单。" }
+            require(activity(session).organizerId == actor) { "Only the organizer can view attendance." }
             val event = requireNotNull(event(session.id))
             // Preserve actual attendance even if C later removes a confirmed registration.
             val checked = snapshot().users.mapNotNull { user ->
@@ -127,20 +155,27 @@ class RegistrationAttendanceBridge(
         override fun submitFeedback(actor: String, sessionId: String, rating: Int, comment: String,
             details: FeedbackDetails): PrototypeFeedback = synchronized(LocalDataLock.monitor) {
             requireActor(actor)
-            val event = requireNotNull(event(sessionId)) { "活动不存在。" }
-            require(snapshot().feedback.none { it.eventId == event.id && it.userId == actor }) { "你已评价，无需重复提交。" }
+            val event = requireNotNull(event(sessionId)) { "Event not found." }
+            require(snapshot().feedback.none { it.eventId == event.id && it.userId == actor }) { "You have already reviewed this event." }
             history(actor)
             local.submitFeedback(actor, sessionId, rating, comment, details)
         }
         override fun reviews(actor: String, session: PrototypeSession): List<VisibleFeedback> {
-            requireActor(actor); return local.reviews(actor, session)
+            requireActor(actor)
+            val current = local.reviews(actor, session)
+            val info = activity(session)
+            val savedUsers = store.feedbackForSession(session.id).map { it.userId }.toSet()
+            val older = snapshot().feedback.filter { it.eventId == info.sourceEventId && it.userId !in savedUsers }
+                .mapNotNull { old -> PrototypeFeedback(session.id, old.userId, old.rating, old.comment, old.createdAt)
+                    .visibleTo(actor, info.organizerId, snapshot().users.find { it.id == old.userId }?.displayName ?: "Participant") }
+            return (current + older).sortedByDescending { it.createdAt }
         }
         override fun cancel(actor: String, session: PrototypeSession) {
             requireActor(actor)
-            throw IllegalArgumentException("请返回活动管理取消活动，报名和候补会同步更新。")
+            throw IllegalArgumentException("Cancel from event management to update registrations and the waitlist together.")
         }
         override fun createMeeting(actor: String, fix: PositionFix): PrototypeSession =
-            throw IllegalArgumentException("请从具体活动设置集合点。")
+            throw IllegalArgumentException("Set the meeting point from an event.")
     }
 
     fun receipt(event: Event, userId: String): PrototypeReceipt? = store.receipt(key(event), userId)

@@ -30,7 +30,7 @@ class FeedbackPhotoStore(private val context: Context, private val activities: C
     }
     private val directory get() = File(context.filesDir, "feedback_photos").also { it.mkdirs() }
     private fun file(id: String, suffix: String): File {
-        require(photoIdPattern.matches(id)) { "图片编号无效。" }
+        require(photoIdPattern.matches(id)) { "Invalid photo ID." }
         return File(directory, "$id.$suffix")
     }
     private fun metadata(id: String): JSONObject? = runCatching { JSONObject(file(id, "json").readText()) }.getOrNull()
@@ -40,14 +40,14 @@ class FeedbackPhotoStore(private val context: Context, private val activities: C
     }
 
     suspend fun importUris(actor: String, sessionId: String, uris: List<Uri>, remaining: Int): List<String> = withContext(Dispatchers.IO) {
-        require(uris.size <= remaining && remaining in 1..3) { "最多添加 3 张图片，请减少选择数量。" }
+        require(uris.size <= remaining && remaining in 1..3) { "You can add up to 3 photos. Select fewer photos." }
         val imported = mutableListOf<String>()
         try {
             for (uri in uris.distinct()) {
                 currentCoroutineContext().ensureActive()
                 val mime = context.contentResolver.getType(uri)
-                require(mime?.startsWith("image/") == true) { "请选择图片，暂不支持视频。" }
-                val input = requireNotNull(context.contentResolver.openInputStream(uri)) { "图片无法读取，请重新选择。" }
+                require(mime?.startsWith("image/") == true) { "Choose a photo. Videos are not supported." }
+                val input = requireNotNull(context.contentResolver.openInputStream(uri)) { "Could not read this photo. Choose it again." }
                 imported += input.use { importImage(actor, sessionId, it) }
             }
             currentCoroutineContext().ensureActive()
@@ -75,18 +75,18 @@ class FeedbackPhotoStore(private val context: Context, private val activities: C
                     val count = input.read(buffer)
                     if (count == -1) break
                     total += count
-                    require(total <= MAX_BYTES) { "每张图片不能超过 10MB，请换一张。" }
+                    require(total <= MAX_BYTES) { "Each photo must be 10 MB or less. Choose another." }
                     destination.write(buffer, 0, count)
                 }
-                require(total > 0) { "图片为空，请重新选择。" }
+                require(total > 0) { "This photo is empty. Choose another." }
             }
-            val decoded = decode(source, 1600) ?: throw IllegalArgumentException("图片无法读取，请换一张。")
+            val decoded = decode(source, 1600) ?: throw IllegalArgumentException("Could not read this photo. Choose another.")
             try {
                 // Normalize orientation and drop source EXIF (including GPS) from the stored copy.
                 val clean = Bitmap.createBitmap(decoded.width, decoded.height, Bitmap.Config.ARGB_8888)
                 try {
                     Canvas(clean).apply { drawColor(Color.WHITE); drawBitmap(decoded, 0f, 0f, null) }
-                    output.outputStream().use { require(clean.compress(Bitmap.CompressFormat.JPEG, 90, it)) { "图片保存失败，请重试。" } }
+                    output.outputStream().use { require(clean.compress(Bitmap.CompressFormat.JPEG, 90, it)) { "Could not save the photo. Try again." } }
                 } finally { clean.recycle() }
             } finally { decoded.recycle() }
             currentCoroutineContext().ensureActive()

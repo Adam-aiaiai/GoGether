@@ -27,7 +27,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 /** Display fixture only. Never save these people or timestamps as real attendance. */
-internal val attendanceLayoutExample = listOf("小林", "小陈", "Alex", "小雨", "晨晨", "小周", "Sam", "小李", "小吴", "小赵")
+internal val attendanceLayoutExample = listOf("Lynn", "Chris", "Alex", "Robin", "Casey", "Zoe", "Sam", "Lee", "Will", "Jordan")
     .mapIndexed { index, name -> PrototypeAttendee("example-$index", name, if (index < 5) 1L else null) }
 
 @Composable
@@ -46,15 +46,15 @@ fun PrototypeAttendance(attendees: List<PrototypeAttendee>, modifier: Modifier =
     val gridState = rememberLazyGridState()
     LaunchedEffect(selected) { gridState.scrollToItem(0) }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        if (header != null) header() else Text("参与者 ${attendees.size} 人，已签到 ${checked.size} 人", style = MaterialTheme.typography.bodySmall,
+        if (header != null) header() else Text("${attendees.size} participants, ${checked.size} checked in", style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.testTag("attendance_summary"))
         TabRow(selectedTabIndex = selected) {
             val largeText = LocalDensity.current.fontScale > 1.3f
-            listOf("已签到" to checked.size, "未签到" to pending.size).forEachIndexed { index, (label, count) ->
+            listOf("Checked in" to checked.size, "Pending" to pending.size).forEachIndexed { index, (label, count) ->
                 Tab(selected = selected == index, onClick = { selected = index; selectedPerson = null },
                     modifier = Modifier.heightIn(min = 48.dp)
                         .testTag(if (index == 0) "attendance_checked_tab" else "attendance_pending_tab")) {
-                    Text(if (largeText) "$label\n$count 人" else "$label（$count）",
+                    Text(if (largeText) "$label\n$count" else "$label ($count)",
                         Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), style = MaterialTheme.typography.bodyMedium,
                         textAlign = TextAlign.Center, maxLines = if (largeText) 2 else 1, overflow = TextOverflow.Ellipsis)
                 }
@@ -64,16 +64,16 @@ fun PrototypeAttendance(attendees: List<PrototypeAttendee>, modifier: Modifier =
             if (detail != null) Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(detail.name, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-                    IconButton(onClick = { selectedPerson = null }) { Icon(Icons.Default.Close, "收起签到信息") }
+                    IconButton(onClick = { selectedPerson = null }) { Icon(Icons.Default.Close, "Hide check-in details") }
                 }
                 HorizontalDivider()
                 Text(attendanceDetails(detail), Modifier.padding(vertical = 12.dp).testTag("attendance_detail"),
                     style = MaterialTheme.typography.bodyMedium)
             }
             else if (people.isEmpty()) Text(when {
-                attendees.isEmpty() -> "暂无正式参与者"
-                selected == 0 -> "还没有签到记录"
-                else -> "参与者均已签到"
+                attendees.isEmpty() -> "No confirmed participants yet"
+                selected == 0 -> "No check-ins yet"
+                else -> "Everyone has checked in"
             }, Modifier.padding(vertical = 16.dp), style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             else LazyVerticalGrid(columns = GridCells.Adaptive((72 * LocalDensity.current.fontScale.coerceAtMost(2f)).dp),
@@ -81,10 +81,10 @@ fun PrototypeAttendance(attendees: List<PrototypeAttendee>, modifier: Modifier =
                 contentPadding = PaddingValues(vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(people, key = { it.userId }) { person ->
-                    val title = if (selected == 0) "已签到" else "未签到"
+                    val title = if (selected == 0) "Checked in" else "Not checked in"
                     Column(Modifier.fillMaxWidth().testTag("attendee_${person.userId}")
-                        .clickable(onClickLabel = "查看签到信息") { selectedPerson = person.userId }
-                        .semantics(mergeDescendants = true) { contentDescription = "${person.name}，$title" },
+                        .clickable(onClickLabel = "Show check-in details") { selectedPerson = person.userId }
+                        .semantics(mergeDescendants = true) { contentDescription = "${person.name}, $title" },
                         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         val checked = person.checkedInAt != null
                         Box(Modifier.size(48.dp).background(
@@ -104,4 +104,4 @@ fun PrototypeAttendance(attendees: List<PrototypeAttendee>, modifier: Modifier =
 }
 
 internal fun attendanceDetails(person: PrototypeAttendee): String =
-    person.checkedInAt?.let { "已签到\n签到时间：${attendanceTime(it)}" } ?: "尚未签到"
+    person.checkedInAt?.let { "Checked in\nTime: ${attendanceTime(it)}" } ?: "Not checked in"

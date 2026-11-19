@@ -29,14 +29,14 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private fun reviewTime(time: Long) = SimpleDateFormat("M月d日 HH:mm", Locale.CHINA).format(Date(time))
+private fun reviewTime(time: Long) = SimpleDateFormat("MMM d, HH:mm", Locale.ENGLISH).format(Date(time))
 private fun ratingLabel(rating: Int) = when (rating) {
-    1 -> "很不满意"
-    2 -> "不太满意"
-    3 -> "一般"
-    4 -> "满意"
-    5 -> "非常满意"
-    else -> "点亮星星，为这次活动打分"
+    1 -> "Poor"
+    2 -> "Not great"
+    3 -> "Okay"
+    4 -> "Good"
+    5 -> "Excellent"
+    else -> "Tap a star to rate this event"
 }
 
 /** A compact activity summary and scrollable form, with the submit action above the keyboard. */
@@ -49,7 +49,7 @@ internal fun HistoryDetail(actor: String, entry: PrototypeHistoryEntry, now: Lon
     val drafts = remember(context) { FeedbackDraftStore(context) }
     val initial = remember(actor, entry.session.id) { runCatching { drafts.load(actor, entry.session.id) } }
     var draft by remember(actor, entry.session.id) { mutableStateOf(initial.getOrDefault(FeedbackDraft())) }
-    var draftError by remember(actor, entry.session.id) { mutableStateOf(if (initial.isFailure) "草稿读取失败，请退出后重试" else "") }
+    var draftError by remember(actor, entry.session.id) { mutableStateOf(if (initial.isFailure) "Could not load draft. Go back and try again." else "") }
     fun updateDraft(change: (FeedbackDraft) -> FeedbackDraft) {
         draft = change(draft)
         draftError = runCatching { drafts.save(actor, entry.session.id, draft) }
@@ -82,34 +82,34 @@ internal fun HistoryDetail(actor: String, entry: PrototypeHistoryEntry, now: Lon
                         Icon(Icons.Default.DateRange, null, Modifier.size(28.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
                     }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(activity?.title ?: "活动资料不可用", style = MaterialTheme.typography.titleMedium,
+                        Text(activity?.title ?: "Event details unavailable", style = MaterialTheme.typography.titleMedium,
                             maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Text("${activity?.organizerName ?: "未知组织者"} 组织", style = MaterialTheme.typography.bodySmall,
+                        Text("Hosted by ${activity?.organizerName ?: "Unknown organizer"}", style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 Spacer(Modifier.height(12.dp))
-                Text("${reviewTime(entry.session.startAt)} — ${SimpleDateFormat("HH:mm", Locale.CHINA).format(Date(entry.session.endAt))}",
+                Text("${reviewTime(entry.session.startAt)} — ${SimpleDateFormat("HH:mm", Locale.ENGLISH).format(Date(entry.session.endAt))}",
                     style = MaterialTheme.typography.bodyMedium)
-                Text(activity?.meetingName ?: "集合点待确认", style = MaterialTheme.typography.bodySmall,
+                Text(activity?.meetingName ?: "Meeting point not confirmed", style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(4.dp))
                 if (pendingCheckIn) TextButton(onClick = { openCheckIn(entry.session) }, enabled = !blocked,
                     shape = CheckInStyle.shape, contentPadding = PaddingValues(0.dp),
-                    modifier = Modifier.testTag("history_resolve_checkin")) { Text("签到结果待确认，去核对 ›") }
-                else Text(entry.receipt?.let { "已签到  ${reviewTime(it.checkedInAt)}" } ?: "尚未签到",
+                    modifier = Modifier.testTag("history_resolve_checkin")) { Text("Check-in unconfirmed. Check result >") }
+                else Text(entry.receipt?.let { "Checked in  ${reviewTime(it.checkedInAt)}" } ?: "Not checked in",
                     Modifier.testTag("history_checkin"), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (activity?.organizerId == actor) item {
                 OutlinedButton(onClick = { openAttendance(entry.session) }, shape = CheckInStyle.shape,
-                    modifier = Modifier.testTag("history_open_attendance")) { Text("查看出席记录") }
+                    modifier = Modifier.testTag("history_open_attendance")) { Text("View attendance") }
             }
             item { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
             when {
                 entry.feedback != null -> {
                     item {
-                        Text("我的评价 ${entry.feedback.rating} / 5", Modifier.testTag("feedback_saved"),
+                        Text("My review ${entry.feedback.rating} / 5", Modifier.testTag("feedback_saved"),
                             style = MaterialTheme.typography.titleMedium)
                         Row(Modifier.padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             (1..5).forEach { score ->
@@ -130,31 +130,32 @@ internal fun HistoryDetail(actor: String, entry: PrototypeHistoryEntry, now: Lon
                         FeedbackPhotoStrip(entry.feedback.details.photos, actor, entry.session.id)
                     }
                     item {
-                        Text("活动感受", style = MaterialTheme.typography.titleSmall)
+                        Text("Your experience", style = MaterialTheme.typography.titleSmall)
                         Spacer(Modifier.height(8.dp))
-                        Text(entry.feedback.comment.ifBlank { "未填写评论" }, style = MaterialTheme.typography.bodyLarge)
+                        Text(entry.feedback.comment.ifBlank { "No comment" }, style = MaterialTheme.typography.bodyLarge)
                         Spacer(Modifier.height(16.dp))
-                        Text("提交于 ${reviewTime(entry.feedback.createdAt)}", style = MaterialTheme.typography.bodySmall,
+                        Text("Submitted ${reviewTime(entry.feedback.createdAt)}", style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                entry.cancelled -> item { Text("活动已取消，不能评价。") }
-                now < entry.session.endAt -> item {
-                    Text("活动结束后可评价，无需重新扫码。")
-                    Text("结束时间：${reviewTime(entry.session.endAt)}", style = MaterialTheme.typography.bodySmall)
+                entry.cancelled -> item { Text("This event is cancelled. You cannot review it.") }
+                !entry.eligible -> item { Text("Only confirmed participants can review this event.") }
+                !entry.hasEnded(now) -> item {
+                    Text("Review after the event ends. No need to scan again.")
+                    Text("Ends: ${reviewTime(entry.session.endAt)}", style = MaterialTheme.typography.bodySmall)
                     OutlinedButton(onClick = { openCheckIn(entry.session) }, enabled = !blocked,
-                        shape = CheckInStyle.shape, modifier = Modifier.testTag("history_open_checkin")) { Text("进入本场签到") }
+                        shape = CheckInStyle.shape, modifier = Modifier.testTag("history_open_checkin")) { Text("Open event check-in") }
                 }
                 else -> {
                     item {
-                        Text("这次活动体验如何？", style = MaterialTheme.typography.titleMedium)
+                        Text("How was your experience?", style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.height(8.dp))
                         Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             (1..5).forEach { score ->
                                 Box(Modifier.weight(1f).heightIn(min = 56.dp).clip(CheckInStyle.shape)
                                     .selectable(selected = rating == score, enabled = !blocked, role = Role.RadioButton,
                                         onClick = { updateDraft { it.copy(rating = score) } })
-                                    .semantics { contentDescription = "$score 分，${ratingLabel(score)}" }
+                                    .semantics { contentDescription = "$score out of 5, ${ratingLabel(score)}" }
                                     .testTag("feedback_rating_$score"), contentAlignment = Alignment.Center) {
                                     Icon(Icons.Default.Star, null,
                                         Modifier.size(36.dp), tint = if (score <= rating) MaterialTheme.colorScheme.primary
@@ -162,7 +163,7 @@ internal fun HistoryDetail(actor: String, entry: PrototypeHistoryEntry, now: Lon
                                 }
                             }
                         }
-                        Text(if (rating == 0) ratingLabel(0) else "$rating 分  ${ratingLabel(rating)}",
+                        Text(if (rating == 0) ratingLabel(0) else "$rating / 5  ${ratingLabel(rating)}",
                             Modifier.padding(top = 4.dp).testTag("feedback_rating_label"), style = MaterialTheme.typography.bodyMedium,
                             color = if (rating == 0) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary)
                     }
@@ -170,28 +171,28 @@ internal fun HistoryDetail(actor: String, entry: PrototypeHistoryEntry, now: Lon
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically) {
-                            Text("分项体验（选填）", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                            Text("Experience ratings (optional)", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
                             TextButton(onClick = { updateDraft { it.copy(details = it.details.copy(organization = 0, venue = 0, atmosphere = 0)) } },
                                 enabled = !blocked && (organization + venue + atmosphere > 0),
-                                modifier = Modifier.testTag("feedback_clear_dimensions")) { Text("清空") }
+                                modifier = Modifier.testTag("feedback_clear_dimensions")) { Text("Clear") }
                         }
-                        Text("只评你体验过的部分", style = MaterialTheme.typography.bodySmall,
+                        Text("Rate only the parts you experienced", style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    item { FeedbackDimension("组织安排", "organization", organization, blocked) { score -> updateDraft { it.copy(details = it.details.copy(organization = score)) } } }
-                    item { FeedbackDimension("场地体验", "venue", venue, blocked) { score -> updateDraft { it.copy(details = it.details.copy(venue = score)) } } }
-                    item { FeedbackDimension("活动氛围", "atmosphere", atmosphere, blocked) { score -> updateDraft { it.copy(details = it.details.copy(atmosphere = score)) } } }
+                    item { FeedbackDimension("Organization", "organization", organization, blocked) { score -> updateDraft { it.copy(details = it.details.copy(organization = score)) } } }
+                    item { FeedbackDimension("Venue", "venue", venue, blocked) { score -> updateDraft { it.copy(details = it.details.copy(venue = score)) } } }
+                    item { FeedbackDimension("Atmosphere", "atmosphere", atmosphere, blocked) { score -> updateDraft { it.copy(details = it.details.copy(atmosphere = score)) } } }
                     item { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
                     item { FeedbackTags(false, tags, blocked, ::toggleTag) }
                     item { FeedbackTags(true, tags, blocked, ::toggleTag) }
                     item {
-                        Text("聊聊你的活动感受", style = MaterialTheme.typography.titleMedium)
+                        Text("Share your experience", style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.height(10.dp))
                         TextField(comment, { text -> updateDraft { it.copy(comment = text) } }, shape = CheckInStyle.shape, enabled = !blocked,
-                            label = { Text("评论（选填）") },
-                            placeholder = { Text("有哪些喜欢的地方，或希望下次改进的安排？") },
+                            label = { Text("Comment (optional)") },
+                            placeholder = { Text("What did you enjoy? What could be better next time?") },
                             minLines = 3, maxLines = 6, isError = comment.length > 500,
-                            supportingText = { Text(if (comment.length > 500) "已超过 500 字，请精简后提交" else "${comment.length} / 500") },
+                            supportingText = { Text(if (comment.length > 500) "Over 500 characters. Shorten your comment." else "${comment.length} / 500") },
                             colors = TextFieldDefaults.colors(
                                 focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                                 unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -203,7 +204,7 @@ internal fun HistoryDetail(actor: String, entry: PrototypeHistoryEntry, now: Lon
                         if (photoActions.importing) LinearProgressIndicator(Modifier.fillMaxWidth())
                         if (photoActions.error.isNotBlank()) Text(photoActions.error, color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("feedback_photo_error"))
-                        Text("图片目前保存在此设备。", style = MaterialTheme.typography.bodySmall,
+                        Text("Photos are stored on this device.", style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     item { FeedbackPrivacyFields(anonymous, visibility, blocked, { value -> updateDraft { it.copy(details = it.details.copy(anonymous = value)) } }, { value -> updateDraft { it.copy(details = it.details.copy(visibility = value)) } }) }
@@ -211,7 +212,7 @@ internal fun HistoryDetail(actor: String, entry: PrototypeHistoryEntry, now: Lon
             }
             item {
                 TextButton(onClick = { openReviews(entry.session) }, enabled = !blocked,
-                    modifier = Modifier.testTag("feedback_open_reviews")) { Text("查看活动评价 >") }
+                    modifier = Modifier.testTag("feedback_open_reviews")) { Text("View event reviews >") }
             }
         }
         if (canReview) {
@@ -221,7 +222,7 @@ internal fun HistoryDetail(actor: String, entry: PrototypeHistoryEntry, now: Lon
                     Text(message, Modifier.testTag("feedback_message"), color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall)
                 }
-                Text(draftError.ifBlank { "草稿自动保存，每场限一次" },
+                Text(draftError.ifBlank { "Draft saved automatically. One review per event." },
                     modifier = Modifier.testTag("feedback_draft_status").clickable(enabled = draftError.isNotBlank() && !blocked) { updateDraft { it } },
                     style = MaterialTheme.typography.bodySmall,
                     color = if (draftError.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error)
@@ -229,7 +230,7 @@ internal fun HistoryDetail(actor: String, entry: PrototypeHistoryEntry, now: Lon
                     FeedbackDetails(organization, venue, atmosphere, tags.toList(), anonymous, visibility, photos.toList())) }, shape = CheckInStyle.shape,
                     enabled = !blocked && FeedbackInput.valid(rating, comment),
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("feedback_submit")) {
-                    Text(if (photoActions.importing) "正在处理图片…" else if (busy) "正在保存…" else "提交评价")
+                    Text(if (photoActions.importing) "Processing photos…" else if (busy) "Saving…" else "Submit review")
                 }
             }
         }

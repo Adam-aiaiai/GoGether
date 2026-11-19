@@ -94,10 +94,10 @@ class RegistrationAttendanceBridgeTest {
         repo.login("bob").getOrThrow()
         rejects { bridge.backend.submitFeedback("bob", s.id, 5, "", FeedbackDetails()) }
         time = s.endAt
-        val review = bridge.backend.submitFeedback("bob", s.id, 4, "不错", FeedbackDetails(anonymous = true,
+        val review = bridge.backend.submitFeedback("bob", s.id, 4, "I enjoyed the event.", FeedbackDetails(anonymous = true,
             visibility = FeedbackVisibility.ORGANIZER_ONLY))
-        rejects { bridge.backend.submitFeedback("bob", s.id, 5, "第二次", FeedbackDetails()) }
-        assertEquals("不错", review.comment)
+        rejects { bridge.backend.submitFeedback("bob", s.id, 5, "I would join another event like this.", FeedbackDetails()) }
+        assertEquals("I enjoyed the event.", review.comment)
         repo.login("emma").getOrThrow(); rejects { bridge.backend.submitFeedback("emma", s.id, 5, "", FeedbackDetails()) }
         repo.login("carol").getOrThrow(); bridge.backend.history("carol")
         assertTrue(bridge.backend.reviews("carol", s).isEmpty())
@@ -174,7 +174,90 @@ class RegistrationAttendanceBridgeTest {
         state = state.copy(events = state.events.filterNot { it.id == "event-1" })
         assertEquals(CheckInRegistration.NONE, registrations.status(session.id, "bob"))
         assertTrue(registrations.participants(session.id).isEmpty())
-        assertTrue(combined.history("bob").isEmpty())
+        // Other completed events now have feedback records even without a prior GPS binding.
+        assertTrue(combined.history("bob").none { it.session.id == session.id })
         rejects { combined.submit("bob", code, fix) }
+    }
+
+    @Test fun endedUnboundEventUsesFullFeedbackWithoutInventingGpsOrCheckIn() = runTest {
+        repo.login("bob").getOrThrow()
+        time = seed.event("event-1")!!.endAt
+        val session = bridge.prepareFeedback("bob", "event-1")
+        assertNull(session.meeting)
+        assertNull(bridge.session(repo.state.value.event("event-1")!!))
+        assertTrue(bridge.backend.isCheckInClosed(session))
+        rejects { PrototypeCodeCodec.encode(PrototypeCode(session, time, time + 30_000)) }
+        val inventedPoint = session.copy(meeting = fix.point)
+        rejects { bridge.backend.submit("bob", PrototypeCodeCodec.encode(
+            PrototypeCode(inventedPoint, session.startAt, session.startAt + 30_000)), fix) }
+        val details = FeedbackDetails(5, 4, 3, listOf("welcoming"), true, FeedbackVisibility.ORGANIZER_ONLY)
+        assertEquals(details, bridge.backend.submitFeedback("bob", session.id, 4, "A well-organized event with a welcoming group.", details).details)
+        rejects { bridge.backend.submitFeedback("bob", session.id, 5, "I would happily take part again.", FeedbackDetails()) }
+        assertTrue(records.receipts.isEmpty())
+        val restored = RegistrationAttendanceBridge({ repo.state.value }, store, { time }, { 1000 })
+        assertEquals(details, restored.backend.history("bob").single { it.session.id == session.id }.feedback!!.details)
+    }
+
+    @Test fun explicitCompletionAndCancellationUseSameFeedbackRuleWithAndWithoutGps() = runTest {
+        val bound = prepare()
+        var state = repo.state.value.copy(currentUserId = "bob", events = repo.state.value.events.map {
+            if (it.id == "event-1") it.copy(status = EventStatus.COMPLETED) else it
+        })
+        val current = RegistrationAttendanceBridge({ state }, store, { time }, { 1000 })
+        assertTrue(time < bound.endAt)
+        val record = current.backend.history("bob").single { it.session.id == bound.id }
+        assertTrue(record.hasEnded(time))
+        assertTrue(record.eligible)
+        current.backend.submitFeedback("bob", bound.id, 5, "The event finished early.", FeedbackDetails())
+        state = state.copy(currentUserId = "carol", events = state.events.map {
+            if (it.id == "event-1") it.copy(status = EventStatus.CANCELLED) else it
+        })
+        current.prepareFeedback("carol", "event-1")
+        rejects { current.backend.submitFeedback("carol", bound.id, 5, "", FeedbackDetails()) }
+    }
+
+    @Test fun unboundFeedbackRejectsWaitlistNonMemberWrongIdentityAndOtherActivity() = runTest {
+        time = seed.event("event-1")!!.endAt
+        repo.login("emma").getOrThrow()
+        val s = bridge.prepareFeedback("emma", "event-1")
+        assertFalse(bridge.backend.history("emma").single { it.session.id == s.id }.eligible)
+        rejects { bridge.backend.submitFeedback("emma", s.id, 5, "", FeedbackDetails()) }
+        repo.login("finn").getOrThrow(); bridge.prepareFeedback("finn", "event-1")
+        rejects { bridge.backend.submitFeedback("finn", s.id, 5, "", FeedbackDetails()) }
+        rejects { bridge.backend.submitFeedback("bob", s.id, 5, "", FeedbackDetails()) }
+        rejects { bridge.backend.submitFeedback("finn", java.util.UUID.randomUUID().toString(), 5, "", FeedbackDetails()) }
+        assertTrue(records.receipts.isEmpty())
+    }
+
+    @Test fun reviewsResolveNewUsersAndRenamesFromLiveIdentityButKeepAnonymousPrivate() = runTest {
+        time = seed.event("event-1")!!.endAt
+        var state = seed.copy(currentUserId = "new-user",
+            users = seed.users + seed.users.first().copy(id = "new-user", displayName = "Jordan Lee"),
+            registrations = seed.registrations.map { if (it.eventId == "event-1" && it.userId == "bob") it.copy(userId = "new-user") else it })
+        val current = RegistrationAttendanceBridge({ state }, store, { time }, { 1000 })
+        val s = current.prepareFeedback("new-user", "event-1")
+        current.backend.submitFeedback("new-user", s.id, 4, "Hello there", FeedbackDetails())
+        state = state.copy(users = state.users.map { if (it.id == "new-user") it.copy(displayName = "Jordan Parker") else it })
+        assertEquals("Jordan Parker", current.backend.reviews("new-user", s).single().authorName)
+        state = state.copy(currentUserId = "carol")
+        current.prepareFeedback("carol", "event-1")
+        current.backend.submitFeedback("carol", s.id, 3, "Please make the meeting directions clearer.", FeedbackDetails(anonymous = true, visibility = FeedbackVisibility.ORGANIZER_ONLY))
+        state = state.copy(currentUserId = "new-user")
+        assertEquals(1, current.backend.reviews("new-user", s).size)
+        state = state.copy(currentUserId = "alice")
+        current.prepareFeedback("alice", "event-1")
+        assertEquals("Anonymous participant", current.backend.reviews("alice", s).single { it.comment == "Please make the meeting directions clearer." }.authorName)
+        state = state.copy(events = state.events.map { it.copy(organizerId = "carol") })
+        rejects { current.backend.reviews("alice", s) }
+        rejects { current.prepareFeedback("alice", "event-1") }
+    }
+
+    @Test fun oldFeedbackIsVisibleOnceAndCannotBeResubmittedThroughNewUnboundEntry() = runTest {
+        repo.login("bob").getOrThrow(); time = seed.event("event-1")!!.endAt
+        repo.submitFeedback("event-1", 3, "I enjoyed our last event.").getOrThrow()
+        val s = bridge.prepareFeedback("bob", "event-1")
+        assertEquals("I enjoyed our last event.", bridge.backend.history("bob").single { it.session.id == s.id }.feedback!!.comment)
+        assertEquals("Bob", bridge.backend.reviews("bob", s).single().authorName)
+        rejects { bridge.backend.submitFeedback("bob", s.id, 5, "", FeedbackDetails()) }
     }
 }

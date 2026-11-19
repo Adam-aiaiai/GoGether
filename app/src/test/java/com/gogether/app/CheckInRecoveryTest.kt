@@ -26,7 +26,7 @@ class CheckInRecoveryTest {
         val backend = LocalPrototypeBackend(store, { clock }, { 0 })
         val model = PrototypeViewModel("bob", backend, PositionSource {
             calls++
-            if (fail) error("暂时无法定位，请到开阔处重试。")
+            if (fail) error("Could not get your location. Move to an open area and try again.")
             PositionFix(point, 10.0, 0)
         }, now = { clock }, entry = CheckInEntry.Activity(session),
             identity = CheckInIdentitySource { identity })
@@ -54,7 +54,7 @@ class CheckInRecoveryTest {
         f.fail = false
         f.model.retryLocation(); runCurrent()
         assertEquals(1, f.calls)
-        assertTrue(f.model.state.value.message.contains("过期"))
+        assertTrue(f.model.state.value.message.contains("expired"))
         assertFalse(f.model.state.value.locationRetryAvailable)
         assertNull(f.store.receipt(session.id, "bob"))
     }
@@ -66,7 +66,7 @@ class CheckInRecoveryTest {
         f.fail = false
         f.model.retryLocation(); runCurrent()
         assertEquals(1, f.calls)
-        assertTrue(f.model.state.value.message.contains("取消"))
+        assertTrue(f.model.state.value.message.contains("cancelled"))
         assertNull(f.store.receipt(session.id, "bob"))
     }
 
@@ -126,19 +126,19 @@ class CheckInRecoveryTest {
         val store = MemoryPrototypeStore()
         var calls = 0
         val model = PrototypeViewModel("bob", LocalPrototypeBackend(store, { time }, { 0 }, registrations),
-            PositionSource { calls++; error("无法定位") }, now = { time }, registrations = registrations)
+            PositionSource { calls++; error("Could not get your location") }, now = { time }, registrations = registrations)
         model.receiveScan(raw); runCurrent()
         registered = false
         model.retryLocation(); runCurrent()
         assertEquals(1, calls)
-        assertTrue(model.state.value.message.contains("未正式报名"))
+        assertTrue(model.state.value.message.contains("do not have a confirmed place"))
         assertNull(store.receipt(session.id, "bob"))
     }
 
     @Test fun lateLocationFailureCannotRestoreRetryForAnotherActivity() = scenario {
         val delayed = CompletableDeferred<Unit>()
         val model = PrototypeViewModel("bob", LocalPrototypeBackend(MemoryPrototypeStore(), { time }, { 0 }),
-            PositionSource { withContext(NonCancellable) { delayed.await(); error("旧定位失败") } }, now = { time })
+            PositionSource { withContext(NonCancellable) { delayed.await(); error("The earlier location request failed") } }, now = { time })
         model.receiveScan(raw); runCurrent()
         val next = session.copy(id = "414f1652-7e75-4d90-9cd7-c42f3665623a")
         model.enterActivity(next)

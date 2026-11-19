@@ -25,7 +25,7 @@ fun ManagementScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
         StatusPill(event.status.name.lowercase())
         InfoCard("At a glance", "${state.confirmed(event.id).size} / ${event.capacity} confirmed\n${state.waitlist(event.id).size} waitlisted\n${state.checkIns.count { it.eventId == event.id }} checked in")
         attendance?.let { open -> OutlinedButton(onClick = open, modifier = Modifier.fillMaxWidth().testTag("manage_attendance")) {
-            Text("查看签到与出席")
+            Text("View check-in and attendance")
         } }
         InfoCard("Meeting information", "${displayTime(event.startAt)}\n${event.city} · ${event.location}\n${event.notes}")
         MeetingMapButton("${event.city} ${event.location}")

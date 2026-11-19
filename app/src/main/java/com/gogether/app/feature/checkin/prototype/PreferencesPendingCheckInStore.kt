@@ -18,16 +18,16 @@ class PreferencesPendingCheckInStore(context: Context) : PendingCheckInStore {
     }
     override fun save(attempt: CheckInAttempt) = synchronized(lock) {
         val previous = get(attempt.actor, attempt.session.id)
-        check(previous == null || previous == attempt) { "请先核对上次签到结果。" }
-        val value = JSONObject().put("request", attempt.id).put("lat", attempt.session.meeting.latitude)
-            .put("lon", attempt.session.meeting.longitude).put("start", attempt.session.startAt).put("end", attempt.session.endAt)
+        check(previous == null || previous == attempt) { "Check the result of your previous check-in first." }
+        val value = JSONObject().put("request", attempt.id).put("lat", requireNotNull(attempt.session.meeting).latitude)
+            .put("lon", requireNotNull(attempt.session.meeting).longitude).put("start", attempt.session.startAt).put("end", attempt.session.endAt)
         check(prefs.edit().putString(key(attempt.actor, attempt.session.id), value.toString()).commit()) {
-            "无法保存签到进度，请稍后重试。"
+            "Could not save check-in progress. Try again later."
         }
     }
     override fun remove(attempt: CheckInAttempt) = synchronized(lock) {
         if (get(attempt.actor, attempt.session.id) == attempt) {
-            check(prefs.edit().remove(key(attempt.actor, attempt.session.id)).commit()) { "无法更新签到进度，请重新核对。" }
+            check(prefs.edit().remove(key(attempt.actor, attempt.session.id)).commit()) { "Could not update check-in progress. Check the result again." }
         }
     }
     companion object { private val lock = Any() }

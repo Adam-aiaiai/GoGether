@@ -15,7 +15,7 @@ class MultiActivityViewModelTest {
     private val c = fixtures.carolEvent
     private val store = MemoryPrototypeStore().also(fixtures::seed)
     private fun backend(clock: Long = time) = LocalPrototypeBackend(store, { clock }, { 0 }, fixtures.registrations, fixtures.activities)
-    private fun fix(session: PrototypeSession) = PositionFix(session.meeting, 10.0, 0)
+    private fun fix(session: PrototypeSession) = PositionFix(requireNotNull(session.meeting), 10.0, 0)
     private fun raw(session: PrototypeSession) = PrototypeCodeCodec.encode(PrototypeCode(session, time, time + 30_000))
     private fun test(block: suspend TestScope.() -> Unit) = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
@@ -45,7 +45,7 @@ class MultiActivityViewModelTest {
         val model = PrototypeViewModel("bob", backend(), PositionSource { locations++; fix(c) }, now = { time },
             entry = CheckInEntry.Activity(a), registrations = fixtures.registrations)
         model.receiveScan(raw(c), model.beginScan()); runCurrent()
-        assertTrue(model.state.value.message.contains("不是本场活动"))
+        assertTrue(model.state.value.message.contains("another event"))
         assertEquals(0, locations)
         assertTrue(store.receipts.isEmpty())
         model.enterActivity(c)
@@ -57,7 +57,7 @@ class MultiActivityViewModelTest {
         assertEquals(CheckInRegistration.WAITLISTED, model.state.value.registration)
         model.receiveScan(raw(b), model.beginScan()); runCurrent()
         assertEquals(1, locations)
-        assertTrue(model.state.value.message.contains("候补"))
+        assertTrue(model.state.value.message.contains("waitlisted"))
         assertEquals(setOf(c.id), store.receipts.values.map { it.sessionId }.toSet())
     }
 
@@ -86,12 +86,12 @@ class MultiActivityViewModelTest {
 
     @Test fun changingActivityClearsPrivateReviewResultBeforeAnotherLoad() = test {
         val backend = backend(a.endAt)
-        backend.submitFeedback("bob", a.id, 4, "A 私密", FeedbackDetails(visibility = FeedbackVisibility.ORGANIZER_ONLY))
-        backend.submitFeedback("bob", c.id, 3, "C 私密", FeedbackDetails(visibility = FeedbackVisibility.ORGANIZER_ONLY))
+        backend.submitFeedback("bob", a.id, 4, "The badminton session could use a longer warm-up.", FeedbackDetails(visibility = FeedbackVisibility.ORGANIZER_ONLY))
+        backend.submitFeedback("bob", c.id, 3, "A slower pace would make the run more enjoyable.", FeedbackDetails(visibility = FeedbackVisibility.ORGANIZER_ONLY))
         val model = PrototypeViewModel("carol", backend, PositionSource { fix(c) }, now = { a.endAt },
             entry = CheckInEntry.Activity(c), registrations = fixtures.registrations)
         model.loadReviews(c); runCurrent()
-        assertEquals("C 私密", model.state.value.reviews.single().comment)
+        assertEquals("A slower pace would make the run more enjoyable.", model.state.value.reviews.single().comment)
         model.enterActivity(a)
         assertNull(model.state.value.reviewSessionId)
         assertTrue(model.state.value.reviews.isEmpty())

@@ -7,9 +7,9 @@ class MultiActivityCheckInScenario(startAt: Long) {
     val carolEvent = PrototypeSession("759190b8-4368-4cb9-9069-f13012941df3", MeetingPoint(31.29, 120.74), startAt, startAt + 5_400_000)
     val sessions = listOf(aliceFirst, aliceSecond, carolEvent)
     val activities = MockActivityCatalog(listOf(
-        CheckInActivityInfo(aliceFirst, "alice", "羽毛球交流", "体育馆东门"),
-        CheckInActivityInfo(aliceSecond, "alice", "晚间桌游", "学生活动室", "一起了解规则，分组体验桌游。"),
-        CheckInActivityInfo(carolEvent, "carol", "轻松慢跑", "操场入口", "集合热身后一起慢跑，按自己的节奏参与。"),
+        CheckInActivityInfo(aliceFirst, "alice", "Badminton Meetup", "Sports Hall East Entrance"),
+        CheckInActivityInfo(aliceSecond, "alice", "Board Game Evening", "Student Activity Room", "Learn the rules together, then split into groups to play."),
+        CheckInActivityInfo(carolEvent, "carol", "Easy Jog", "Sports Field Entrance", "Meet up, warm up and jog together at your own pace."),
     ))
     private fun people(vararg ids: String) = ids.map { id -> prototypeParticipants.single { it.userId == id } }
     val registrations = MockActivityRegistrations(mapOf(

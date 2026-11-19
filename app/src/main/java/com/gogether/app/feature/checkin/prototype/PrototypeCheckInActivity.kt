@@ -46,7 +46,9 @@ class PrototypeCheckInActivity : ComponentActivity() {
             elapsedNow = SystemClock::elapsedRealtime)
         val registrations = CombinedCheckInRegistrations(store, linked, StoredMockCheckInRegistrations(store))
         val backend = CombinedCheckInBackend(store, linked.backend,
-            LocalPrototypeBackend(store, elapsedNow = SystemClock::elapsedRealtime, registrations = registrations))
+            LocalPrototypeBackend(store, elapsedNow = SystemClock::elapsedRealtime, registrations = registrations,
+                userName = { id -> (application as GogetherApplication).repository.state.value.users
+                    .find { it.id == id }?.displayName ?: "Participant" }))
         model = ViewModelProvider(this, RepositoryViewModel.factory {
             PrototypeViewModel(actor,
                 backend,
@@ -106,7 +108,7 @@ internal fun PrototypeRoute(model: PrototypeViewModel, state: PrototypeUiState, 
             PermissionAction.MEETING -> model.locateMeeting()
             PermissionAction.DISPLAY -> model.showCode()
             PermissionAction.SCAN -> scanner.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-                .setPrompt("扫描组织者的动态签到码").setBeepEnabled(false).setOrientationLocked(false))
+                .setPrompt("Scan the organizer's check-in code").setBeepEnabled(false).setOrientationLocked(false))
         }
     }
     fun granted(permission: String) = ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
@@ -117,7 +119,7 @@ internal fun PrototypeRoute(model: PrototypeViewModel, state: PrototypeUiState, 
             (action != PermissionAction.SCAN || granted(Manifest.permission.CAMERA))) perform(action)
         else {
             model.abandonScan(); scanRequest = null
-            model.message("需要精确位置权限；扫码还需要相机权限。你可以返回，或在应用设置中允许后重试。")
+            model.message("Precise location is required; scanning also needs camera access. Go back or allow access in app settings and try again.")
         }
     }
     fun request(action: PermissionAction, general: Boolean = false) {
@@ -162,8 +164,8 @@ fun PrototypeScreen(actor: String, state: PrototypeUiState, now: Long, back: () 
     integrated: Boolean = false) {
     if (state.identityExpired || (state.ownerUserId != null && state.ownerUserId != actor)) {
         Page {
-            Text("账号已变化，请重新进入签到。", Modifier.testTag("checkin_identity_expired"))
-            TextButton(onClick = back, shape = CheckInStyle.shape) { Text("< 返回") }
+            Text("Your account has changed. Reopen check-in.", Modifier.testTag("checkin_identity_expired"))
+            TextButton(onClick = back, shape = CheckInStyle.shape) { Text("< Back") }
         }
         return
     }
@@ -212,23 +214,23 @@ fun PrototypeScreen(actor: String, state: PrototypeUiState, now: Long, back: () 
                     retryLocation = retryLocation, resolveCheckIn = resolveCheckIn)
             } else Page {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    TextButton(shape = CheckInStyle.shape, onClick = back) { Text("< 返回") }
-                    TextButton(shape = CheckInStyle.shape, onClick = ::viewHistory, modifier = Modifier.testTag("open_history")) { Text("我的记录") }
+                    TextButton(shape = CheckInStyle.shape, onClick = back) { Text("< Back") }
+                    TextButton(shape = CheckInStyle.shape, onClick = ::viewHistory, modifier = Modifier.testTag("open_history")) { Text("My records") }
                 }
-                SectionTitle(if (organizerMode) "现场签到" else "扫码签到", "当前账号：$actor")
+                SectionTitle(if (organizerMode) "Event check-in" else "Scan to check in", "Account: $actor")
                 if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-                Text(if (state.entry is CheckInEntry.Activity) "未找到本场活动的组织者签到资料，请返回确认活动信息。"
-                    else "先在现场确认集合点。确认后不会随手机移动；活动将在 10 分钟后开始。")
+                Text(if (state.entry is CheckInEntry.Activity) "Organizer check-in details are unavailable. Go back and check the event."
+                    else "Confirm the meeting point on site. It stays fixed when your phone moves. The event starts in 10 minutes.")
                 Button(shape = CheckInStyle.shape, onClick = locate, enabled = !state.busy && state.entry !is CheckInEntry.Activity,
-                    modifier = Modifier.fillMaxWidth().testTag("prototype_meeting")) { Text("定位并设置集合点") }
+                    modifier = Modifier.fillMaxWidth().testTag("prototype_meeting")) { Text("Locate meeting point") }
                 if (organizerMode && state.session == null)
-                    CheckInInfoCard("当前状态", state.message, Modifier.testTag("prototype_status"))
+                    CheckInInfoCard("Status", state.message, Modifier.testTag("prototype_status"))
                 state.receipt?.let {
-                    CheckInInfoCard("本机最近一次签到", "活动 ${it.sessionId.take(8)}\n${it.userId}\n${checkInDisplayTime(it.checkedInAt)}",
+                    CheckInInfoCard("Last check-in on this device", "Event ${it.sessionId.take(8)}\n${it.userId}\n${checkInDisplayTime(it.checkedInAt)}",
                         Modifier.testTag("prototype_receipt"))
                 }
-                CheckInInfoCard("使用位置的原因", "组织者出码和参与者签到都需在固定集合点 200 米内。只在本页面操作时获取位置；请允许精确位置。扫码还需要相机权限。")
-                TextButton(shape = CheckInStyle.shape, onClick = settings) { Text("打开应用权限设置") }
+                CheckInInfoCard("Why we need your location", "Organizers and participants must be within 200 m of the fixed meeting point. Location is used only for actions on this page. Allow precise location; scanning also requires camera access.")
+                TextButton(shape = CheckInStyle.shape, onClick = settings) { Text("Open permission settings") }
             }
             if (!historyOpen) state.notice?.let {
                 CheckInNotice(it, dismissNotice, Modifier.align(Alignment.BottomCenter))
@@ -236,23 +238,23 @@ fun PrototypeScreen(actor: String, state: PrototypeUiState, now: Long, back: () 
         }
     }
     state.candidate?.let { fix ->
-        AlertDialog(shape = CheckInStyle.shape, onDismissRequest = dismissMeeting, title = { Text("固定集合点？") },
-            text = { Text("使用当前位置建立一场新的活动。集合点之后保持固定，需让参与者扫描新活动码。\n" +
-                "定位精度估计：${fix.accuracyMeters.toInt()} 米。") },
-            confirmButton = { TextButton(shape = CheckInStyle.shape, onClick = confirmMeeting, enabled = !state.busy) { Text("确认集合点") } },
-            dismissButton = { TextButton(shape = CheckInStyle.shape, onClick = dismissMeeting) { Text("取消") } })
+        AlertDialog(shape = CheckInStyle.shape, onDismissRequest = dismissMeeting, title = { Text("Confirm meeting point?") },
+            text = { Text("Create a new event at your current location. The meeting point stays fixed; participants must scan the new event code.\n" +
+                "Estimated location accuracy: ${fix.accuracyMeters.toInt()} m.") },
+            confirmButton = { TextButton(shape = CheckInStyle.shape, onClick = confirmMeeting, enabled = !state.busy) { Text("Confirm meeting point") } },
+            dismissButton = { TextButton(shape = CheckInStyle.shape, onClick = dismissMeeting) { Text("Cancel") } })
     }
-    if (confirmNew) CheckInConfirmDialog("另建活动？", "会产生新的活动编号和固定集合点；已有签到记录仍保留。",
-        "重新定位", { confirmNew = false }, { confirmNew = false; locate() })
-    if (confirmCancel) CheckInConfirmDialog("取消活动？", "停止出码。已发出的码最长 30 秒后过期。",
-        "确认取消", { confirmCancel = false }, { confirmCancel = false; cancel() })
+    if (confirmNew) CheckInConfirmDialog("Create another event?", "This creates a new event and meeting point. Existing check-in records are kept.",
+        "Retry location", { confirmNew = false }, { confirmNew = false; locate() })
+    if (confirmCancel) CheckInConfirmDialog("Cancel this event?", "Stop issuing codes. Existing codes expire within 30 seconds.",
+        "Confirm cancellation", { confirmCancel = false }, { confirmCancel = false; cancel() })
 }
 
 @Composable
 internal fun MeetingSummary(session: PrototypeSession) {
-    CheckInInfoCard("集合点 ${session.id.take(8)}",
-        "组织者在现场确认的位置（建立后保持固定）" +
-            "\n开始：${checkInDisplayTime(session.startAt)}\n签到：${checkInDisplayTime(session.startAt - PrototypePolicy.HALF_HOUR_MS)} 至 " +
+    CheckInInfoCard("Meeting point ${session.id.take(8)}",
+        "Location confirmed by the organizer on site (stays fixed)" +
+            "\nStarts: ${checkInDisplayTime(session.startAt)}\nCheck-in: ${checkInDisplayTime(session.startAt - PrototypePolicy.HALF_HOUR_MS)} to " +
             checkInDisplayTime(session.startAt + PrototypePolicy.HALF_HOUR_MS))
 }
 

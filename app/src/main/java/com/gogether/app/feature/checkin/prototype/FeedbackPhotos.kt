@@ -54,7 +54,7 @@ internal fun rememberFeedbackPhotoActions(actor: String, sessionId: String, phot
                     if (request == latestScope) update(latestPhotos + added)
                     else withContext(Dispatchers.IO) { added.forEach { store.removeDraft(it, actor, sessionId) } }
                 } catch (cancelled: CancellationException) { throw cancelled }
-                catch (failure: Exception) { error = failure.message ?: "图片读取失败，请重新选择。" }
+                catch (failure: Exception) { error = failure.message ?: "Could not load the photo. Choose it again." }
                 finally { importing = false }
             }
         }
@@ -63,7 +63,7 @@ internal fun rememberFeedbackPhotoActions(actor: String, sessionId: String, phot
         if (!busy && !importing && pendingScope == null && photos.size < 3) {
             error = ""; pendingScope = latestScope
             try { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
-            catch (_: Exception) { pendingScope = null; error = "无法打开相册，请稍后重试。" }
+            catch (_: Exception) { pendingScope = null; error = "Could not open the photo picker. Try again later." }
         }
     }, remove = { id ->
         if (!busy && !importing) {
@@ -79,10 +79,10 @@ internal fun FeedbackPhotoStrip(photos: List<String>, viewer: String, sessionId:
     var preview by remember(viewer, sessionId, photos.toList()) { mutableStateOf<String?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text(if (add != null) "活动照片（选填）" else "活动照片", style = MaterialTheme.typography.titleMedium)
+            Text(if (add != null) "Event photos (optional)" else "Event photos", style = MaterialTheme.typography.titleMedium)
             Text("${photos.size} / 3", style = MaterialTheme.typography.bodySmall)
         }
-        if (add != null) Text("最多 3 张，每张不超过 10MB", style = MaterialTheme.typography.bodySmall,
+        if (add != null) Text("Up to 3 photos, 10 MB each", style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for (index in 0..2) {
@@ -91,17 +91,17 @@ internal fun FeedbackPhotoStrip(photos: List<String>, viewer: String, sessionId:
                     Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(CheckInStyle.shape)
                         .background(MaterialTheme.colorScheme.surfaceContainerLow)
                         .clickable { preview = id }.testTag("feedback_photo_$index"), contentAlignment = Alignment.Center) {
-                        FeedbackPhotoImage(id, viewer, sessionId, "查看第 ${index + 1} 张图片", Modifier.fillMaxSize(), false)
+                        FeedbackPhotoImage(id, viewer, sessionId, "View photo ${index + 1}", Modifier.fillMaxSize(), false)
                     }
                     if (remove != null) TextButton(onClick = { remove(id) }, enabled = !busy,
-                        modifier = Modifier.testTag("feedback_remove_photo_$index")) { Text("移除") }
+                        modifier = Modifier.testTag("feedback_remove_photo_$index")) { Text("Remove") }
                 } else if (add != null && index == photos.size) {
                     Surface(onClick = add, enabled = !busy, shape = CheckInStyle.shape,
                         color = MaterialTheme.colorScheme.surfaceContainerLow,
                         modifier = Modifier.weight(1f).aspectRatio(1f).testTag("feedback_add_photo")) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                             Text("+", style = MaterialTheme.typography.headlineMedium)
-                            Text(if (busy) "处理中" else "添加图片", style = MaterialTheme.typography.bodySmall)
+                            Text(if (busy) "Processing" else "Add photo", style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 } else Spacer(Modifier.weight(1f))
@@ -128,6 +128,6 @@ private fun FeedbackPhotoImage(id: String, viewer: String, sessionId: String, de
     }
     if (!loading && bitmap != null) Image(bitmap!!.asImageBitmap(), description, modifier,
         contentScale = if (large) ContentScale.Fit else ContentScale.Crop)
-    else Text(if (loading) "读取中" else "图片不可用", color = if (large) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+    else Text(if (loading) "Loading" else "Photo unavailable", color = if (large) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
         style = MaterialTheme.typography.bodySmall)
 }

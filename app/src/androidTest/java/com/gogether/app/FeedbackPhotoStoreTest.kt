@@ -40,7 +40,7 @@ class FeedbackPhotoStoreTest {
             listOf("alice", "bob", "carol").forEach { store.rememberSession(it, session) }
             val service = LocalPrototypeBackend(store, { session.endAt }, { 0 })
             val details = FeedbackDetails(anonymous = true, visibility = FeedbackVisibility.ORGANIZER_ONLY, photos = listOf(id))
-            service.submitFeedback("bob", session.id, 4, "私密照片", details)
+            service.submitFeedback("bob", session.id, 4, "Sharing a few photos with the organizer.", details)
             assertEquals(details, PreferencesPrototypeStore(context).feedback(session.id, "bob")!!.details)
             assertTrue(FeedbackPhotoStore(context).canRead(id, "alice", session.id))
             assertFalse(photos.canRead(id, "carol", session.id))
@@ -51,7 +51,7 @@ class FeedbackPhotoStoreTest {
             photos.removeDraft(id, "bob", session.id) // A submitted image must not be removed by draft cleanup.
             assertNotNull(photos.bitmap(id, "bob", session.id))
             assertTrue(service.reviews("carol", session).isEmpty())
-            assertEquals("匿名参与者", service.reviews("alice", session).single().authorName)
+            assertEquals("Anonymous participant", service.reviews("alice", session).single().authorName)
         } finally { cleanup() }
     }
 
@@ -88,7 +88,7 @@ class FeedbackPhotoStoreTest {
                 }
             }
             val failure = runCatching { photos.importImage("bob", session.id, huge) }.exceptionOrNull()
-            assertTrue(failure?.message.orEmpty().contains("10MB"))
+            assertTrue(failure?.message.orEmpty().contains("10 MB"))
             val id = add()
             photos.removeDraft(id, "carol", session.id)
             assertTrue(photos.isOwned(id, "bob", session.id))

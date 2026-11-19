@@ -41,21 +41,21 @@ class PrototypeScreenTest {
     @Test fun attendanceMovesBetweenGroupsAndEmptyStatesStayAccurate() {
         var people by mutableStateOf(listOf(PrototypeAttendee("bob", "Bob"), PrototypeAttendee("carol", "Carol")))
         compose.setContent { GogetherTheme { PrototypeAttendance(people, Modifier.size(320.dp, 400.dp)) } }
-        compose.onNodeWithText("还没有签到记录").assertExists()
+        compose.onNodeWithText("No check-ins yet").assertExists()
         compose.onNodeWithTag("attendance_pending_tab").performClick()
         compose.onNode(hasTestTag("attendee_bob") and hasAnyAncestor(hasTestTag("attendance_pending"))).assertExists()
         compose.runOnIdle { people = people.map { it.copy(checkedInAt = now) } }
-        compose.onNodeWithText("参与者均已签到").assertExists()
+        compose.onNodeWithText("Everyone has checked in").assertExists()
         compose.onNodeWithTag("attendance_checked_tab").performClick()
         compose.onNode(hasTestTag("attendee_bob") and hasAnyAncestor(hasTestTag("attendance_checked"))).assertExists()
         compose.onAllNodesWithTag("attendee_bob").assertCountEquals(1)
-        compose.onNodeWithText("参与者 2 人，已签到 2 人").assertExists()
+        compose.onNodeWithText("2 participants, 2 checked in").assertExists()
         compose.runOnIdle { people = emptyList() }
-        compose.onNodeWithText("暂无正式参与者").assertExists()
+        compose.onNodeWithText("No confirmed participants yet").assertExists()
     }
 
     @Test fun manyParticipantsWrapAndLastPersonRemainsReachableOnNarrowScreen() {
-        val people = (0..10).map { PrototypeAttendee("person-$it", "参与者 $it 的长名字") }
+        val people = (0..10).map { PrototypeAttendee("person-$it", "Participant $it Alexandra Montgomery") }
         compose.setContent { GogetherTheme { PrototypeAttendance(people, Modifier.size(280.dp, 260.dp)) } }
         compose.onNodeWithTag("attendance_pending_tab").performClick()
         val first = compose.onNodeWithTag("attendee_person-0").fetchSemanticsNode().boundsInRoot
@@ -73,7 +73,7 @@ class PrototypeScreenTest {
         launch("alice")
         compose.onNodeWithTag("organizer_more").performClick()
         compose.onNodeWithTag("attendance_preview").performScrollTo().performClick()
-        compose.onNodeWithText("参与者 10 人，已签到 5 人").assertExists()
+        compose.onNodeWithText("10 participants, 5 checked in").assertExists()
         compose.onNodeWithTag("prototype_qr").assertIsDisplayed()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         File(context.getExternalFilesDir(null), "prototype-attendance.png").outputStream().use {
@@ -87,7 +87,7 @@ class PrototypeScreenTest {
         }
         compose.onNodeWithTag("organizer_more").performClick()
         compose.onNodeWithTag("attendance_preview").performScrollTo().performClick()
-        compose.onNodeWithText("参与者 1 人，已签到 0 人").assertExists()
+        compose.onNodeWithText("1 participants, 0 checked in").assertExists()
         compose.onNodeWithTag("attendee_example-0").assertDoesNotExist()
         compose.onNodeWithTag("organizer_more").performClick()
         compose.onNodeWithTag("attendance_preview").performScrollTo().performClick()
@@ -98,7 +98,7 @@ class PrototypeScreenTest {
 
     @Test fun organizerSeesCodeOnlyWhileItIsValidAndEventIsOpen() {
         state = PrototypeUiState(session = session, code = PrototypeCode(session, now, now + 30_000),
-            message = "位置验证通过，请让参与者扫码。")
+            message = "Location verified. Participants can now scan your code.")
         launch("alice")
         compose.onNodeWithTag("prototype_qr").assertIsDisplayed()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
@@ -121,7 +121,7 @@ class PrototypeScreenTest {
     private fun checkBoundedLayout(width: Int, height: Int, fontScale: Float) {
         state = PrototypeUiState(session = session, code = PrototypeCode(session, now, now + 30_000),
             attendance = AttendanceLoadState(session, loaded = true, updatedAt = now),
-            attendees = (0..39).map { PrototypeAttendee("person-$it", "参与者 $it", if (it < 10) now else null) })
+            attendees = (0..39).map { PrototypeAttendee("person-$it", "Participant $it", if (it < 10) now else null) })
         compose.setContent {
             DeviceConfigurationOverride(DeviceConfigurationOverride.ForcedSize(DpSize(width.dp, height.dp)) then
                 DeviceConfigurationOverride.FontScale(fontScale)) {
@@ -134,7 +134,7 @@ class PrototypeScreenTest {
         compose.onNodeWithTag("attendance_pending_tab").assertIsDisplayed().performClick()
         if (fontScale > 1.3f) {
             val layouts = mutableListOf<TextLayoutResult>()
-            compose.onNodeWithText("未签到\n30 人").performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            compose.onNodeWithText("Pending\n30").performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
             assertTrue(layouts.isNotEmpty())
             val captureContext = InstrumentationRegistry.getInstrumentation().targetContext
             File(captureContext.getExternalFilesDir(null), "attendance-large-label.png").outputStream().use {
@@ -160,23 +160,23 @@ class PrototypeScreenTest {
         assertEquals(1, scanCalls)
         compose.onNodeWithTag("prototype_meeting").assertDoesNotExist()
         compose.onNodeWithTag("prototype_show").assertDoesNotExist()
-        compose.runOnIdle { state = state.copy(busy = true, message = "正在定位…") }
+        compose.runOnIdle { state = state.copy(busy = true, message = "Getting location…") }
         compose.onNodeWithTag("prototype_scan").assertIsNotEnabled()
-        compose.runOnIdle { state = state.copy(busy = false, scanStage = ParticipantScanStage.ATTENTION, message = "需要精确位置权限") }
+        compose.runOnIdle { state = state.copy(busy = false, scanStage = ParticipantScanStage.ATTENTION, message = "Precise location permission is required") }
         compose.onNodeWithTag("prototype_status").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("需要精确位置权限").assertExists()
+        compose.onNodeWithText("Precise location permission is required").assertExists()
         compose.onNodeWithTag("prototype_receipt").assertDoesNotExist()
     }
 
     @Test fun successShowsLocalReceiptAndAllowsRetryAfterFailure() {
-        state = PrototypeUiState(scanStage = ParticipantScanStage.ATTENTION, message = "二维码已过期，请重新扫码。")
+        state = PrototypeUiState(scanStage = ParticipantScanStage.ATTENTION, message = "This QR code has expired. Please scan again.")
         launch("bob")
         compose.onNodeWithTag("prototype_scan").assertIsDisplayed().assertIsEnabled()
         compose.runOnIdle { state = state.copy(receipt = PrototypeReceipt(session.id, "bob", now),
             scanStage = ParticipantScanStage.SUCCESS,
-            message = "签到成功，结果已保存在本机。") }
+            message = "Checked in successfully. Your record is saved on this device.") }
         compose.onNodeWithTag("prototype_receipt").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithTag("participant_status_title").assertTextEquals("签到成功")
+        compose.onNodeWithTag("participant_status_title").assertTextEquals("Checked in successfully")
     }
 
     @Test fun storedMeetingAndReceiptSurviveRecreatingTheStore() {

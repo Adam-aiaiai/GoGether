@@ -13,7 +13,7 @@ class LocalSnapshotStore(context: Context) {
     private val preferences = context.getSharedPreferences("ce_repository_v1", Context.MODE_PRIVATE)
     fun load(): AppSnapshot? = preferences.getString("snapshot", null)?.let { decode(it).copy(currentUserId = null) }
     fun save(state: AppSnapshot) {
-        check(preferences.edit().putString("snapshot", encode(state)).commit()) { "本机活动数据保存失败，请重试。" }
+        check(preferences.edit().putString("snapshot", encode(state)).commit()) { "Could not save local event data. Try again." }
     }
     companion object {
         private fun obj(vararg fields: Pair<String, Any?>) = JSONObject().also { value -> fields.forEach { value.put(it.first, it.second) } }
@@ -38,7 +38,7 @@ class LocalSnapshotStore(context: Context) {
 
         fun decode(raw: String): AppSnapshot {
             val root = JSONObject(raw)
-            require(root.getInt("version") == 1) { "不支持的本机活动数据版本。" }
+            require(root.getInt("version") == 1) { "This local event data version is not supported." }
             return AppSnapshot(
                 users = root.rows("users") { row -> User(row.getString("id"), row.getString("name"),
                     row.getJSONArray("interests").let { a -> (0 until a.length()).map { Category.valueOf(a.getString(it)) }.toSet() }, row.getLong("created")) },

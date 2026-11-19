@@ -21,7 +21,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private fun eventTime(time: Long, pattern: String) = SimpleDateFormat(pattern, Locale.getDefault()).format(Date(time))
+private fun eventTime(time: Long, pattern: String) = SimpleDateFormat(pattern, Locale.ENGLISH).format(Date(time))
 
 /** Event context scrolls on small displays; the primary action stays within reach. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,57 +56,57 @@ internal fun ParticipantCheckInPanel(actor: String, state: PrototypeUiState, now
     val late = session != null && now > session.startAt + PrototypePolicy.HALF_HOUR_MS
     val canOpenRecord = entry != null && (showReceipt || ended) && !attention
     val status = when {
-        resolving -> "正在核对签到结果"
-        busy -> "正在核验签到"
-        needsResolution -> "签到结果待确认"
-        attention -> "签到提示"
-        cancelled -> "活动已取消"
-        ended -> if (entry?.feedback != null) "已评价" else "活动已结束"
-        showReceipt -> if (state.scanStage == ParticipantScanStage.SUCCESS) "签到成功" else "已签到"
-        !confirmed -> if (waitlisted) "候补中" else "尚未报名"
-        early -> "签到尚未开始"
-        late -> "签到已结束"
-        session == null -> "到场后扫码签到"
-        else -> "现在可以签到"
+        resolving -> "Checking your check-in result"
+        busy -> "Verifying check-in"
+        needsResolution -> "Check-in unconfirmed"
+        attention -> "Check-in notice"
+        cancelled -> "Event cancelled"
+        ended -> if (entry?.feedback != null) "Reviewed" else "Event ended"
+        showReceipt -> if (state.scanStage == ParticipantScanStage.SUCCESS) "Checked in successfully" else "Checked in"
+        !confirmed -> if (waitlisted) "Waitlisted" else "Not registered"
+        early -> "Check-in not open yet"
+        late -> "Check-in closed"
+        session == null -> "Scan to check in on arrival"
+        else -> "Ready to check in"
     }
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp).testTag("participant_panel")) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween) {
-            TextButton(shape = CheckInStyle.shape, onClick = back) { Text("< 返回") }
-            Text("我的活动", style = MaterialTheme.typography.titleSmall)
-            TextButton(shape = CheckInStyle.shape, onClick = history, modifier = Modifier.testTag("open_history")) { Text("记录") }
+            TextButton(shape = CheckInStyle.shape, onClick = back) { Text("< Back") }
+            Text("My event", style = MaterialTheme.typography.titleSmall)
+            TextButton(shape = CheckInStyle.shape, onClick = history, modifier = Modifier.testTag("open_history")) { Text("Records") }
         }
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
             .testTag("participant_status_area"), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("活动参与", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                Text(activity?.title ?: "待选择活动", style = MaterialTheme.typography.headlineMedium,
+                Text("Taking part", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Text(activity?.title ?: "Choose an event", style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold, modifier = Modifier.testTag("participant_event_title"))
-                Text("$name  " + if (confirmed) "已报名" else if (waitlisted) "候补中" else "尚未报名",
+                Text("$name  " + if (confirmed) "Registered" else if (waitlisted) "Waitlisted" else "Not registered",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 PersonInitial(activity?.organizerName ?: "?", 36)
                 Column {
-                    Text(activity?.let { "${it.organizerName} 发起" } ?: "扫码后查看组织者", style = MaterialTheme.typography.titleSmall)
-                    Text("组织者", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(activity?.let { "Hosted by ${it.organizerName}" } ?: "Scan to see the organizer", style = MaterialTheme.typography.titleSmall)
+                    Text("Organizer", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .5f))
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                EventInfoRow("时间", if (session == null) "扫码后获取本场时间" else
-                    "${eventTime(session.startAt, "M月d日 HH:mm")}–${eventTime(session.endAt, "HH:mm")}")
+                EventInfoRow("Time", if (session == null) "Scan to see event times" else
+                    "${eventTime(session.startAt, "MMM d, HH:mm")}–${eventTime(session.endAt, "HH:mm")}")
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.weight(1f)) { EventInfoRow("集合", if (session == null) "到场后扫描组织者的二维码" else (activity?.meetingName ?: "集合点待确认")) }
+                    Box(Modifier.weight(1f)) { EventInfoRow("Meeting point", if (session == null) "Scan the organizer's code when you arrive" else (activity?.meetingName ?: "Meeting point not confirmed")) }
                     if (session != null) TextButton(shape = CheckInStyle.shape, onClick = { mapError = false; sheet = "location" },
                         contentPadding = PaddingValues(horizontal = 4.dp), modifier = Modifier.testTag("participant_location")) {
-                        Text("位置 ›", style = MaterialTheme.typography.labelLarge)
+                        Text("Location >", style = MaterialTheme.typography.labelLarge)
                     }
                 }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("同行", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("People", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     participants.take(3).forEach { PersonInitial(it.name, 26) }
-                    Text("${participants.size} 人已报名", style = MaterialTheme.typography.bodySmall)
+                    Text("${participants.size} registered", style = MaterialTheme.typography.bodySmall)
                 }
             }
             Surface(shape = CheckInStyle.shape, color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -118,25 +118,25 @@ internal fun ParticipantCheckInPanel(actor: String, state: PrototypeUiState, now
                     when {
                         busy -> {
                             LinearProgressIndicator(Modifier.fillMaxWidth())
-                            Text(state.message.ifBlank { "正在确认位置与签到资格…" }, style = MaterialTheme.typography.bodySmall)
+                            Text(state.message.ifBlank { "Checking location and eligibility…" }, style = MaterialTheme.typography.bodySmall)
                         }
                         needsResolution -> Text(state.message, style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.testTag("participant_issue"))
-                        attention -> Text(if (retryCode != null && !canRetryLocation) "签到码已过期，请扫描组织者的新码。"
+                        attention -> Text(if (retryCode != null && !canRetryLocation) "Check-in code expired. Scan the organizer's new code."
                             else state.message, style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("participant_issue"))
-                        cancelled -> Text("本场活动停止签到与评价。", style = MaterialTheme.typography.bodySmall)
-                        showReceipt -> Text("签到时间 ${eventTime(receipt!!.checkedInAt, "M月d日 HH:mm:ss")}",
+                        cancelled -> Text("Check-in and reviews are closed for this event.", style = MaterialTheme.typography.bodySmall)
+                        showReceipt -> Text("Checked in ${eventTime(receipt!!.checkedInAt, "MMM d, HH:mm:ss")}",
                             Modifier.testTag("prototype_receipt"), style = MaterialTheme.typography.bodyMedium)
-                        ended -> Text("可以在活动记录中留下评分和感受。", style = MaterialTheme.typography.bodySmall)
-                        !confirmed -> Text(if (waitlisted) "转为正式参与者后即可签到。" else "正式报名后即可签到。", style = MaterialTheme.typography.bodySmall)
-                        session != null -> Text("${eventTime(session.startAt - PrototypePolicy.HALF_HOUR_MS, "HH:mm")}–${eventTime(minOf(session.endAt, session.startAt + PrototypePolicy.HALF_HOUR_MS), "HH:mm")}  签到时段\n请在集合点 200 米内扫码。", style = MaterialTheme.typography.bodySmall)
-                        else -> Text("扫描组织者二维码，确认活动与集合位置。", style = MaterialTheme.typography.bodySmall)
+                        ended -> Text("Leave a rating and share your experience in the event record.", style = MaterialTheme.typography.bodySmall)
+                        !confirmed -> Text(if (waitlisted) "You can check in once your place is confirmed." else "A confirmed place is required to check in.", style = MaterialTheme.typography.bodySmall)
+                        session != null -> Text("${eventTime(session.startAt - PrototypePolicy.HALF_HOUR_MS, "HH:mm")}–${eventTime(minOf(session.endAt, session.startAt + PrototypePolicy.HALF_HOUR_MS), "HH:mm")}  Check-in window\nScan within 200 m of the meeting point.", style = MaterialTheme.typography.bodySmall)
+                        else -> Text("Scan the organizer's code to confirm the event and meeting point.", style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
             TextButton(shape = CheckInStyle.shape, onClick = { sheet = "about" }, contentPadding = PaddingValues(0.dp),
                 modifier = Modifier.testTag("participant_about")) {
-                Text("活动介绍与须知 ›", style = MaterialTheme.typography.bodySmall)
+                Text("About this event >", style = MaterialTheme.typography.bodySmall)
             }
         }
         Button(shape = CheckInStyle.shape, enabled = !busy && (needsResolution || (!cancelled &&
@@ -145,24 +145,24 @@ internal fun ParticipantCheckInPanel(actor: String, state: PrototypeUiState, now
                 else if (canRetryLocation) retryLocation() else scan() },
             modifier = Modifier.fillMaxWidth().padding(top = 10.dp).heightIn(min = 48.dp).testTag("prototype_scan")) {
             Text(when {
-                resolving -> "正在核对…"
-                busy -> "正在核验…"
-                needsResolution -> "核对签到结果"
-                cancelled -> "活动已取消"
-                canOpenRecord && ended -> if (entry?.feedback != null) "查看评价" else "评价活动"
-                canOpenRecord -> "查看签到记录"
-                ended -> "活动已结束"
-                early -> "等待签到开放"
-                late -> "签到已结束"
-                !confirmed -> "暂无签到资格"
-                canRetryLocation -> "重新定位"
-                attention -> "重新扫码"
-                else -> "扫码签到"
+                resolving -> "Checking…"
+                busy -> "Verifying…"
+                needsResolution -> "Check result"
+                cancelled -> "Event cancelled"
+                canOpenRecord && ended -> if (entry?.feedback != null) "View review" else "Review event"
+                canOpenRecord -> "View check-in record"
+                ended -> "Event ended"
+                early -> "Check-in not open yet"
+                late -> "Check-in closed"
+                !confirmed -> "Not eligible to check in"
+                canRetryLocation -> "Retry location"
+                attention -> "Scan again"
+                else -> "Scan to check in"
             })
         }
         TextButton(shape = CheckInStyle.shape, onClick = { sheet = "help" },
             modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 4.dp).testTag("participant_help")) {
-            Text("签到说明与权限", style = MaterialTheme.typography.bodySmall)
+            Text("Check-in guide and permissions", style = MaterialTheme.typography.bodySmall)
         }
     }
     if (sheet != null) ModalBottomSheet(onDismissRequest = { sheet = null }, shape = CheckInStyle.sheetShape,
@@ -171,36 +171,35 @@ internal fun ParticipantCheckInPanel(actor: String, state: PrototypeUiState, now
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when (sheet) {
                 "location" -> {
-                    Text("集合位置", style = MaterialTheme.typography.titleLarge)
-                    Text((activity?.meetingName ?: "集合点待确认"))
-                    Text("以组织者现场确认的位置为准，抵达后在附近碰面。")
-                    session?.let {
+                    Text("Meeting location", style = MaterialTheme.typography.titleLarge)
+                    Text((activity?.meetingName ?: "Meeting point not confirmed"))
+                    Text("Meet near the location confirmed by the organizer on site.")
+                    session?.meeting?.let { point ->
                         Button(shape = CheckInStyle.shape, onClick = {
-                            val point = it.meeting
-                            val uri = Uri.parse("geo:${point.latitude},${point.longitude}?q=${point.latitude},${point.longitude}(${Uri.encode("集合点")})")
+                            val uri = Uri.parse("geo:${point.latitude},${point.longitude}?q=${point.latitude},${point.longitude}(${Uri.encode("Meeting point")})")
                             try { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
                             catch (_: ActivityNotFoundException) { mapError = true }
-                        }, modifier = Modifier.testTag("participant_map")) { Text("在地图中查看") }
+                        }, modifier = Modifier.testTag("participant_map")) { Text("Open in Maps") }
                     }
-                    if (mapError) Text("未找到可打开位置的地图应用。请联系组织者确认集合位置。")
+                    if (mapError) Text("No maps app is available. Ask the organizer to confirm the meeting point.")
                 }
                 "about" -> {
-                    Text("活动介绍", style = MaterialTheme.typography.titleLarge)
-                    Text((activity?.introduction ?: "读取活动后查看介绍"))
-                    Text("参与流程", style = MaterialTheme.typography.titleMedium)
-                    Text("报名参加 → 到场签到 → 活动结束后评价")
-                    Text("集合时请向组织者确认具体场地与安排。")
-                    Text("活动结束后，可在本场记录中提交一次评分和评论。")
+                    Text("About the event", style = MaterialTheme.typography.titleLarge)
+                    Text((activity?.introduction ?: "Load an event to see its description"))
+                    Text("How it works", style = MaterialTheme.typography.titleMedium)
+                    Text("Register → Check in → Review after the event")
+                    Text("Ask the organizer to confirm the venue and plans when you meet.")
+                    Text("After the event, you can submit one rating and comment from its record.")
                 }
                 else -> {
-                    Text("签到说明", style = MaterialTheme.typography.titleLarge)
-                    Text("正式参与者可在活动开始前 30 分钟至开始后 30 分钟签到；活动取消或结束后停止签到。")
-                    Text("组织者和参与者均需在固定集合点 200 米内。扫码需要相机和精确位置权限，只在签到操作时获取位置。")
+                    Text("Check-in guide", style = MaterialTheme.typography.titleLarge)
+                    Text("Confirmed participants can check in from 30 minutes before to 30 minutes after the start. Check-in closes if the event is cancelled or ends.")
+                    Text("Organizers and participants must be within 200 m of the fixed meeting point. Scanning needs camera and precise location access. Location is used only during check-in actions.")
                     TextButton(shape = CheckInStyle.shape, onClick = { sheet = null; settings() },
-                        modifier = Modifier.testTag("participant_settings")) { Text("打开应用权限设置") }
+                        modifier = Modifier.testTag("participant_settings")) { Text("Open permission settings") }
                     TextButton(shape = CheckInStyle.shape, enabled = !busy,
                         onClick = { sheet = null; scanOther() }, modifier = Modifier.testTag("participant_scan_other")) {
-                        Text("扫描其他活动")
+                        Text("Scan another event")
                     }
                 }
             }

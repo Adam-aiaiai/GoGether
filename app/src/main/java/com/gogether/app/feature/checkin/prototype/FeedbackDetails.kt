@@ -11,10 +11,10 @@ data class FeedbackDetails(
     val photos: List<String> = emptyList(),
 ) {
     fun requireValid() {
-        require(listOf(organization, venue, atmosphere).all { it in 0..5 }) { "分项评分应为 1 至 5 分，也可以不填写。" }
-        require(tags.size == tags.distinct().size && tags.all { id -> feedbackTags.any { it.id == id } }) { "评价标签无效，请重新选择。" }
+        require(listOf(organization, venue, atmosphere).all { it in 0..5 }) { "Rate each category from 1 to 5, or leave it blank." }
+        require(tags.size == tags.distinct().size && tags.all { id -> feedbackTags.any { it.id == id } }) { "Invalid review tags. Choose again." }
         require(photos.size <= 3 && photos.distinct().size == photos.size && photos.all { photoIdPattern.matches(it) }) {
-            "最多添加 3 张图片，请重新选择。"
+            "You can add up to 3 photos. Choose again."
         }
     }
 }
@@ -26,19 +26,20 @@ internal val photoIdPattern = Regex("[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9
 data class VisibleFeedback(val authorName: String, val anonymous: Boolean, val own: Boolean,
     val rating: Int, val comment: String, val createdAt: Long, val details: FeedbackDetails)
 
-fun PrototypeFeedback.visibleTo(viewer: String, organizer: String): VisibleFeedback? {
+fun PrototypeFeedback.visibleTo(viewer: String, organizer: String,
+    authorName: String = prototypeParticipants.find { it.userId == userId }?.name ?: "Participant"): VisibleFeedback? {
     if (viewer.isBlank() || (details.visibility == FeedbackVisibility.ORGANIZER_ONLY && viewer != userId && viewer != organizer)) return null
-    val name = if (details.anonymous) "匿名参与者" else prototypeParticipants.find { it.userId == userId }?.name ?: "参与者"
+    val name = if (details.anonymous) "Anonymous participant" else authorName
     return VisibleFeedback(name, details.anonymous, viewer == userId, rating, comment, createdAt, details)
 }
 
 data class FeedbackTag(val id: String, val label: String, val improvement: Boolean = false)
 val feedbackTags = listOf(
-    FeedbackTag("clear_meeting", "集合清楚"), FeedbackTag("well_organized", "安排有序"),
-    FeedbackTag("welcoming", "氛围友好"), FeedbackTag("beginner_friendly", "新手友好"),
-    FeedbackTag("helpful_guidance", "指导耐心"), FeedbackTag("comfortable_venue", "场地舒适"),
-    FeedbackTag("good_pace", "节奏合适"), FeedbackTag("join_again", "还想参加"),
-    FeedbackTag("clearer_meeting", "集合指引", true), FeedbackTag("better_timing", "时间安排", true),
-    FeedbackTag("more_guidance", "入门讲解", true), FeedbackTag("better_venue", "场地条件", true),
-    FeedbackTag("more_equipment", "器材准备", true), FeedbackTag("more_interaction", "互动机会", true),
+    FeedbackTag("clear_meeting", "Clear meeting point"), FeedbackTag("well_organized", "Well organized"),
+    FeedbackTag("welcoming", "Welcoming"), FeedbackTag("beginner_friendly", "Beginner friendly"),
+    FeedbackTag("helpful_guidance", "Helpful guidance"), FeedbackTag("comfortable_venue", "Comfortable venue"),
+    FeedbackTag("good_pace", "Good pace"), FeedbackTag("join_again", "Would join again"),
+    FeedbackTag("clearer_meeting", "Meeting directions", true), FeedbackTag("better_timing", "Timing", true),
+    FeedbackTag("more_guidance", "Beginner guidance", true), FeedbackTag("better_venue", "Venue facilities", true),
+    FeedbackTag("more_equipment", "Equipment", true), FeedbackTag("more_interaction", "More interaction", true),
 )

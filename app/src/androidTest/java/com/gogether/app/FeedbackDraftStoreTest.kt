@@ -43,16 +43,16 @@ class FeedbackDraftStoreTest {
 
     @Test fun completeDraftRestoresAcrossStoreInstancesAndScopes(): Unit = runBlocking {
         val id = image()
-        val original = FeedbackDraft(4, "有空再继续写\n" + "长".repeat(501), FeedbackDetails(5, 3, 4,
+        val original = FeedbackDraft(4, "I will finish this review when I have more time.\n" + "a".repeat(501), FeedbackDetails(5, 3, 4,
             listOf("welcoming", "more_guidance"), true, FeedbackVisibility.ORGANIZER_ONLY, listOf(id)))
         drafts.save("bob", ids[0], original)
-        drafts.save("carol", ids[0], FeedbackDraft(2, "Carol 的草稿"))
-        drafts.save("bob", ids[1], FeedbackDraft(3, "另一场活动"))
-        drafts.save(actors[2], ids[0], FeedbackDraft(1, "特殊账号"))
+        drafts.save("carol", ids[0], FeedbackDraft(2, "The venue was comfortable and easy to find."))
+        drafts.save("bob", ids[1], FeedbackDraft(3, "The other event had a great atmosphere."))
+        drafts.save(actors[2], ids[0], FeedbackDraft(1, "I enjoyed taking part with this account."))
         assertEquals(original, FeedbackDraftStore(context).load("bob", ids[0]))
         assertEquals(2, drafts.load("carol", ids[0]).rating)
-        assertEquals("另一场活动", drafts.load("bob", ids[1]).comment)
-        assertEquals("特殊账号", drafts.load(actors[2], ids[0]).comment)
+        assertEquals("The other event had a great atmosphere.", drafts.load("bob", ids[1]).comment)
+        assertEquals("I enjoyed taking part with this account.", drafts.load(actors[2], ids[0]).comment)
         assertNotNull(FeedbackPhotoStore(context).bitmap(id, "bob", ids[0]))
         assertNull(photos.bitmap(id, "carol", ids[0]))
     }
@@ -60,7 +60,7 @@ class FeedbackDraftStoreTest {
     @Test fun failedSubmissionRetainsDraftSuccessfulSubmissionClearsItAndLateSaveCannotRestoreIt(): Unit = runBlocking {
         val keep = image(); val remove = image()
         store.rememberSession("bob", session)
-        val draft = FeedbackDraft(4, "继续完善", FeedbackDetails(photos = listOf(keep, remove)))
+        val draft = FeedbackDraft(4, "I will add a few more thoughts later.", FeedbackDetails(photos = listOf(keep, remove)))
         drafts.save("bob", session.id, draft)
         val backend = LocalPrototypeBackend(store, { session.endAt }, { 0 })
         assertThrows(IllegalArgumentException::class.java) { backend.submitFeedback("bob", session.id, 0, "") }
@@ -111,12 +111,12 @@ class FeedbackDraftStoreTest {
 
     @Test fun cleanupKeepsSubmittedPhotosAndRejectedForeignAttachmentDoesNotOverwriteDraft(): Unit = runBlocking {
         val own = image(); val foreign = image("carol")
-        drafts.save("bob", ids[0], FeedbackDraft(3, "保留这份"))
+        drafts.save("bob", ids[0], FeedbackDraft(3, "Please keep this draft for later."))
         assertThrows(IllegalArgumentException::class.java) {
             drafts.save("bob", ids[0], FeedbackDraft(details = FeedbackDetails(photos = listOf(foreign))))
         }
-        assertEquals("保留这份", drafts.load("bob", ids[0]).comment)
-        store.saveFeedback(PrototypeFeedback(ids[0], "bob", 3, "已提交", 2000, FeedbackDetails(photos = listOf(own))))
+        assertEquals("Please keep this draft for later.", drafts.load("bob", ids[0]).comment)
+        store.saveFeedback(PrototypeFeedback(ids[0], "bob", 3, "Thanks for a great event.", 2000, FeedbackDetails(photos = listOf(own))))
         age(own)
         photos.cleanUnreferenced("bob", ids[0])
         assertNotNull(photos.bitmap(own, "bob", ids[0]))
