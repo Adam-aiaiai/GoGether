@@ -120,6 +120,10 @@ interface PrototypeStore {
     var hostedSession: PrototypeSession?
     fun activityInfo(id: String): CheckInActivityInfo? = null
     fun rememberActivityInfo(info: CheckInActivityInfo) {}
+    /** Trusted repository adapter only; preserve receipts, reviews, drafts and member links. */
+    fun updateLinkedActivity(info: CheckInActivityInfo) {
+        throw IllegalArgumentException("This store cannot update linked event details.")
+    }
     fun registrationSnapshot(id: String): CheckInRegistrationSnapshot? = null
     fun rememberRegistrations(id: String, snapshot: CheckInRegistrationSnapshot) {}
     fun isCancelled(id: String): Boolean

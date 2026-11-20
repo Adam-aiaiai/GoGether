@@ -8,13 +8,22 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.gogether.app.feature.checkin.prototype.*
 import com.gogether.app.ui.theme.GogetherTheme
 import org.junit.Assert.*
+import org.junit.After
 import org.junit.Rule
 import org.junit.Test
+import java.util.UUID
 
 class CheckInEntryUiTest {
     @get:Rule val compose = createComposeRule()
     private val now = 1_800_000_000_000L
-    private val session = PrototypeSession("f23e4af8-b3ed-49ef-a7ee-d7c1cf2bf317", MeetingPoint(31.27, 120.74), now, now + 3_600_000)
+    private val session = PrototypeSession(UUID.randomUUID().toString(), MeetingPoint(31.27, 120.74), now, now + 3_600_000)
+
+    @After fun removeOnlyThisTestsDrafts() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val edit = context.getSharedPreferences("checkin_prototype_v1", 0).edit()
+        listOf("bob", "carol").forEach { edit.remove(FeedbackDraftStore.key(it, session.id)) }
+        edit.commit()
+    }
 
     @Test fun entryContractRoundTripsAndRejectsMalformedActivityInsteadOfUsingGeneral() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext

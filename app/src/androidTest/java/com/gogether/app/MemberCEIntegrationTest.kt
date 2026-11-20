@@ -56,6 +56,10 @@ class MemberCEIntegrationTest {
         compose.onNodeWithTag("participant_status_title").assertTextEquals("Checked in")
         compose.onNodeWithTag("demo_checkin").assertDoesNotExist()
         compose.onNodeWithTag("participant_panel").assertIsDisplayed()
+        compose.onNodeWithText("< Back").performClick()
+        compose.onNodeWithTag("nav_my-events").performClick()
+        compose.onNodeWithTag("participation_event-1").performScrollTo()
+            .assertTextContains("Checked in", substring = true)
     }
     @Test fun organizerManagementAndEAttendanceUseTheSameReceiptAndPromotedRoster() {
         val (repo, bridge) = fixture()

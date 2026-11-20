@@ -4,59 +4,272 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import androidx.core.net.toUri
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import com.gogether.app.core.model.*
 import com.gogether.app.core.ui.*
 import com.gogether.app.feature.registration.ParticipantsCard
+import com.gogether.app.feature.coordination.AnnouncementSection
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 @Composable
-fun EventDetailScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
-                      onJoin: () -> Unit, onCancel: () -> Unit, onManage: () -> Unit, onCheckIn: () -> Unit) {
+fun EventDetailScreen(
+    event: Event,
+    state: AppSnapshot,
+    now: Long,
+    busy: Boolean,
+    onJoin: () -> Unit,
+    onCancel: () -> Unit,
+    onManage: () -> Unit,
+    onCheckIn: () -> Unit,
+) {
     var confirmCancel by rememberSaveable { mutableStateOf(false) }
     val registration = state.registration(event.id)
     val organizer = state.currentUserId == event.organizerId
-    val active = registration?.status == RegistrationStatus.CONFIRMED || registration?.status == RegistrationStatus.WAITLISTED
+    val active = registration?.status == RegistrationStatus.CONFIRMED ||
+        registration?.status == RegistrationStatus.WAITLISTED
+    val confirmed = state.confirmed(event.id).size
+    val remaining = (event.capacity - confirmed).coerceAtLeast(0)
+
     Page {
-        StatusPill(event.category.label)
-        SectionTitle(event.title, "Hosted by ${state.userName(event.organizerId)}")
-        Text(event.description, style = MaterialTheme.typography.bodyLarge)
-        InfoCard("The plan", "${displayTime(event.startAt)}\nEnds ${displayTime(event.endAt)}\n${event.city} · ${event.location}")
-        MeetingMapButton("${event.city} ${event.location}")
-        ParticipantsCard(event, state)
-        InfoCard("Registration", "Closes ${displayTime(event.registrationDeadline)}\nEvent: ${event.status.name.lowercase()}\nYour status: ${registration?.status?.name?.lowercase() ?: "not registered"}")
-        if (registration?.status == RegistrationStatus.WAITLISTED) {
-            Text("Your waitlist position: ${state.waitlist(event.id).indexOfFirst { it.userId == state.currentUserId } + 1}",
-                color = MaterialTheme.colorScheme.primary, modifier = Modifier.testTag("waitlist_position"))
-        }
-        if (event.notes.isNotBlank()) InfoCard("Good to know", event.notes)
-        val notices = state.notifications.filter { it.eventId == event.id && it.userId == state.currentUserId && it.type == NotificationType.ANNOUNCEMENT }
-        notices.takeLast(3).forEach { InfoCard("Organizer update · ${displayTime(it.createdAt)}", it.content) }
-        when {
-            organizer -> Button(onClick = onManage, modifier = Modifier.fillMaxWidth().testTag("manage_event")) { Text("Manage event") }
-            active && event.status == EventStatus.OPEN && now < event.startAt -> OutlinedButton(
-                onClick = { confirmCancel = true }, enabled = !busy,
-                modifier = Modifier.fillMaxWidth().testTag("cancel_registration")) { Text("Cancel Registration") }
-            !active && event.acceptsRegistration(now) -> Button(onClick = onJoin, enabled = !busy,
-                modifier = Modifier.fillMaxWidth().testTag("join_event")) {
-                Text(if (state.confirmed(event.id).size >= event.capacity) "Join Waitlist" else "Join Event")
+        EventHero(event)
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            StatusPill(event.category.label)
+            if (event.experienceRequirement == ExperienceRequirement.NONE) {
+                Text("Beginner friendly", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary)
             }
-            else -> InfoCard("Registration closed", "New places and waitlist promotions stop at the deadline or when the event starts or closes.")
         }
-        if (registration?.status == RegistrationStatus.CONFIRMED && event.status != EventStatus.CANCELLED) {
-            Button(onClick = onCheckIn, modifier = Modifier.fillMaxWidth().testTag("open_checkin")) {
-                Text(if (event.status == EventStatus.COMPLETED || now >= event.endAt) "Leave feedback" else "Check-in & meeting")
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(event.title, style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold)
+            Text(event.description, style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+
+        DetailFact("▣", detailDate(event.startAt),
+            "${detailClock(event.startAt)} – ${detailClock(event.endAt)}")
+        HorizontalDivider()
+        DetailFact("⌖", event.location, event.city)
+        if (!organizer && !active) MeetingMapButton("${event.city} ${event.location}")
+        HorizontalDivider()
+        ParticipantsCard(event, state)
+        DetailFact("♙", "$confirmed of ${event.capacity} spots taken",
+            if (state.waitlist(event.id).isEmpty()) "$remaining spots remaining"
+            else "${state.waitlist(event.id).size} people on the waitlist")
+
+        Text("Before you join", style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            DetailTile("Experience", event.experienceRequirement.detailLabel(), Modifier.weight(1f))
+            DetailTile("Guidance", if (event.beginnerGuidance) "Available" else "Not provided",
+                Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            DetailTile("Equipment", event.requiredItems.takeIf { it.isNotBlank() }
+                ?.let { "Bring: $it" } ?: "Nothing required", Modifier.weight(1f))
+            DetailTile("Group size", "Up to ${event.capacity} people", Modifier.weight(1f))
+        }
+        if (event.spareEquipment.isNotBlank()) {
+            DetailTile("Available to borrow", "Spare equipment: ${event.spareEquipment}",
+                Modifier.fillMaxWidth())
+        }
+
+        Text("About this event", style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold)
+        Text(event.description, style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (event.notes.isNotBlank()) {
+            Text(event.notes, style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+
+        Text("Hosted by", style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold)
+        HostRow(state.userName(event.organizerId))
+
+        if (organizer || active) {
+            InfoCard("Meeting point", "${displayTime(event.meetingAt ?: event.startAt)}\n${event.meetingLocation ?: event.location}\n${event.meetingNotes}")
+            MeetingMapButton("${event.city} ${event.meetingLocation ?: event.location}")
+        }
+        AnnouncementSection(event, state)
+
+        HorizontalDivider()
+        Text("Registration closes ${displayTime(event.registrationDeadline)}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Your status: ${registration?.status?.name?.lowercase() ?: "not registered"}",
+            style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+        if (registration?.status == RegistrationStatus.WAITLISTED) {
+            Text("Your waitlist position: ${state.waitlist(event.id)
+                .indexOfFirst { it.userId == state.currentUserId } + 1}",
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.testTag("waitlist_position"))
+        }
+
+        EventActionArea(
+            event = event,
+            organizer = organizer,
+            active = active,
+            remaining = remaining,
+            busy = busy,
+            now = now,
+            onManage = onManage,
+            onCancel = { confirmCancel = true },
+            onJoin = onJoin,
+        )
+
+        if (registration?.status == RegistrationStatus.CONFIRMED &&
+            event.status != EventStatus.CANCELLED) {
+            OutlinedButton(onClick = onCheckIn,
+                modifier = Modifier.fillMaxWidth().testTag("open_checkin")) {
+                Text(if (event.statusAt(now) == EventStatus.COMPLETED)
+                    "Leave feedback" else "Check-in & meeting")
             }
         }
     }
-    if (confirmCancel) ConfirmDialog("Cancel your registration?", "Your place may go to the first person on the waitlist.",
-        "Yes, cancel registration", { confirmCancel = false }, onCancel)
+
+    if (confirmCancel) {
+        ConfirmDialog(
+            "Cancel your registration?",
+            "Your place may go to the first person on the waitlist.",
+            "Yes, cancel registration",
+            { confirmCancel = false },
+            onCancel,
+        )
+    }
 }
+
+@Composable
+private fun EventHero(event: Event) {
+    if (event.imageUri.isNotBlank()) {
+        EventImage(event.imageUri, event.title, Modifier.fillMaxWidth().height(235.dp))
+    } else {
+        Box(Modifier.fillMaxWidth().height(190.dp)
+            .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(24.dp)),
+            contentAlignment = Alignment.Center) {
+            Text(event.category.symbol, style = MaterialTheme.typography.displayLarge)
+        }
+    }
+}
+
+@Composable
+private fun DetailFact(icon: String, title: String, subtitle: String) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Text(icon, style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.primary)
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun DetailTile(label: String, value: String, modifier: Modifier) {
+    Surface(modifier = modifier, shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(label, style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+@Composable
+private fun HostRow(name: String) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(44.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+            contentAlignment = Alignment.Center) {
+            Text(name.take(1).uppercase(), fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer)
+        }
+        Column {
+            Text(name, fontWeight = FontWeight.SemiBold)
+            Text("Event organizer", style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun EventActionArea(
+    event: Event,
+    organizer: Boolean,
+    active: Boolean,
+    remaining: Int,
+    busy: Boolean,
+    now: Long,
+    onManage: () -> Unit,
+    onCancel: () -> Unit,
+    onJoin: () -> Unit,
+) {
+    Surface(shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text(if (remaining == 0) "Waitlist available" else "$remaining spots left",
+                    fontWeight = FontWeight.Bold)
+                Text(if (event.acceptsRegistration(now)) "Free to join"
+                    else event.statusAt(now).name.lowercase().replaceFirstChar(Char::uppercase),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            when {
+                organizer -> Button(onClick = onManage,
+                    modifier = Modifier.testTag("manage_event")) { Text("Manage") }
+                active && event.status == EventStatus.OPEN && now < event.startAt ->
+                    OutlinedButton(onClick = onCancel, enabled = !busy,
+                        modifier = Modifier.testTag("cancel_registration")) {
+                        Text("Cancel")
+                    }
+                !active && event.acceptsRegistration(now) ->
+                    Button(onClick = onJoin, enabled = !busy,
+                        modifier = Modifier.testTag("join_event")) {
+                        Text(if (remaining == 0) "Join Waitlist" else "Join Event")
+                    }
+                else -> Text("Registration closed", style = MaterialTheme.typography.labelMedium)
+            }
+        }
+    }
+}
+
+private fun ExperienceRequirement.detailLabel(): String = when (this) {
+    ExperienceRequirement.NONE -> "All levels"
+    ExperienceRequirement.BASIC -> "Some experience"
+    ExperienceRequirement.EXPERIENCED -> "Experienced only"
+}
+
+private fun detailDate(epoch: Long): String = Instant.ofEpochMilli(epoch)
+    .atZone(ZoneId.systemDefault())
+    .format(DateTimeFormatter.ofPattern("EEEE, MMMM d", java.util.Locale.ENGLISH))
+
+private fun detailClock(epoch: Long): String = Instant.ofEpochMilli(epoch)
+    .atZone(ZoneId.systemDefault())
+    .format(DateTimeFormatter.ofPattern("HH:mm"))
 
 @Composable
 fun MeetingMapButton(location: String) {
@@ -64,8 +277,16 @@ fun MeetingMapButton(location: String) {
     var error by remember { mutableStateOf(false) }
     OutlinedButton(onClick = {
         try {
-            context.startActivity(Intent(Intent.ACTION_VIEW, "geo:0,0?q=${Uri.encode(location)}".toUri()))
-        } catch (_: ActivityNotFoundException) { error = true }
-    }, modifier = Modifier.fillMaxWidth()) { Text("Open meeting location in Maps") }
-    if (error) Text("No maps app is installed. Use the meeting address shown above.", color = MaterialTheme.colorScheme.error)
+            context.startActivity(Intent(Intent.ACTION_VIEW,
+                "geo:0,0?q=${Uri.encode(location)}".toUri()))
+        } catch (_: ActivityNotFoundException) {
+            error = true
+        }
+    }, modifier = Modifier.fillMaxWidth()) {
+        Text("Open meeting location in Maps")
+    }
+    if (error) {
+        Text("No maps app is installed. Use the meeting address shown above.",
+            color = MaterialTheme.colorScheme.error)
+    }
 }

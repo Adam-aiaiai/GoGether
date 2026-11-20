@@ -10,5 +10,9 @@ class AuthViewModel(repository: GogetherRepository) : RepositoryViewModel(reposi
     fun register(name: String, interests: Set<Category>) = execute({ repository.register(name, interests) }) {
         UiMessage("Welcome, ${it.displayName}")
     }
-    fun logout() = execute({ repository.logout() }) { UiMessage("Choose another Demo user") }
+    fun restore() = execute({ repository.restoreAccountSession() }) { UiMessage("Account session checked.") }
+    fun signIn(email: String, password: String) = execute({ repository.signIn(email, password) }) { UiMessage("Signed in.") }
+    fun signUp(email: String, password: String, name: String, interests: Set<Category>) =
+        execute({ repository.signUp(email, password, name, interests) }) { UiMessage("Welcome, ${it.displayName}") }
+    fun logout() = execute({ repository.logout() }) { UiMessage("You have logged out.") }
 }

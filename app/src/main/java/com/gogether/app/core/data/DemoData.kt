@@ -28,12 +28,21 @@ object DemoData {
             "Bring the book you are reading. Share a favourite passage over coffee with a small group.",
             "A relaxed two-hour hike with breaks for the view. Wear comfortable shoes and bring water.",
         )
+        val experience = listOf(ExperienceRequirement.BASIC, ExperienceRequirement.NONE,
+            ExperienceRequirement.NONE, ExperienceRequirement.NONE, ExperienceRequirement.BASIC)
+        val guidance = listOf(true, true, false, true, true)
+        val requiredItems = listOf("Racket, sports shoes and water", "Nothing specific",
+            "A phone or camera", "The book you are reading", "Comfortable shoes and water")
+        val spareEquipment = listOf("Two spare rackets are available", "Board games are provided",
+            "", "", "One pair of trekking poles is available")
         val events = titles.indices.map { i ->
             val start = tomorrow + i * 24 * 60 * 60 * 1000L
             Event("event-${i + 1}", if (i == 1) "carol" else "alice", titles[i], categories[i],
                 descriptions[i], start, start + RegistrationEngine.TWO_HOURS, locations[i], "Suzhou",
                 if (i == 0) 4 else 6, start - 60 * 60 * 1000L,
-                "Meet 10 minutes early. Please let the organizer know if your plans change.", now, now)
+                "Meet 10 minutes early. Please let the organizer know if your plans change.", now, now,
+                experienceRequirement = experience[i], beginnerGuidance = guidance[i],
+                requiredItems = requiredItems[i], spareEquipment = spareEquipment[i])
         }
         var order = 0L
         fun registration(eventId: String, user: String, status: RegistrationStatus) =

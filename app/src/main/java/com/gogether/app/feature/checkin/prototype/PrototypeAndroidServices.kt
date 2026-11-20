@@ -46,11 +46,23 @@ class PreferencesPrototypeStore(private val context: Context) : PrototypeStore {
         val previous = activityInfo(info.session.id)
         require(previous == null || previous == info) { "The organizer or event details do not match the saved record." }
         if (previous == info) return@synchronized
+        writeActivityInfo(info, updateSession = false)
+    }
+    override fun updateLinkedActivity(info: CheckInActivityInfo) = synchronized(writeLock) {
+        val previous = requireNotNull(activityInfo(info.session.id))
+        require(info.sourceEventId != null && previous.sourceEventId == info.sourceEventId && previous.organizerId == info.organizerId) {
+            "The event owner or identity has changed."
+        }
+        writeActivityInfo(info, updateSession = true)
+    }
+    private fun writeActivityInfo(info: CheckInActivityInfo, updateSession: Boolean) {
         val value = JSONObject().put("session", PrototypeSessionStorage.encode(info.session))
             .put("organizer", info.organizerId).put("title", info.title).put("meeting", info.meetingName).put("introduction", info.introduction)
             .put("sourceEventId", info.sourceEventId)
             .put("organizerName", info.organizerDisplayName)
-        check(prefs.edit().putString("activity-info.${info.session.id}", value.toString()).commit()) { "Could not save event details. Try again." }
+        val edit = prefs.edit().putString("activity-info.${info.session.id}", value.toString())
+        if (updateSession) edit.putString("session.${info.session.id}", PrototypeSessionStorage.encode(info.session))
+        check(edit.commit()) { "Could not save event details. Try again." }
     }
     override var hostedSession: PrototypeSession?
         get() = prefs.getString("hosted", null)?.let {

@@ -18,13 +18,13 @@ class RegistrationAttendanceBridge(
         "gogether-ce-v1:${event.id}:${event.createdAt}".toByteArray(Charsets.UTF_8)).toString()
 
     private fun event(key: String?) = snapshot().events.find { key(it) == key }
-    fun session(event: Event): PrototypeSession? = store.activityInfo(key(event))?.session?.takeIf {
-        it.meeting != null && it.startAt == event.startAt && it.endAt == event.endAt
-    }
+    private fun meetingName(event: Event) = "${event.city} ${event.meetingLocation ?: event.location}"
+    fun session(event: Event): PrototypeSession? = store.activityInfo(key(event))?.takeIf {
+        it.organizerId == event.organizerId && it.meetingName == meetingName(event)
+    }?.session?.takeIf { it.meeting != null && it.startAt == event.startAt && it.endAt == event.endAt }
     private fun recordSession(event: Event): PrototypeSession? {
-        val stored = store.activityInfo(key(event))?.session
-        return if (stored == null) PrototypeSession(key(event), null, event.startAt, event.endAt)
-            else stored.takeIf { it.startAt == event.startAt && it.endAt == event.endAt }
+        val stored = store.activityInfo(key(event))
+        return PrototypeSession(key(event), stored?.session?.meeting?.takeIf { stored.meetingName == meetingName(event) }, event.startAt, event.endAt)
     }
     fun hasEnded(event: Event, time: Long) = event.status == EventStatus.COMPLETED || time >= event.endAt
 
@@ -38,8 +38,14 @@ class RegistrationAttendanceBridge(
         return record
     }
     private fun rememberRecord(actor: String, record: PrototypeSession) {
-        val info = activity(record)
-        if (store.activityInfo(record.id) == null) store.rememberActivityInfo(info)
+        val event = requireNotNull(event(record.id))
+        val info = info(event, record)
+        val previous = store.activityInfo(record.id)
+        if (previous == null) store.rememberActivityInfo(info)
+        else {
+            require(previous.organizerId == event.organizerId && previous.sourceEventId == event.id) { "The event organizer has changed. Reopen the event." }
+            if (previous.session != record || previous.meetingName != info.meetingName) store.updateLinkedActivity(info)
+        }
         store.rememberSession(actor, record)
     }
     override fun status(activityId: String?, userId: String): CheckInRegistration {
@@ -63,9 +69,11 @@ class RegistrationAttendanceBridge(
         store.activityInfo(session.id)?.let {
             require(it.organizerId == event.organizerId && it.sourceEventId == event.id) { "The event organizer has changed. Reopen the event." }
         }
-        return CheckInActivityInfo(session, event.organizerId, event.title,
-            "${event.city} ${event.location}", event.description, event.id, snapshot().userName(event.organizerId))
+        require(session.startAt == event.startAt && session.endAt == event.endAt) { "Event times have changed. Reopen the event." }
+        return info(event, session)
     }
+    private fun info(event: Event, session: PrototypeSession) = CheckInActivityInfo(session, event.organizerId, event.title,
+        meetingName(event), event.description, event.id, snapshot().userName(event.organizerId))
     override fun isCatalogActivity(session: PrototypeSession) = runCatching { activity(session) }.isSuccess
 
     /** B currently supplies a text address. Only this event's organizer may fix its GPS point.
@@ -79,9 +87,7 @@ class RegistrationAttendanceBridge(
         validatePosition(fix, elapsedNow())
         session(event)?.let { return it }
         val session = PrototypeSession(key(event), fix.point, event.startAt, event.endAt)
-        store.rememberActivityInfo(CheckInActivityInfo(session, event.organizerId, event.title,
-            "${event.city} ${event.location}", event.description, event.id, snapshot().userName(event.organizerId)))
-        store.rememberSession(actor, session)
+        rememberRecord(actor, session)
         return session
     }
 
@@ -91,6 +97,7 @@ class RegistrationAttendanceBridge(
     private fun requireOpen(session: PrototypeSession) {
         activity(session)
         requireNotNull(session.meeting) { "The check-in meeting point has not been set." }
+        require(session(event(session.id)!!) == session) { "The meeting point or event time has changed. Ask the organizer for a new code." }
         require(event(session.id)?.status == EventStatus.OPEN) { "This event is cancelled or completed. Check-in is closed." }
     }
     private val liveStore = object : PrototypeStore by store {
@@ -102,7 +109,7 @@ class RegistrationAttendanceBridge(
 
     /** Local trusted boundary only. No network synchronization or signed tokens are claimed. */
     val backend: PrototypeCheckInBackend = object : PrototypeCheckInBackend by local {
-        override fun isCheckInClosed(session: PrototypeSession) = session.meeting == null || event(session.id)?.status != EventStatus.OPEN ||
+        override fun isCheckInClosed(session: PrototypeSession) = session.meeting == null || event(session.id)?.let { session(it) != session } != false || event(session.id)?.status != EventStatus.OPEN ||
             !isCatalogActivity(session) || local.isCancelled(session)
         override fun hostedSession(actor: String): PrototypeSession? {
             requireActor(actor)
@@ -131,11 +138,11 @@ class RegistrationAttendanceBridge(
             return local.issue(actor, session, fix)
         }
         override fun rememberCode(actor: String, raw: String): PrototypeSession {
-            requireActor(actor); requireOpen(PrototypeCodeCodec.decode(raw).session)
+            requireActor(actor); validateCurrentCode(raw)
             return local.rememberCode(actor, raw)
         }
         override fun submit(actor: String, raw: String, fix: PositionFix): PrototypeReceipt = synchronized(LocalDataLock.monitor) {
-            requireActor(actor); requireOpen(PrototypeCodeCodec.decode(raw).session)
+            requireActor(actor); validateCurrentCode(raw)
             val event = requireNotNull(event(PrototypeCodeCodec.decode(raw).session.id))
             require(snapshot().checkIns.none { it.eventId == event.id && it.userId == actor }) { "You are already checked in." }
             local.submit(actor, raw, fix)
@@ -178,6 +185,14 @@ class RegistrationAttendanceBridge(
             throw IllegalArgumentException("Set the meeting point from an event.")
     }
 
+    private fun validateCurrentCode(raw: String) {
+        val code = PrototypeCodeCodec.decode(raw)
+        requireOpen(code.session)
+        require(code.issuedAt >= requireNotNull(event(code.session.id)).updatedAt) {
+            "The event has been updated. Scan the organizer's latest code."
+        }
+    }
+
     fun receipt(event: Event, userId: String): PrototypeReceipt? = store.receipt(key(event), userId)
         ?: snapshot().checkIns.find { it.eventId == event.id && it.userId == userId }
             ?.let { PrototypeReceipt(key(event), userId, it.checkedInAt) }
@@ -186,7 +201,16 @@ class RegistrationAttendanceBridge(
     fun withAttendance(state: AppSnapshot): AppSnapshot = state.copy(checkIns =
         (state.checkIns + state.events.flatMap { event -> state.users.mapNotNull { user ->
             store.receipt(key(event), user.id)?.let {
-                CheckIn("ce:${it.sessionId}:${it.userId}", event.id, user.id, it.checkedInAt)
+                CheckIn("ce:${it.sessionId}:${it.userId}", event.id, user.id, it.checkedInAt, CheckInStatus.QR_RECORDED)
             }
-        } }).distinctBy { it.eventId to it.userId })
+        } }).distinctBy { it.eventId to it.userId },
+        feedback = (state.feedback + state.events.mapNotNull { event ->
+            val actor = state.currentUserId ?: return@mapNotNull null
+            val info = store.activityInfo(key(event)) ?: return@mapNotNull null
+            if (info.organizerId != event.organizerId || info.sourceEventId != event.id) return@mapNotNull null
+            store.feedback(key(event), actor)?.let {
+                // Only the current user's rating is projected; private text/photos stay in E.
+                Feedback("ce:${it.sessionId}:$actor", event.id, actor, it.rating, "", it.createdAt)
+            }
+        }).distinctBy { it.eventId to it.userId })
 }

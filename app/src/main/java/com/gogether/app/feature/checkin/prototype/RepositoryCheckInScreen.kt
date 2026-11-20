@@ -68,8 +68,9 @@ fun RepositoryCheckInScreen(repository: GogetherRepository, eventId: String, now
         Page {
             TextButton(onClick = back, shape = CheckInStyle.shape) { Text("< Back") }
             SectionTitle("Meetup and check-in", event.title)
-            Text("${displayTime(event.startAt)}\n${event.city} ${event.location}")
-            MeetingMapButton("${event.city} ${event.location}")
+            Text("${displayTime(event.meetingAt ?: event.startAt)}\n${event.city} ${event.meetingLocation ?: event.location}")
+            if (event.meetingNotes.isNotBlank()) Text(event.meetingNotes)
+            MeetingMapButton("${event.city} ${event.meetingLocation ?: event.location}")
             Text(if (event.status == EventStatus.CANCELLED) "This event has been cancelled."
                 else if (event.organizerId == actor) "Once you arrive, confirm your location as this event's fixed meeting point."
                 else "The organizer has not set the meeting point. Try again later.", Modifier.testTag("meeting_setup_status"))
@@ -81,7 +82,7 @@ fun RepositoryCheckInScreen(repository: GogetherRepository, eventId: String, now
             if (message.isNotBlank()) Text(message)
         }
         candidate?.let { fix -> AlertDialog(shape = CheckInStyle.shape, onDismissRequest = { candidate = null },
-            title = { Text("Confirm meeting point") }, text = { Text("${event.title}\n${event.city} ${event.location}\nUse your current location as the fixed meeting point. Check-in requires being within 200 m. Event times and registrations will stay the same.") },
+            title = { Text("Confirm meeting point") }, text = { Text("${event.title}\n${event.city} ${event.meetingLocation ?: event.location}\nUse your current location as the fixed meeting point. Check-in requires being within 200 m. Event times and registrations will stay the same.") },
             confirmButton = { TextButton(onClick = {
                 runCatching { bridge.prepare(actor, eventId, fix) }.onSuccess { revision++ }
                     .onFailure { message = it.message ?: "Could not save. Please try again." }
@@ -89,7 +90,7 @@ fun RepositoryCheckInScreen(repository: GogetherRepository, eventId: String, now
             }) { Text("Confirm") } }, dismissButton = { TextButton(onClick = { candidate = null }) { Text("Cancel") } }) }
         return
     }
-    val model: PrototypeViewModel = viewModel(key = "ce:$actor:${session.id}", factory = RepositoryViewModel.factory {
+    val model: PrototypeViewModel = viewModel(key = "ce:$actor:$session", factory = RepositoryViewModel.factory {
         PrototypeViewModel(actor, bridge.backend, AndroidPositionSource(context), entry = CheckInEntry.Activity(session),
             identity = CheckInIdentitySource { repository.state.value.currentUserId }, registrations = bridge,
             pendingSubmissions = PreferencesPendingCheckInStore(context))

@@ -37,7 +37,23 @@ class LocalSnapshotStoreTest {
             assertEquals(RegistrationStatus.CONFIRMED, recreated.state.value.registration("event-1")!!.status)
         } finally { base.deleteSharedPreferences(name) }
     }
+    @Test fun originalCeVersionOneStillRestoresStableKeysAndAttendance() {
+        val old = """{"version":1,"users":[{"id":"bob","name":"Bob","created":10,"interests":["SPORTS"]}],
+            "events":[{"id":"old-event","owner":"bob","title":"A friendly game","category":"SPORTS",
+            "description":"Meet at the court","start":100,"end":200,"location":"Court 1","city":"Suzhou",
+            "capacity":4,"deadline":90,"notes":"Bring water","created":10,"updated":11,"status":"COMPLETED"}],
+            "registrations":[{"id":"registration","event":"old-event","user":"bob","status":"CONFIRMED",
+            "joined":20,"updated":20,"order":1}],"checkIns":[{"id":"receipt","event":"old-event","user":"bob","time":105}],
+            "notifications":[],"feedback":[{"id":"review","event":"old-event","user":"bob","rating":4,"comment":"Enjoyed it","created":210}]}"""
+        val restored = LocalSnapshotStore.decode(old)
+        assertEquals(10L, restored.events.single().createdAt)
+        assertEquals("old-event", restored.checkIns.single().eventId)
+        assertEquals("bob", restored.checkIns.single().userId)
+        assertEquals(4, restored.feedback.single().rating)
+        assertNull(restored.currentUserId)
+        assertEquals(restored, LocalSnapshotStore.decode(LocalSnapshotStore.encode(restored)))
+    }
     @Test fun invalidVersionIsNotSilentlyReplacedWithSeedData() {
-        assertThrows(IllegalArgumentException::class.java) { LocalSnapshotStore.decode("{\"version\":2}") }
+        assertThrows(IllegalArgumentException::class.java) { LocalSnapshotStore.decode("{\"version\":99}") }
     }
 }

@@ -12,6 +12,7 @@ internal class MemoryPrototypeStore : PrototypeStore {
     private val known = mutableMapOf<String, PrototypeSession>()
     private val members = mutableMapOf<String, MutableSet<String>>()
     private val feedbacks = mutableMapOf<Pair<String, String>, PrototypeFeedback>()
+    override fun updateLinkedActivity(info: CheckInActivityInfo) { known[info.session.id] = info.session }
     override fun isCancelled(id: String) = id in cancelled
     override fun cancel(id: String) { cancelled += id }
     override fun receipt(sessionId: String, userId: String) = receipts[sessionId to userId]

@@ -66,7 +66,7 @@ Material 3 Snackbar 的自动消失计时和退出动画由 Compose 测试时钟
 
 ## 手动检查
 
-- 重启进程，确认 Demo 种子数据恢复；旋转屏幕，确认仓库数据仍在。
+- 运行版本重启进程，确认测试身份、资料编辑和活动记录仍在；退出登录后重启应保持未登录。纯内存测试不注入存储。
 - Explore 输入不存在的标题或城市，检查空状态；清空后恢复。
 - 检查深色模式、320dp 宽屏幕和放大字体；正文可换行，表单和页面可滚动。
 - 取消活动后切换参与者，检查取消通知；新的报名和签到应被拒绝。
@@ -82,7 +82,7 @@ Material 3 Snackbar 的自动消失计时和退出动画由 Compose 测试时钟
 | Maven Central HTTP 403 | 使用上方可选镜像；不关闭证书校验 |
 | 没有连接设备 | 用 SDK 的 `platform-tools/adb devices` 检查，先启动模拟器再执行 connected 测试 |
 | JVM 报 native memory allocation failed | 减少本次构建的 worker 数量及 JVM 内存上限，见下方 Windows 命令；不必修改共享构建配置 |
-| 演示数据突然恢复 | 进程被终止后重建是当前 Fake 设计；持久化尚未接入 |
+| 演示数据突然恢复 | 运行版本应恢复本地快照；检查是否使用了未注入存储的测试 Fake，或启动时出现存储读取提示 |
 
 Windows 内存紧张时，可仅为本次验证指定参数：
 
@@ -327,3 +327,75 @@ Windows 内存紧张时，可仅为本次验证指定参数：
 - 本轮未修改生产业务代码。154 / 154 JVM 测试通过，测试 APK 构建成功，日志 app/build/reports/english-fixtures-build.txt。
 - 只读核实 GitHub 集成分支仍为 860b809cc84703e4500fd13b363f176fbe1d9cc5；本轮及之前的未提交改动均保留在本地，没有提交、推送或修改其他分支。
 - 模拟器相关回归 22 / 22 通过：英文评论与字数验证、草稿字段及跨账号恢复、匿名和可见范围、正常活动入口、英文长姓名、小屏、大字号及横屏布局。日志 app/build/reports/english-fixtures-device-tests.txt。git diff --check 通过；未重复运行与本轮测试文案无关的全套设备测试或 lint。
+## A 模块验证
+
+- `AccountRepositoryTest`：资料更新不改用户 ID/报名；保存失败回滚；注销落盘；账号后端契约、表单校验、恢复失败重试、旧会话排队操作隔离。
+- `PersonalEventsTest`：个人活动分类、B 的结束时间边界、退出及取消、身份隔离、本人签到和评分。
+- `AccountFlowTest`：资料编辑、重复昵称提示、历史切换、注销、B 的管理入口保持可达。
+- `ConnectedAccountFormTest`：注入账号适配器后启用邮箱表单，使用后端返回的身份，关闭 Demo 切换入口。
+- `SnapshotPersistenceTest`：真实 Android 文件保存/读取、B 的新增字段完整往返、异常文件保留。
+
+账号服务测试使用测试替身，不证明真实 Firebase 已连接。双设备认证、云端资料和业务同步在共用服务配置后另行验收。
+
+2026-11-18 最终清理重建：Debug APK 构建成功；JVM 57/57、Android 设备 18/18 通过，均为 0 失败/错误/跳过；Lint 0 错误、10 条现有依赖版本/KTX 建议。设备测试包含 B 的 10 条现有流程和新增的 8 条 A 模块流程。A 的 Snackbar 等待沿用上文的虚拟时钟处理。期间本地构建输出曾出现带 ` 2` 后缀的重复 `.class`，执行 `clean` 后重新构建并以最终 XML 报告验收，工程源码没有相应重复文件。
+
+## A / B 整合验证（2026-11-19）
+
+分支 `integration/member-a-b` 的来源与保留核对见 [INTEGRATION_A_B](INTEGRATION_A_B.md)。新增 `AccountEventIntegrationTest` 使用同一个 Repository 和实际设备文件保存，经过真实页面检查：新账号发布、修改昵称、编辑及搜索活动、个人分类、双方取消历史、退出后的保存恢复，以及草稿在个人页面间保留和跨身份隔离。
+
+本次结果：Debug APK 构建成功；重新执行的 JVM 用例 57/57 通过；首轮原有设备用例 18/18 通过；新增三条跨模块用例经专项复验 3/3 通过；Lint 0 错误、10 条现有建议。
+
+专项执行：
+
+```bash
+./gradlew :app:testDebugUnitTest --rerun :app:lintDebug :app:connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.gogether.app.AccountEventIntegrationTest
+```
+
+新注册流程在输入昵称后先收起键盘、等待布局并检查按钮可用，再点击创建。首轮该步骤发生一次等待超时；修正测试操作后专项三条用例全部通过。原有应用功能和测试用例保留。
+
+当前标准设备报告为最终三条专项用例。本机保留的首轮完整报告与最终专项报告分别在 `verification/a-b-20261119/full-suite/` 和 `verification/a-b-20261119/integration-suite/`；首轮报告中仍可追溯上述超时。报告和构建产物不加入 Git。
+
+## A/B/D 第一阶段验证（2026-11-19）
+
+分支 `integration/member-a-b-d`，合并范围、冲突处理和手动检查路径见 [INTEGRATION_A_B_D](INTEGRATION_A_B_D.md)。完整最终验证结果：
+
+| 检查 | 结果 |
+| --- | --- |
+| Debug APK | 构建成功 |
+| JVM 业务测试 | 61/61；包含全部原 A/B 用例和 4 条新增跨模块用例 |
+| Android 17 模拟器 | 42/42；包含原 A/B 21 条、D 17 条及新增 4 条跨模块/存档用例 |
+| 失败 / 错误 / 跳过 | 两套 Android/JVM 报告均为 0 / 0 / 0 |
+| Lint | 0 错误，13 条依赖更新、KTX 和版本目录建议 |
+| D 后端参数校验 | `node --test firebase/functions/validation.test.js`：3/3 |
+
+`CoordinationTest` 原有 10 条测试改在设备上执行，因为统一后使用 A/B 的 Android AtomicFile/JSON 存储；改为显式加载，保留失败回滚、取消一致性、权限、持久化和用户隔离检查。`AbdPersistenceTest` 读取真实的干净 A/B 版本 1 演示存档，验证数据不丢失和版本 2 往返。`AbdFlowTest` 检查 B 编辑与 D 集合时间约束的衔接、公告唯一性、旧通知兼容和非成员隔离。
+
+本机最终命令（使用 Android Studio bundled JDK）：
+
+```bash
+./gradlew :app:assembleDebug :app:testDebugUnitTest :app:connectedDebugAndroidTest :app:lintDebug \
+  --no-daemon --console=plain --max-workers=2 \
+  -Dorg.gradle.jvmargs='-Xmx1536m -Dfile.encoding=UTF-8' \
+  -Dhttp.proxyHost= -Dhttps.proxyHost= -DsocksProxyHost= \
+  -PmavenCentralMirror=https://maven-central.storage-download.googleapis.com/maven2
+```
+
+本次构建清除了旧输出目录中带 ` 2.jar` 后缀的重复产物。上面的代理清空参数仅用于本次命令，处理本机已有失效代理，不修改共享设置。最终验证用时 8 分 56 秒，实际设备 XML 记录了 42 条执行结果。报告与截图副本位于本机 `verification/abd-20261119/`。
+
+自动化测试使用独立数据。此环境的 connected 测试结束时会卸载目标应用，因此测试前应备份用户存档；本轮验收后重新安装整合 APK，并从加入 D 前的备份恢复干净 A/B 存档。云端认证、跨设备同步、远程推送及 Firebase 集成测试未在此阶段验收；问答功能未实现。
+
+
+## ABCDE 本地集成验证（2026-11-20）
+
+分支 `integration/member-a-b-c-d-e`，来源为 CE `a6dbab4` 与 ABD `1454159`。完整字段/数据契约和验证边界见 [INTEGRATION_A_B_C_D_E](INTEGRATION_A_B_C_D_E.md)。
+
+- Debug APK、Android 测试包构建成功；JVM 189/189；lint 0 错误、36 条建议。
+- API 37 模拟器覆盖 131 个实际测试用例。首轮全量执行后修复旧 CE 写入器字段丢失及测试适配问题；最终 15 条专项复测全部通过。去重后 131 个用例都有通过结果，未将初始化错误计为用例或声称末次单独跑完 131 条。
+- D 参数校验测试 3/3 通过；没有部署 Firebase 或验证跨手机同步。
+- 新增 `AbcdeIntegrationTest` / `AbcdePersistenceTest`；扩展 CE 存档 version 1 兼容及 A 个人历史中的签到和评分断言；测试输入保持英文。
+- 本次用 `adb install -r` 与 `am instrument -w -r`，避免 connected 测试结束卸载应用。设备存档先备份，最终比对原 14 条草稿与 6 张图片一致，未提交手动留存的 Bob 评价。
+- 最终专项类：`AbcdePersistenceTest,LocalSnapshotStoreTest,MemberCEIntegrationTest,RepositoryFeedbackIntegrationTest,CheckInEntryUiTest`。
+- 本机日志、去重结果与截图：`verification/abcde-20261120/`；构建日志：`app/build/reports/abcde-validation-final.txt`。不提交这些生成文件。
+
+实际页面检查从正常入口进行：Bob → My Events → History → 旧活动详情 → Leave feedback，完整表单及旧图片/匿名/可见范围/草稿可读。实际相机和 GPS、可信签发与两台设备同步仍需另行验证。

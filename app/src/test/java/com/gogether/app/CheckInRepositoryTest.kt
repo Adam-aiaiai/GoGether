@@ -43,8 +43,11 @@ class CheckInRepositoryTest {
         for (user in listOf("finn", "missing", null)) {
             val initial = fixture().copy(currentUserId = user)
             val repo = FakeGogetherRepository(initial, now = { time })
+            // A drops an invalid restored account before any E operation is allowed.
+            val expected = initial.copy(currentUserId = if (user == "missing") null else user)
+            assertEquals(expected, repo.state.value)
             assertTrue(repo.checkIn("event-1").isFailure)
-            assertEquals(initial, repo.state.value)
+            assertEquals(expected, repo.state.value)
         }
     }
 

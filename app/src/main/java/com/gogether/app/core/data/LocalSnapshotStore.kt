@@ -2,7 +2,6 @@ package com.gogether.app.core.data
 
 import android.content.Context
 import com.gogether.app.core.model.*
-import org.json.JSONArray
 import org.json.JSONObject
 
 /** One local C snapshot. This is persistence, not a server or multi-device synchronization.
@@ -16,29 +15,16 @@ class LocalSnapshotStore(context: Context) {
         check(preferences.edit().putString("snapshot", encode(state)).commit()) { "Could not save local event data. Try again." }
     }
     companion object {
-        private fun obj(vararg fields: Pair<String, Any?>) = JSONObject().also { value -> fields.forEach { value.put(it.first, it.second) } }
-        private fun <T> rows(values: List<T>, convert: (T) -> JSONObject) = JSONArray(values.map(convert))
         private fun <T> JSONObject.rows(key: String, convert: (JSONObject) -> T): List<T> = getJSONArray(key).let { array ->
             (0 until array.length()).map { convert(array.getJSONObject(it)) }
         }
-        fun encode(s: AppSnapshot): String = obj("version" to 1,
-            "users" to rows(s.users) { obj("id" to it.id, "name" to it.displayName, "created" to it.createdAt,
-                "interests" to JSONArray(it.interests.map { c -> c.name })) },
-            "events" to rows(s.events) { obj("id" to it.id, "owner" to it.organizerId, "title" to it.title,
-                "category" to it.category.name, "description" to it.description, "start" to it.startAt, "end" to it.endAt,
-                "location" to it.location, "city" to it.city, "capacity" to it.capacity, "deadline" to it.registrationDeadline,
-                "notes" to it.notes, "created" to it.createdAt, "updated" to it.updatedAt, "status" to it.status.name) },
-            "registrations" to rows(s.registrations) { obj("id" to it.id, "event" to it.eventId, "user" to it.userId,
-                "status" to it.status.name, "joined" to it.joinedAt, "updated" to it.updatedAt, "order" to it.queueOrder) },
-            "checkIns" to rows(s.checkIns) { obj("id" to it.id, "event" to it.eventId, "user" to it.userId, "time" to it.checkedInAt) },
-            "notifications" to rows(s.notifications) { obj("id" to it.id, "user" to it.userId, "event" to it.eventId,
-                "type" to it.type.name, "content" to it.content, "created" to it.createdAt, "read" to it.isRead) },
-            "feedback" to rows(s.feedback) { obj("id" to it.id, "user" to it.userId, "event" to it.eventId,
-                "rating" to it.rating, "comment" to it.comment, "created" to it.createdAt) }).toString()
+        // New writes use the full shared schema; keep the original CE reader for upgrades.
+        fun encode(s: AppSnapshot): String = SnapshotJson.encode(s.copy(currentUserId = null))
 
         fun decode(raw: String): AppSnapshot {
             val root = JSONObject(raw)
-            require(root.getInt("version") == 1) { "This local event data version is not supported." }
+            require(root.getInt("version") in 1..2) { "This local event data version is not supported." }
+            if (root.getInt("version") == 2) return SnapshotJson.decode(raw).copy(currentUserId = null)
             return AppSnapshot(
                 users = root.rows("users") { row -> User(row.getString("id"), row.getString("name"),
                     row.getJSONArray("interests").let { a -> (0 until a.length()).map { Category.valueOf(a.getString(it)) }.toSet() }, row.getLong("created")) },

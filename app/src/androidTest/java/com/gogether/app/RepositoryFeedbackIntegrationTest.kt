@@ -47,10 +47,11 @@ class RepositoryFeedbackIntegrationTest {
         val prefs = context.getSharedPreferences("checkin_prototype_v1", Context.MODE_PRIVATE)
         val edit = prefs.edit()
         prefs.all.keys.filter { it.contains(id) }.forEach(edit::remove)
+        listOf("bob", "carol", "emma").forEach { edit.remove(FeedbackDraftStore.key(it, id)) }
         edit.commit()
         imported.forEach { photos.removeDraft(it, "bob", id) }
     }
-    @Test fun normalHistoryOpensCompleteUnboundFormRestoresPhotoDraftAndSubmitsOnce() = runBlocking {
+    @Test fun normalHistoryOpensCompleteUnboundFormRestoresPhotoDraftAndSubmitsOnce(): Unit = runBlocking {
         val bitmap = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
         val bytes = ByteArrayOutputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it); it.toByteArray() }
         bitmap.recycle()
@@ -84,6 +85,12 @@ class RepositoryFeedbackIntegrationTest {
         assertTrue(photos.canRead(image, "alice", id))
         assertEquals(FeedbackDraft(), FeedbackDraftStore(context).load("bob", id))
         assertTrue(repo.state.value.checkIns.isEmpty())
+        compose.onNodeWithText("< Back").performClick()
+        compose.onNodeWithTag("nav_my-events").performClick()
+        compose.onNodeWithTag("personal_tab_HISTORY").performScrollTo().performClick()
+        compose.onNodeWithTag("participation_event-1").performScrollTo()
+            .assertTextContains("Your rating: 4/5", substring = true)
+        compose.onAllNodesWithText("I came back to add a few more thoughts.", substring = true).assertCountEquals(0)
     }
 
     @Test fun switchingAccountHidesPreviousDraftAndWaitlistedUserCannotSubmit(): Unit = runBlocking {
