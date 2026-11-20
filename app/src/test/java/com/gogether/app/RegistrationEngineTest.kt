@@ -187,7 +187,10 @@ class RegistrationEngineTest {
         engine.updateEvent("u1", event.id, draft.copy(capacity = 3))
         assertEquals(RegistrationStatus.CONFIRMED, engine.snapshot.registration(event.id, "u3")?.status)
         assertEquals(listOf("u4"), engine.snapshot.waitlist(event.id).map { it.userId })
-        assertEquals("u3", engine.snapshot.notifications.single().userId)
+        assertEquals("u3", engine.snapshot.notifications.single { it.type == NotificationType.PROMOTED }.userId)
+        val changes = engine.snapshot.notifications.filter { it.type == NotificationType.EVENT_UPDATED }
+        assertEquals(setOf("u1", "u2", "u3", "u4"), changes.map { it.userId }.toSet())
+        assertEquals(4, changes.size)
     }
     @Test fun startedOrCancelledEventCannotBeEdited() {
         val event = event()

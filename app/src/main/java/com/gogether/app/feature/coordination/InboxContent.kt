@@ -11,7 +11,8 @@ import com.gogether.app.core.ui.*
 
 @Composable
 fun InboxContent(state: AppSnapshot, busy: Boolean, read: (String) -> Unit,
-                 readAll: () -> Unit, openEvent: (String) -> Unit, explore: () -> Unit = {}) {
+                 readAll: () -> Unit, openEvent: (String) -> Unit, explore: () -> Unit = {},
+                 openQuestion: ((String, String) -> Unit)? = null) {
     var unreadOnly by rememberSaveable(state.currentUserId) { mutableStateOf(false) }
     val all = state.notifications.filter { it.userId == state.currentUserId }.sortedByDescending { it.createdAt }
     val notifications = all.filter { !unreadOnly || !it.isRead }
@@ -30,7 +31,12 @@ fun InboxContent(state: AppSnapshot, busy: Boolean, read: (String) -> Unit,
     notifications.forEach { notification ->
         InfoCard(if (notification.isRead) "Read · ${displayTime(notification.createdAt)}" else "New · ${displayTime(notification.createdAt)}",
             notification.content, Modifier.testTag("notification_${notification.id}"))
-        TextButton(onClick = { openEvent(notification.eventId) }, modifier = Modifier.testTag("notification_open_${notification.id}")) { Text("View event") }
+        TextButton(onClick = {
+            if (notification.questionId != null && openQuestion != null) openQuestion(notification.eventId, notification.questionId)
+            else openEvent(notification.eventId)
+        }, modifier = Modifier.testTag("notification_open_${notification.id}")) {
+            Text(if (notification.questionId != null && openQuestion != null) "View question" else "View event")
+        }
         if (!notification.isRead) TextButton(enabled = !busy, onClick = { read(notification.id) }, modifier = Modifier.testTag("notification_read_${notification.id}")) { Text("Mark as read") }
     }
 }

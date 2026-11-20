@@ -15,7 +15,7 @@ import com.gogether.app.feature.checkin.CheckInWindowCard
 fun ManagementScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
                      edit: () -> Unit, reuse: () -> Unit, cancel: () -> Unit,
                      announce: (String, () -> Unit) -> Unit,
-                     updateMeeting: (MeetingUpdate, () -> Unit) -> Unit, attendance: (() -> Unit)? = null) {
+                     updateMeeting: (MeetingUpdate, () -> Unit) -> Unit, attendance: (() -> Unit)? = null, questions: (() -> Unit)? = null) {
     var confirmation by rememberSaveable { mutableStateOf(false) }
     var announcement by rememberSaveable { mutableStateOf("") }
     if (event.organizerId != state.currentUserId) {
@@ -33,6 +33,9 @@ fun ManagementScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
         CheckInWindowCard(event, now)
         MeetingEditor(event, now, busy, updateMeeting)
         AnnouncementSection(event, state)
+        questions?.let { open -> OutlinedButton(onClick = open, modifier = Modifier.fillMaxWidth().testTag("manage_questions")) {
+            Text("Questions & answers · ${state.questions.count { it.eventId == event.id && it.answer == null }} unanswered")
+        } }
         InfoCard("Participation information", buildString {
             append(event.experienceRequirement.label)
             append("\nGuidance: ${if (event.beginnerGuidance) "Provided" else "Not provided"}")

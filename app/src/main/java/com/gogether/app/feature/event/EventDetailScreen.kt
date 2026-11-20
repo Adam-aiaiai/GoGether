@@ -35,6 +35,7 @@ fun EventDetailScreen(
     onCancel: () -> Unit,
     onManage: () -> Unit,
     onCheckIn: () -> Unit,
+    onQuestions: () -> Unit = {},
 ) {
     var confirmCancel by rememberSaveable { mutableStateOf(false) }
     val registration = state.registration(event.id)
@@ -108,6 +109,9 @@ fun EventDetailScreen(
             MeetingMapButton("${event.city} ${event.meetingLocation ?: event.location}")
         }
         AnnouncementSection(event, state)
+        OutlinedButton(onClick = onQuestions, modifier = Modifier.fillMaxWidth().testTag("open_questions")) {
+            Text("Questions & answers (${state.questions.count { it.eventId == event.id }})")
+        }
 
         HorizontalDivider()
         Text("Registration closes ${displayTime(event.registrationDeadline)}",

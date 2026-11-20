@@ -12,7 +12,7 @@ enum class ExperienceRequirement(val label: String) {
 }
 enum class UserStatus { DEMO, ACCOUNT }
 enum class CheckInStatus { DEMO_RECORDED, QR_RECORDED }
-enum class NotificationType { PROMOTED, EVENT_CANCELLED, ANNOUNCEMENT, MEETING_UPDATED }
+enum class NotificationType { PROMOTED, EVENT_CANCELLED, ANNOUNCEMENT, MEETING_UPDATED, EVENT_UPDATED, QUESTION_ASKED, QUESTION_ANSWERED }
 enum class FeedbackStatus { SUBMITTED }
 
 data class User(
@@ -51,6 +51,7 @@ data class Notification(
     val id: String, val userId: String, val eventId: String, val type: NotificationType,
     val content: String, val createdAt: Long, val isRead: Boolean = false,
     val announcementId: String? = null,
+    val questionId: String? = null,
 )
 data class Feedback(
     val id: String, val eventId: String, val userId: String, val rating: Int,
@@ -58,6 +59,13 @@ data class Feedback(
 )
 data class Announcement(val id: String, val eventId: String, val authorId: String,
     val content: String, val createdAt: Long)
+/** A public event question with one official organizer answer, which may be revised. */
+data class EventQuestion(
+    val id: String, val eventId: String, val authorId: String,
+    val content: String, val createdAt: Long,
+    val answer: String? = null, val answeredBy: String? = null, val answeredAt: Long? = null,
+)
+
 data class MeetingUpdate(val meetingAt: Long, val location: String, val notes: String)
 data class EventDraft(
     val title: String, val category: Category, val description: String, val startAt: Long,
@@ -83,6 +91,7 @@ data class AppSnapshot(
     val sessionRestoring: Boolean = false,
     val sessionError: String? = null,
     val announcements: List<Announcement> = emptyList(),
+    val questions: List<EventQuestion> = emptyList(),
 ) {
     val currentUser: User? get() = users.find { it.id == currentUserId }
     fun event(id: String) = events.find { it.id == id }

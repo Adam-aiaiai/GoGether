@@ -121,6 +121,7 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
                 TopAppBar(title = { Text(if (subpage) when {
                     route == "edit-profile" -> "Your profile"
                     route == "notifications" -> "Notifications"
+                    route.startsWith("questions") -> "Questions & answers"
                     route.startsWith("manage") -> "Event management"
                     route.startsWith("edit") -> "Edit event"
                     route.startsWith("reuse") -> "Reuse event"
@@ -164,12 +165,14 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
                 { nav.popBackStack("explore", false) }, { nav.navigate("create") }) { nav.navigate("event/$it") } }
             composable("notifications") {
                 Page { InboxContent(state, coordinationBusy, coordination::read, coordination::readAll,
-                    { nav.navigate("event/$it") }, { nav.popBackStack("explore", false) }) }
+                    { nav.navigate("event/$it") }, { nav.popBackStack("explore", false) },
+                    { eventId, questionId -> nav.navigate("questions/$eventId?questionId=$questionId") }) }
             }
             composable("profile") {
                 ProfileScreen(state, now, authBusy || coordinationBusy, repository.accountMode, repository.storageDescription,
                     { nav.navigate("edit-profile") }, auth::login, auth::logout, coordination::read,
-                    coordination::readAll, { nav.popBackStack("explore", false) }) { nav.navigate("event/$it") }
+                    coordination::readAll, { nav.popBackStack("explore", false) }, { nav.navigate("event/$it") },
+                    { eventId, questionId -> nav.navigate("questions/$eventId?questionId=$questionId") })
             }
             composable("edit-profile") {
                 state.currentUser?.let { user -> EditProfileScreen(user, profileBusy, profile::save, { nav.popBackStack() }) }
@@ -180,7 +183,18 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
                 if (event == null) MissingEvent { nav.popBackStack("explore", false) }
                 else EventDetailScreen(event, state, now, registrationBusy,
                     { registration.join(id) }, { registration.cancel(id) },
-                    { nav.navigate("manage/$id") }, { nav.navigate("check-in/$id") })
+                    { nav.navigate("manage/$id") }, { nav.navigate("check-in/$id") }, { nav.navigate("questions/$id") })
+            }
+            composable("questions/{eventId}?questionId={questionId}", arguments = listOf(
+                navArgument("eventId") { type = NavType.StringType },
+                navArgument("questionId") { type = NavType.StringType; nullable = true; defaultValue = null },
+            )) { backStack ->
+                val id = backStack.arguments?.getString("eventId").orEmpty()
+                val event = state.event(id)
+                if (event == null) MissingEvent { nav.popBackStack("explore", false) }
+                else QuestionsScreen(event, state, now, coordinationBusy, backStack.arguments?.getString("questionId"),
+                    { text, saved -> coordination.ask(id, text, saved) },
+                    { questionId, text, saved -> coordination.answer(questionId, text, saved) })
             }
             composable("manage/{eventId}", arguments = listOf(navArgument("eventId") { type = NavType.StringType })) { backStack ->
                 val id = backStack.arguments?.getString("eventId").orEmpty()
@@ -189,7 +203,7 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
                 else ManagementScreen(event, state, now, coordinationBusy,
                     { nav.navigate("edit/$id") }, { nav.navigate("reuse/$id") }, { coordination.cancel(id) },
                     { text, saved -> coordination.announce(id, text, saved) },
-                    { update, saved -> coordination.meeting(id, update, saved) }, { nav.navigate("check-in/$id") })
+                    { update, saved -> coordination.meeting(id, update, saved) }, { nav.navigate("check-in/$id") }, { nav.navigate("questions/$id") })
             }
             composable("edit/{eventId}", arguments = listOf(navArgument("eventId") { type = NavType.StringType })) { backStack ->
                 val id = backStack.arguments?.getString("eventId").orEmpty()

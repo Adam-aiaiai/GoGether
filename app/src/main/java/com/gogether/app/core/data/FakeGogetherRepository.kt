@@ -135,6 +135,8 @@ class FakeGogetherRepository(
     override suspend fun cancelEvent(eventId: String) = mutate { engine.cancelEvent(actor(), eventId) }
     override suspend fun checkIn(eventId: String) = mutate { engine.checkIn(actor(), eventId) }
     override suspend fun postAnnouncement(eventId: String, content: String) = mutate { engine.postAnnouncement(actor(), eventId, content) }
+    override suspend fun askQuestion(eventId: String, content: String) = mutate { engine.askQuestion(actor(), eventId, content) }
+    override suspend fun answerQuestion(questionId: String, content: String) = mutate { engine.answerQuestion(actor(), questionId, content) }
     override suspend fun updateMeeting(eventId: String, update: MeetingUpdate) = mutate { engine.updateMeeting(actor(), eventId, update) }
     override suspend fun markAllRead() = mutate { engine.markAllRead(actor()) }
     override suspend fun markRead(notificationId: String) = mutate { engine.markRead(actor(), notificationId) }

@@ -18,7 +18,7 @@ object SnapshotJson {
     }
 
     fun encode(s: AppSnapshot): String = obj(
-        "version" to 2, "currentUserId" to s.currentUserId,
+        "version" to 3, "currentUserId" to s.currentUserId,
         "users" to list(s.users) { u -> obj("id" to u.id, "name" to u.displayName,
             "interests" to JSONArray(u.interests.map { it.name }), "createdAt" to u.createdAt,
             "status" to u.status.name, "email" to u.email) },
@@ -38,9 +38,12 @@ object SnapshotJson {
             "userId" to c.userId, "at" to c.checkedInAt, "status" to c.status.name) },
         "notifications" to list(s.notifications) { n -> obj("id" to n.id, "userId" to n.userId,
             "eventId" to n.eventId, "type" to n.type.name, "content" to n.content,
-            "createdAt" to n.createdAt, "isRead" to n.isRead, "announcementId" to n.announcementId) },
+            "createdAt" to n.createdAt, "isRead" to n.isRead, "announcementId" to n.announcementId, "questionId" to n.questionId) },
         "announcements" to list(s.announcements) { a -> obj("id" to a.id, "eventId" to a.eventId,
             "authorId" to a.authorId, "content" to a.content, "createdAt" to a.createdAt) },
+        "questions" to list(s.questions) { q -> obj("id" to q.id, "eventId" to q.eventId,
+            "authorId" to q.authorId, "content" to q.content, "createdAt" to q.createdAt,
+            "answer" to q.answer, "answeredBy" to q.answeredBy, "answeredAt" to q.answeredAt) },
         "feedback" to list(s.feedback) { f -> obj("id" to f.id, "eventId" to f.eventId,
             "userId" to f.userId, "rating" to f.rating, "comment" to f.comment,
             "createdAt" to f.createdAt, "status" to f.status.name) },
@@ -48,7 +51,7 @@ object SnapshotJson {
 
     fun decode(text: String): AppSnapshot {
         val root = JSONObject(text)
-        require(root.getInt("version") in 1..2) { "This saved data version is not supported." }
+        require(root.getInt("version") in 1..3) { "This saved data version is not supported." }
         val users = root.items("users") { u ->
             val interests = u.getJSONArray("interests")
             User(u.getString("id"), u.getString("name"), (0 until interests.length()).map {
@@ -76,10 +79,15 @@ object SnapshotJson {
                 c.getString("userId"), c.getLong("at"), CheckInStatus.valueOf(c.getString("status"))) },
             notifications = root.items("notifications") { n -> Notification(n.getString("id"), n.getString("userId"),
                 n.getString("eventId"), NotificationType.valueOf(n.getString("type")), n.getString("content"),
-                n.getLong("createdAt"), n.getBoolean("isRead"), n.nullable("announcementId")) },
+                n.getLong("createdAt"), n.getBoolean("isRead"), n.nullable("announcementId"), n.nullable("questionId")) },
             announcements = if (root.has("announcements")) root.items("announcements") { a ->
                 Announcement(a.getString("id"), a.getString("eventId"), a.getString("authorId"),
                     a.getString("content"), a.getLong("createdAt"))
+            } else emptyList(),
+            questions = if (root.has("questions")) root.items("questions") { q ->
+                EventQuestion(q.getString("id"), q.getString("eventId"), q.getString("authorId"),
+                    q.getString("content"), q.getLong("createdAt"), q.nullable("answer"), q.nullable("answeredBy"),
+                    if (q.has("answeredAt") && !q.isNull("answeredAt")) q.getLong("answeredAt") else null)
             } else emptyList(),
             feedback = root.items("feedback") { f -> Feedback(f.getString("id"), f.getString("eventId"),
                 f.getString("userId"), f.getInt("rating"), f.getString("comment"), f.getLong("createdAt"),

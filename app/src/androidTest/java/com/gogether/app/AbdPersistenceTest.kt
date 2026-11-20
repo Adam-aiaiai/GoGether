@@ -25,7 +25,7 @@ class AbdPersistenceTest {
             val repo = FakeGogetherRepository(initial = store.load()!!, store = store)
             repo.markAllRead().getOrThrow()
             assertEquals(original, store.load())
-            assertEquals(2, org.json.JSONObject(file.readText()).getInt("version"))
+            assertEquals(3, org.json.JSONObject(file.readText()).getInt("version"))
         } finally { file.delete() }
     }
 

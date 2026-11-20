@@ -81,6 +81,15 @@ class RegistrationEngine(
             spareEquipment = draft.spareEquipment.trim(), imageUri = draft.imageUri.trim(),
             meetingAt = meetingAt,
         )
+        val changes = eventChanges(event, updatedEvent)
+        val changeNotifications = if (changes.isEmpty()) emptyList() else {
+            val type = if (meetingAt != event.meetingAt) NotificationType.MEETING_UPDATED else NotificationType.EVENT_UPDATED
+            snapshot.registrations.filter { it.eventId == eventId && it.status in ACTIVE }
+                .map { it.userId }.distinct().map { recipient ->
+                    Notification(newId(), recipient, eventId, type,
+                        "Activity updated: ${updatedEvent.title}\n${changes.joinToString("\n")}", time)
+                }
+        }
         val promotable = if (updatedEvent.acceptsRegistration(time)) {
             snapshot.waitlist(eventId).take((draft.capacity - confirmedCount).coerceAtLeast(0))
         } else emptyList()
@@ -93,7 +102,7 @@ class RegistrationEngine(
             notifications = snapshot.notifications + promotable.map {
                 Notification(newId(), it.userId, eventId, NotificationType.PROMOTED,
                     "You're in! More places are available: ${updatedEvent.title}", time)
-            } + if (meetingAt != event.meetingAt) meetingNotifications(updatedEvent, time) else emptyList(),
+            } + changeNotifications,
         )
         return updatedEvent
     }
@@ -186,6 +195,39 @@ class RegistrationEngine(
             notifications = snapshot.notifications + recipients.map {
             Notification(newId(), it, eventId, NotificationType.ANNOUNCEMENT, content.trim(), time, announcementId = announcement.id)
         })
+    }
+
+    fun askQuestion(actor: String, eventId: String, content: String) {
+        requireUser(actor)
+        val event = requireEvent(eventId)
+        val time = now()
+        require(event.statusAt(time) == EventStatus.OPEN) { "Questions are closed for this event." }
+        require(actor != event.organizerId) { "Use an announcement to share information as the organizer." }
+        val text = content.trim()
+        require(text.length in 1..500) { "Write a question of 1–500 characters." }
+        require(snapshot.questions.none { it.eventId == eventId && it.authorId == actor && it.content == text }) {
+            "You have already posted this question. Check the questions below."
+        }
+        val question = EventQuestion(newId(), eventId, actor, text, time)
+        snapshot = snapshot.copy(questions = snapshot.questions + question,
+            notifications = snapshot.notifications + Notification(newId(), event.organizerId, eventId,
+                NotificationType.QUESTION_ASKED, "New question about ${event.title}: $text", time, questionId = question.id))
+    }
+
+    fun answerQuestion(actor: String, questionId: String, content: String) {
+        val question = requireNotNull(snapshot.questions.find { it.id == questionId }) { "Question not found." }
+        val event = requireOrganizer(actor, question.eventId)
+        val time = now()
+        require(event.statusAt(time) == EventStatus.OPEN) { "Replies are closed for this event." }
+        val text = content.trim()
+        require(text.length in 1..1000) { "Write an answer of 1–1,000 characters." }
+        if (question.answer == text) return
+        val answered = question.copy(answer = text, answeredBy = actor, answeredAt = time)
+        snapshot = snapshot.copy(questions = snapshot.questions.map { if (it.id == questionId) answered else it },
+            notifications = snapshot.notifications + Notification(newId(), question.authorId, event.id,
+                NotificationType.QUESTION_ANSWERED,
+                "${if (question.answer == null) "Organizer answered" else "Organizer updated an answer"}: ${event.title}\n$text",
+                time, questionId = question.id))
     }
 
     fun updateMeeting(actor: String, eventId: String, update: MeetingUpdate) {
