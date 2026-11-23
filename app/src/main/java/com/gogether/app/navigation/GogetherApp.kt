@@ -203,7 +203,7 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
                 else ManagementScreen(event, state, now, coordinationBusy,
                     { nav.navigate("edit/$id") }, { nav.navigate("reuse/$id") }, { coordination.cancel(id) },
                     { text, saved -> coordination.announce(id, text, saved) },
-                    { update, saved -> coordination.meeting(id, update, saved) }, { nav.navigate("check-in/$id") }, { nav.navigate("questions/$id") })
+                    { update, saved -> coordination.meeting(id, update, saved) }, { nav.navigate("check-in/$id?attendance=true") }, { nav.navigate("questions/$id") })
             }
             composable("edit/{eventId}", arguments = listOf(navArgument("eventId") { type = NavType.StringType })) { backStack ->
                 val id = backStack.arguments?.getString("eventId").orEmpty()
@@ -223,11 +223,15 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
                     else -> ReuseEventScreen(event, eventBusy, eventsVm::create)
                 }
             }
-            composable("check-in/{eventId}", arguments = listOf(navArgument("eventId") { type = NavType.StringType })) { backStack ->
+            composable("check-in/{eventId}?attendance={attendance}", arguments = listOf(
+                navArgument("eventId") { type = NavType.StringType },
+                navArgument("attendance") { type = NavType.BoolType; defaultValue = false },
+            )) { backStack ->
                 val id = backStack.arguments?.getString("eventId").orEmpty()
                 val event = state.event(id)
                 if (event == null) MissingEvent { nav.popBackStack("explore", false) }
-                else RepositoryCheckInScreen(repository, id, now) { nav.popBackStack() }
+                else RepositoryCheckInScreen(repository, id, now, { nav.popBackStack() },
+                    attendanceOnly = backStack.arguments?.getBoolean("attendance") == true)
             }
         }
     }

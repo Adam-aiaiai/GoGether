@@ -19,7 +19,7 @@ import com.gogether.app.core.ui.RepositoryViewModel
 /** Both bound and never-scanned activities share E's complete form and privacy/storage path. */
 @Composable
 internal fun RepositoryFeedbackScreen(repository: GogetherRepository, bridge: RegistrationAttendanceBridge,
-    event: Event, actor: String, now: Long, back: () -> Unit) {
+    event: Event, actor: String, now: Long, back: () -> Unit, initialAttendance: Boolean = false) {
     val snapshot by repository.state.collectAsStateWithLifecycle()
     var setup by remember(actor, event) { mutableStateOf<Result<PrototypeSession>?>(null) }
     LaunchedEffect(actor, event) { setup = runCatching { bridge.prepareFeedback(actor, event.id) } }
@@ -48,8 +48,9 @@ internal fun RepositoryFeedbackScreen(repository: GogetherRepository, bridge: Re
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer); model.leaveForeground() }
     }
-    var panel by remember(actor, session.id) { mutableStateOf("") }
-    fun goBack() { if (panel.isNotEmpty()) panel = "" else back() }
+    val entryPanel = if (initialAttendance) "attendance" else ""
+    var panel by remember(actor, session.id, entryPanel) { mutableStateOf(entryPanel) }
+    fun goBack() { if (panel != entryPanel) panel = entryPanel else back() }
     BackHandler { goBack() }
     CompositionLocalProvider(LocalCheckInActivities provides model.activitySource) {
         Scaffold { padding ->
@@ -64,7 +65,7 @@ internal fun RepositoryFeedbackScreen(repository: GogetherRepository, bridge: Re
                     }
                     panel == "attendance" -> {
                         AttendanceRefreshEffect(session, live = false, model::refreshAttendance, model::stopAttendance)
-                        AttendanceRecordScreen(state, session, now, { panel = "" }, model::refreshAttendance)
+                        AttendanceRecordScreen(state, session, now, ::goBack, model::refreshAttendance)
                     }
                     else -> Column(Modifier.fillMaxSize().imePadding().padding(horizontal = 16.dp)) {
                         Row {

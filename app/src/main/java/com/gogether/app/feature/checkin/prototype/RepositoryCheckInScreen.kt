@@ -27,12 +27,20 @@ import kotlinx.coroutines.launch
 
 /** Normal event entry uses the same live C repository as ParticipantsCard. */
 @Composable
-fun RepositoryCheckInScreen(repository: GogetherRepository, eventId: String, now: Long, back: () -> Unit) {
+fun RepositoryCheckInScreen(repository: GogetherRepository, eventId: String, now: Long, back: () -> Unit,
+    attendanceOnly: Boolean = false) {
     val snapshot by repository.state.collectAsStateWithLifecycle()
     val event = snapshot.event(eventId)
     val actor = snapshot.currentUserId
     if (event == null || actor == null) {
         Page { Text("The event or account has changed. Go back."); TextButton(onClick = back) { Text("< Back") } }
+        return
+    }
+    if (attendanceOnly && event.organizerId != actor) {
+        Page {
+            Text("Only this event's organizer can view attendance.")
+            TextButton(onClick = back) { Text("< Back") }
+        }
         return
     }
     val context = LocalContext.current
@@ -61,7 +69,8 @@ fun RepositoryCheckInScreen(repository: GogetherRepository, eventId: String, now
         else message = "Precise location permission is required to confirm the meeting point."
     }
     if (bridge.hasEnded(event, now) || event.status == EventStatus.CANCELLED) {
-        key(actor, event.id) { RepositoryFeedbackScreen(repository, bridge, event, actor, now, back) }
+        key(actor, event.id) { RepositoryFeedbackScreen(repository, bridge, event, actor, now, back,
+            initialAttendance = attendanceOnly) }
         return
     }
     if (session == null) {
