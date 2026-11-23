@@ -5,6 +5,8 @@ import android.content.Intent
 import android.net.Uri
 import androidx.core.net.toUri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import com.gogether.app.core.model.*
 import com.gogether.app.core.ui.*
 import com.gogether.app.feature.registration.ParticipantsCard
+import com.gogether.app.feature.registration.registrationConflicts
 import com.gogether.app.feature.coordination.AnnouncementSection
 import java.time.Instant
 import java.time.ZoneId
@@ -38,12 +41,16 @@ fun EventDetailScreen(
     onQuestions: () -> Unit = {},
 ) {
     var confirmCancel by rememberSaveable { mutableStateOf(false) }
+    var confirmConflict by rememberSaveable(event.id, state.currentUserId) { mutableStateOf(false) }
     val registration = state.registration(event.id)
     val organizer = state.currentUserId == event.organizerId
     val active = registration?.status == RegistrationStatus.CONFIRMED ||
         registration?.status == RegistrationStatus.WAITLISTED
     val confirmed = state.confirmed(event.id).size
     val remaining = (event.capacity - confirmed).coerceAtLeast(0)
+    val conflicts = state.registrationConflicts(event, now)
+    val canJoin = !organizer && !active && state.currentUserId != null && event.acceptsRegistration(now)
+    LaunchedEffect(canJoin) { if (!canJoin) confirmConflict = false }
 
     Page {
         EventHero(event)
@@ -135,7 +142,7 @@ fun EventDetailScreen(
             now = now,
             onManage = onManage,
             onCancel = { confirmCancel = true },
-            onJoin = onJoin,
+            onJoin = { if (conflicts.isEmpty()) onJoin() else confirmConflict = true },
         )
 
         if (registration?.status == RegistrationStatus.CONFIRMED &&
@@ -146,6 +153,38 @@ fun EventDetailScreen(
                     "Leave feedback" else "Check-in & meeting")
             }
         }
+    }
+
+    if (confirmConflict && canJoin) {
+        AlertDialog(
+            onDismissRequest = { confirmConflict = false },
+            title = { Text("Schedule conflict") },
+            text = {
+                Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("This event overlaps with your other activities. You can still join if you choose.")
+                    conflicts.forEach { other ->
+                        val status = when {
+                            other.organizerId == state.currentUserId -> "Hosting"
+                            state.registration(other.id)?.status == RegistrationStatus.WAITLISTED -> "Waitlisted (place not guaranteed)"
+                            else -> "Confirmed"
+                        }
+                        Text("${other.title}\n${displayTime(other.startAt)} – ${displayTime(other.endAt)}\n$status")
+                    }
+                    if (remaining == 0) Text("This event is full. Continuing will add you to its waitlist.")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { confirmConflict = false; onJoin() }, enabled = !busy,
+                    modifier = Modifier.testTag("confirm_conflicting_join")) {
+                    Text(if (remaining == 0) "Join waitlist anyway" else "Join anyway")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmConflict = false },
+                    modifier = Modifier.testTag("dismiss_conflicting_join")) { Text("Go back") }
+            },
+        )
     }
 
     if (confirmCancel) {
