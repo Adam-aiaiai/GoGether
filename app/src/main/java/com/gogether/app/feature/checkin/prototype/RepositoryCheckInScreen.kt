@@ -29,6 +29,10 @@ import kotlinx.coroutines.launch
 @Composable
 fun RepositoryCheckInScreen(repository: GogetherRepository, eventId: String, now: Long, back: () -> Unit,
     attendanceOnly: Boolean = false) {
+    if (repository is com.gogether.app.core.data.cloud.CloudOperations) {
+        com.gogether.app.feature.checkin.cloud.CloudCheckInScreen(repository, repository, eventId, now, back, attendanceOnly)
+        return
+    }
     val snapshot by repository.state.collectAsStateWithLifecycle()
     val event = snapshot.event(eventId)
     val actor = snapshot.currentUserId

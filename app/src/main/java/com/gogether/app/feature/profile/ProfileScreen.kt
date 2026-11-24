@@ -31,7 +31,7 @@ fun ProfileScreen(state: AppSnapshot, now: Long, busy: Boolean, mode: AccountMod
             "${personalEvents(state, PersonalEventTab.WAITLISTED, now).size} waitlisted · " +
             "${personalEvents(state, PersonalEventTab.CREATED, now).size} created")
         InfoCard("Your data", storageDescription)
-        OutlinedButton(onClick = { context.startActivity(Intent(context, PrototypeCheckInActivity::class.java)) },
+        if (mode == AccountMode.LOCAL_DEMO) OutlinedButton(onClick = { context.startActivity(Intent(context, PrototypeCheckInActivity::class.java)) },
             modifier = Modifier.fillMaxWidth().testTag("checkin_prototype")) { Text("Check-in and review records") }
         if (mode == AccountMode.LOCAL_DEMO) {
             Text("Switch test user", style = MaterialTheme.typography.titleLarge)

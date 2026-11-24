@@ -21,7 +21,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gogether.app.core.model.*
+import com.gogether.app.GogetherApplication
+import com.gogether.app.core.data.cloud.CloudOperations
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.Instant
@@ -67,9 +72,24 @@ fun StatusPill(text: String) {
 fun EventImage(imageUri: String, contentDescription: String, modifier: Modifier = Modifier) {
     if (imageUri.isBlank()) return
     val context = LocalContext.current
-    val bitmap by produceState<ImageBitmap?>(null, imageUri) {
+    val repository = (context.applicationContext as? GogetherApplication)?.repository
+    val cloud = repository as? CloudOperations
+    val actor = repository?.state?.collectAsStateWithLifecycle()?.value?.currentUserId
+    val bitmap by produceState<ImageBitmap?>(null, imageUri, actor) {
+        value = null
         value = withContext(Dispatchers.IO) {
-            runCatching {
+            try {
+                if (imageUri.startsWith("covers/") || imageUri.startsWith("gs://")) {
+                    val storage = requireNotNull(cloud) { "Sign in to load this image." }.storage
+                    val ref = if (imageUri.startsWith("gs://")) storage.getReferenceFromUrl(imageUri) else storage.reference.child(imageUri)
+                    val bytes = ref.getBytes(2L * 1024 * 1024).await()
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                    var sample = 1
+                    while (bounds.outWidth / sample > 1600 || bounds.outHeight / sample > 1600) sample *= 2
+                    return@withContext BitmapFactory.decodeByteArray(bytes, 0, bytes.size,
+                        BitmapFactory.Options().apply { inSampleSize = sample })?.asImageBitmap()
+                }
                 val uri = Uri.parse(imageUri)
                 val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 context.contentResolver.openInputStream(uri).use {
@@ -83,7 +103,8 @@ fun EventImage(imageUri: String, contentDescription: String, modifier: Modifier 
                 context.contentResolver.openInputStream(uri).use { stream ->
                     BitmapFactory.decodeStream(stream, null, options)?.asImageBitmap()
                 }
-            }.getOrNull()
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { null }
         }
     }
     bitmap?.let {

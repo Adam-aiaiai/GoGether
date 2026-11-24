@@ -8,6 +8,7 @@ service cloud.firestore {
     function participant(eventId) {
       return signedIn() && get(/databases/$(database)/documents/registrations/$(eventId + '_' + request.auth.uid)).data.status in ['CONFIRMED', 'WAITLISTED'];
     }
+    match /sync/{id} { allow read: if signedIn() && id == 'global'; allow write: if false; }
     match /events/{id} { allow read: if signedIn(); allow write: if false; }
     match /registrations/{id} {
       allow read: if signedIn() && (resource.data.userId == request.auth.uid || organizer(resource.data.eventId));

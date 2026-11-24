@@ -20,3 +20,4 @@ verification/
 node_modules/
 *-debug.log
 .firebase/
+.emulator-data/

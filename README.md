@@ -4,6 +4,11 @@ Find Your People. Make It Happen.
 
 面向小型线下兴趣活动的 Android 应用。正式应用名为 **Gogether**；GitHub 仓库和克隆目录保持 **GoGether**。
 
+## 共享后端（2026-11-24）
+
+已加入 A/B/C/D/E 的 Firebase 后端与 Android 接入，可在本机使用 Auth、Firestore、Functions、Storage 模拟器联调。默认构建仍为 Demo；共享后端版运行 `firebase/start-local.ps1` 后，用 `build-local-app.ps1 -Install` 构建安装。活动问答和活动变更通知已包含。
+
+团队尚未创建正式 Firebase 云项目，本次没有云端部署。配置、启动、模式切换及限制见 [后端接入指南](docs/BACKEND_SETUP.md)，实测范围见 [验证记录](docs/BACKEND_VERIFICATION.md)。以下为历史整合记录，描述对应当时状态。
 ## A / B / C / D / E 本地整合（2026-11-20）
 
 当前本地分支 `integration/member-a-b-c-d-e` 合并 ABD 的 `1454159` 与 CE 的 `a6dbab4`，统一账号、活动、报名、公告及 E 签到/完整评价入口。保留全部来源历史；本轮不推送 GitHub。字段衔接、存档迁移和验证边界见 [ABCDE 集成说明](docs/INTEGRATION_A_B_C_D_E.md)。
@@ -64,7 +69,7 @@ export JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home'
 | --- | --- |
 | Language | Kotlin 2.2.10（AGP 内置 Kotlin） |
 | UI | Jetpack Compose BOM 2025.08.01、Material 3 |
-| Architecture | MVVM、Repository interface、In-memory Fake Repository |
+| Architecture | MVVM、Repository interface、本地 Demo / Firebase 后端 |
 | State / Async | StateFlow、Coroutines 1.10.2 |
 | Navigation | Navigation Compose 2.9.3 |
 | Build | AGP 9.4.0、Gradle Wrapper 9.6.0、Kotlin DSL |

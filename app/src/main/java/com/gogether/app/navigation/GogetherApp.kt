@@ -21,6 +21,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
 import com.gogether.app.core.data.GogetherRepository
+import com.gogether.app.core.data.cloud.CloudOperations
 import com.gogether.app.core.model.AppSnapshot
 import com.gogether.app.core.ui.*
 import com.gogether.app.feature.auth.*
@@ -56,7 +57,7 @@ fun GogetherApp(repository: GogetherRepository) {
         preferences.registerOnSharedPreferenceChangeListener(listener)
         onDispose { preferences.unregisterOnSharedPreferenceChangeListener(listener) }
     }
-    val state = remember(source, attendanceRevision) { bridge.withAttendance(source) }
+    val state = remember(source, attendanceRevision) { if (repository is CloudOperations) source else bridge.withAttendance(source) }
     val auth: AuthViewModel = viewModel(factory = RepositoryViewModel.factory { AuthViewModel(repository) })
     val busy by auth.busy.collectAsStateWithLifecycle()
     val snackbars = remember { SnackbarHostState() }
@@ -117,6 +118,18 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
     }
     Scaffold(
         topBar = {
+            Column {
+            if (repository is CloudOperations) {
+                val connection by repository.sync.collectAsStateWithLifecycle()
+                connection.message?.let { message ->
+                    Surface(color = MaterialTheme.colorScheme.errorContainer) {
+                        Row(Modifier.fillMaxWidth().padding(8.dp)) {
+                            Text(message, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                            TextButton(onClick = { scope.launch { runCatching { repository.refresh() } } }, enabled = !connection.refreshing) { Text("Retry") }
+                        }
+                    }
+                }
+            }
             if (route != "explore" && route != "create" && !route.startsWith("check-in")) {
                 TopAppBar(title = { Text(if (subpage) when {
                     route == "edit-profile" -> "Your profile"
@@ -130,7 +143,8 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
                 } else "Gogether") },
                     navigationIcon = { if (subpage) IconButton(onClick = { nav.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    } }, actions = { Text(if (repository.accountMode == AccountMode.LOCAL_DEMO) "DEMO" else "LOCAL ACTIVITIES", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(end = 16.dp)) })
+                    } }, actions = { Text(if (repository.accountMode == AccountMode.LOCAL_DEMO) "DEMO" else "CONNECTED", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(end = 16.dp)) })
+            }
             }
         },
         bottomBar = {

@@ -6,9 +6,10 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="${backendNetworkPermission}" />
     <application
         android:name=".GogetherApplication"
-        android:allowBackup="false"
+        android:allowBackup="false" android:usesCleartextTraffic="${allowBackendCleartext}"
         android:fullBackupContent="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@drawable/ic_launcher"

@@ -18,7 +18,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.google.zxing.BarcodeFormat
+import com.gogether.app.core.ui.CheckInQr
 import com.journeyapps.barcodescanner.BarcodeEncoder
 
 /** A bounded phone screen: QR stays visible while only the selected attendance grid scrolls. */
@@ -110,8 +110,8 @@ private fun OrganizerCode(state: PrototypeUiState, now: Long, show: () -> Unit, 
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
             val side = minOf(maxWidth, maxHeight, 280.dp)
             if (code != null) {
-                val bitmap = remember(code) { BarcodeEncoder().encodeBitmap(
-                    PrototypeCodeCodec.encode(code), BarcodeFormat.QR_CODE, 720, 720).asImageBitmap() }
+                val bitmap = remember(code) { BarcodeEncoder().createBitmap(
+                    CheckInQr.matrix(PrototypeCodeCodec.encode(code))).asImageBitmap() }
                 Image(bitmap, "Refreshing check-in QR code", Modifier.size(side).background(Color.White).testTag("prototype_qr"))
             } else Surface(Modifier.size(side), shape = CheckInStyle.shape, color = MaterialTheme.colorScheme.surfaceContainerLow) {
                 Box(Modifier.padding(12.dp), contentAlignment = Alignment.Center) {

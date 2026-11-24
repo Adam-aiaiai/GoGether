@@ -43,9 +43,16 @@ exports.coordinate = onCall(async request => {
       tx.set(ref, {id: ref.id, eventId: input.eventId, userId: recipient,
         type: input.action === "announcement" ? "ANNOUNCEMENT" : "MEETING_UPDATED",
         content: input.action === "announcement" ? input.content : `Meeting information updated: ${event.title}. Open the event for details.`,
-        createdAt: now, isRead: false});
+        createdAt: now, isRead: false, announcementId: input.action === 'announcement' ? operation.id : null});
     });
     tx.set(operation, {hash, createdAt: now});
     return {id: operation.id};
   });
+});
+const {getStorage}=require('firebase-admin/storage');
+const {createService}=require('./service');
+const {DomainError}=require('./domain');
+exports.gogether=onCall({region:'us-central1',maxInstances:10},async request=>{
+ try {return await createService(getFirestore(),getStorage().bucket())(request);}
+ catch(error){if(error instanceof DomainError)throw new HttpsError(error.code,error.message);if(error instanceof HttpsError)throw error;console.error('gogether request failed',error.code??error.name);throw new HttpsError('internal','The operation could not be completed. Please retry with the same request ID.');}
 });

@@ -237,7 +237,7 @@ class PrototypeViewModelTest {
         val fix = PositionFix(point, 10.0, 0)
         val code = host.issue("alice", host.createMeeting("alice", fix), fix)
         val raw = PrototypeCodeCodec.encode(code)
-        val matrix = QRCodeWriter().encode(raw, BarcodeFormat.QR_CODE, 720, 720)
+        val matrix = com.gogether.app.core.ui.CheckInQr.matrix(raw)
         val pixels = IntArray(720 * 720) { i -> if (matrix[i % 720, i / 720]) -0x1000000 else -1 }
         val decoded = MultiFormatReader().decode(BinaryBitmap(HybridBinarizer(RGBLuminanceSource(720, 720, pixels))))
         assertEquals(code, PrototypeCodeCodec.decode(decoded.text))

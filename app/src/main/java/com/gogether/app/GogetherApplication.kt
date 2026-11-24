@@ -7,9 +7,11 @@ import com.gogether.app.core.data.FileSnapshotStore
 import com.gogether.app.core.data.IntegratedSnapshotStore
 import com.gogether.app.core.data.LocalSnapshotStore
 import java.io.File
+import com.gogether.app.core.data.cloud.FirebaseGogetherRepository
 
 class GogetherApplication : Application() {
     val repository: GogetherRepository by lazy {
+        if (BuildConfig.BACKEND_MODE != "demo") return@lazy FirebaseGogetherRepository(this)
         val store = IntegratedSnapshotStore(
             FileSnapshotStore(File(filesDir, "integrated-snapshot-v1.json")),
             FileSnapshotStore(File(filesDir, "demo-snapshot-v1.json")),
