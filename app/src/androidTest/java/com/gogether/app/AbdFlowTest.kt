@@ -1,10 +1,20 @@
 package com.gogether.app
 
 import android.graphics.Bitmap
+import android.view.View
+import android.widget.DatePicker
+import android.widget.TimePicker
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.espresso.Espresso.closeSoftKeyboard
+import androidx.test.espresso.Espresso.onView
+import androidx.test.espresso.action.ViewActions.click as viewClick
+import androidx.test.espresso.matcher.ViewMatchers.isAssignableFrom
+import androidx.test.espresso.matcher.ViewMatchers.withId
+import androidx.test.espresso.matcher.RootMatchers.isDialog
+import androidx.test.espresso.UiController
+import androidx.test.espresso.ViewAction
 import androidx.test.platform.app.InstrumentationRegistry
 import com.gogether.app.core.data.*
 import com.gogether.app.core.model.*
@@ -17,7 +27,7 @@ import org.junit.Test
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import org.hamcrest.Matcher
 
 class AbdFlowTest {
     @get:Rule val compose = createComposeRule()
@@ -43,8 +53,31 @@ class AbdFlowTest {
             File(dir, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
         }
     }
-    private fun date(at: Long) = Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()).toLocalDate().toString()
-    private fun time(at: Long) = Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("HH:mm"))
+    private fun pickDate(tag: String, at: Long) {
+        click(tag)
+        val date = Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()).toLocalDate()
+        onView(isAssignableFrom(DatePicker::class.java)).inRoot(isDialog()).perform(object : ViewAction {
+            override fun getConstraints(): Matcher<View> = isAssignableFrom(DatePicker::class.java)
+            override fun getDescription() = "select $date"
+            override fun perform(controller: UiController, view: View) {
+                (view as DatePicker).updateDate(date.year, date.monthValue - 1, date.dayOfMonth)
+            }
+        })
+        onView(withId(android.R.id.button1)).inRoot(isDialog()).perform(viewClick())
+    }
+    private fun pickTime(tag: String, at: Long) {
+        click(tag)
+        val time = Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()).toLocalTime()
+        onView(isAssignableFrom(TimePicker::class.java)).inRoot(isDialog()).perform(object : ViewAction {
+            override fun getConstraints(): Matcher<View> = isAssignableFrom(TimePicker::class.java)
+            override fun getDescription() = "select $time"
+            override fun perform(controller: UiController, view: View) {
+                (view as TimePicker).hour = time.hour
+                view.minute = time.minute
+            }
+        })
+        onView(withId(android.R.id.button1)).inRoot(isDialog()).perform(viewClick())
+    }
 
     @Test fun bsEditorAdjustsConflictingMeetingTimeAndKeepsDsMeetingPlace() {
         val repo = FakeGogetherRepository()
@@ -57,11 +90,11 @@ class AbdFlowTest {
         compose.setContent { GogetherTheme { GogetherApp(repo) } }
         click("nav_my-events"); click("personal_tab_CREATED"); click("event_event-1"); click("manage_event"); click("edit_event")
         val shorterEnd = original.startAt + 60 * 60_000
-        text("edit_end_date", date(shorterEnd)); text("edit_end_time", time(shorterEnd))
+        pickDate("edit_end_date", shorterEnd); pickTime("edit_end_time", shorterEnd)
         click("save_event")
         compose.onNodeWithTag("edit_error").assertTextContains("Meeting time is after the new end time.", substring = true)
         assertEquals(original, repo.state.value.event(original.id))
-        text("edit_meeting_date", date(original.startAt)); text("edit_meeting_time", time(original.startAt))
+        pickDate("edit_meeting_date", original.startAt); pickTime("edit_meeting_time", original.startAt)
         click("save_event")
         compose.waitUntil(5_000) { repo.state.value.event(original.id)?.endAt == shorterEnd }
         assertEquals(original.startAt, repo.state.value.event(original.id)?.meetingAt)

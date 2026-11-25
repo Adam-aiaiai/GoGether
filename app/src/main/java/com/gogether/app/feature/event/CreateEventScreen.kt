@@ -1,8 +1,12 @@
 package com.gogether.app.feature.event
 
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
+import com.gogether.app.R
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -13,6 +17,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -21,6 +26,7 @@ import com.gogether.app.core.ui.*
 import com.gogether.app.feature.registration.RegistrationEngine
 import java.time.*
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @Composable
 fun CreateEventScreen(
@@ -163,16 +169,12 @@ private fun EventFormScreen(
 
         HorizontalDivider()
         FormSectionHeader("02", "Date & Location")
-        FormField("Start date", startDate, { startDate = it }, "${prefix}_date",
-            placeholder = "YYYY-MM-DD")
+        DateSelectionField("Start date", startDate, { startDate = it }, "${prefix}_date")
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            CompactFormField("Start time", startTime, { startTime = it }, "${prefix}_time",
-                Modifier.weight(1f), "HH:mm")
-            CompactFormField("End time", endTime, { endTime = it }, "${prefix}_end_time",
-                Modifier.weight(1f), "HH:mm")
+            TimeSelectionField("Start time", startTime, { startTime = it }, "${prefix}_time", Modifier.weight(1f))
+            TimeSelectionField("End time", endTime, { endTime = it }, "${prefix}_end_time", Modifier.weight(1f))
         }
-        FormField("End date", endDate, { endDate = it }, "${prefix}_end_date",
-            placeholder = "YYYY-MM-DD")
+        DateSelectionField("End date", endDate, { endDate = it }, "${prefix}_end_date")
         FormField("Location", location, { location = it }, "${prefix}_location",
             placeholder = "Choose a campus location")
         FormField("City", city, { city = it }, "${prefix}_city", placeholder = "e.g. Suzhou")
@@ -180,17 +182,17 @@ private fun EventFormScreen(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            CompactFormField("Registration deadline", deadlineDate, { deadlineDate = it },
-                "${prefix}_deadline_date", Modifier.weight(1.35f), "YYYY-MM-DD")
-            CompactFormField("Time", deadlineTime, { deadlineTime = it },
-                "${prefix}_deadline_time", Modifier.weight(0.65f), "HH:mm")
+            DateSelectionField("Registration deadline", deadlineDate, { deadlineDate = it },
+                "${prefix}_deadline_date", Modifier.weight(1.35f))
+            TimeSelectionField("Time", deadlineTime, { deadlineTime = it },
+                "${prefix}_deadline_time", Modifier.weight(0.65f))
         }
 
         if (editing && initial?.meetingAt != null) {
             Text("Meeting time", style = MaterialTheme.typography.titleMedium)
             Text("Adjust this too if you move the event's end time. The meeting place and notes stay unchanged.", style = MaterialTheme.typography.bodySmall)
-            FormField("Meeting date", meetingDate, { meetingDate = it }, "edit_meeting_date")
-            FormField("Meeting time", meetingTime, { meetingTime = it }, "edit_meeting_time")
+            DateSelectionField("Meeting date", meetingDate, { meetingDate = it }, "edit_meeting_date")
+            TimeSelectionField("Meeting time", meetingTime, { meetingTime = it }, "edit_meeting_time")
         }
         if (mode == FormMode.REUSE && initial?.meetingLocation != null) {
             InfoCard("Meeting point", "${initial.meetingLocation}\nThe meeting time defaults to this new event's start time. You can adjust it in Manage event.")
@@ -229,6 +231,15 @@ private fun EventFormScreen(
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("${prefix}_error")) }
         Button(onClick = {
             try {
+                val missing = listOf(
+                    "Start date" to startDate, "Start time" to startTime,
+                    "End date" to endDate, "End time" to endTime,
+                    "Registration deadline date" to deadlineDate, "Registration deadline time" to deadlineTime,
+                ).firstOrNull { it.second.isBlank() }?.first
+                require(missing == null) { "Select $missing before publishing." }
+                if (editing && initial?.meetingAt != null) {
+                    require(meetingDate.isNotBlank() && meetingTime.isNotBlank()) { "Select a meeting date and time before saving." }
+                }
                 val draft = EventDraft(
                     title = title, category = Category.valueOf(category), description = description,
                     startAt = parseEventDateTime(startDate, startTime), location = location, city = city,
@@ -245,7 +256,7 @@ private fun EventFormScreen(
                 error = null
                 onSubmit(draft)
             } catch (_: DateTimeException) {
-                error = "Use valid dates (YYYY-MM-DD) and 24-hour times (HH:mm)."
+                error = "Select valid dates and 24-hour times."
             } catch (e: IllegalArgumentException) {
                 error = e.message
             }
@@ -298,16 +309,58 @@ private fun FormField(
 }
 
 @Composable
-private fun CompactFormField(
+private fun DateSelectionField(
     label: String,
     value: String,
     change: (String) -> Unit,
     tag: String,
-    modifier: Modifier,
-    placeholder: String,
+    modifier: Modifier = Modifier.fillMaxWidth(),
 ) {
-    OutlinedTextField(value, change, label = { Text(label) }, placeholder = { Text(placeholder) },
-        singleLine = true, shape = RoundedCornerShape(16.dp), modifier = modifier.testTag(tag))
+    val context = LocalContext.current
+    SelectionField(label, value, "YYYY-MM-DD", tag, modifier) {
+        val initial = runCatching { LocalDate.parse(value) }.getOrElse { LocalDate.now() }
+        DatePickerDialog(context, R.style.Theme_Gogether_Picker, { _, year, month, day ->
+            change(LocalDate.of(year, month + 1, day).format(DateTimeFormatter.ISO_LOCAL_DATE))
+        }, initial.year, initial.monthValue - 1, initial.dayOfMonth).show()
+    }
+}
+
+@Composable
+private fun TimeSelectionField(
+    label: String,
+    value: String,
+    change: (String) -> Unit,
+    tag: String,
+    modifier: Modifier = Modifier.fillMaxWidth(),
+) {
+    val context = LocalContext.current
+    SelectionField(label, value, "HH:mm", tag, modifier) {
+        val initial = runCatching { LocalTime.parse(value) }.getOrElse { LocalTime.of(18, 0) }
+        TimePickerDialog(context, R.style.Theme_Gogether_Picker, { _, hour, minute ->
+            change(String.format(Locale.ROOT, "%02d:%02d", hour, minute))
+        }, initial.hour, initial.minute, true).show()
+    }
+}
+
+@Composable
+private fun SelectionField(
+    label: String,
+    value: String,
+    hint: String,
+    tag: String,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    Surface(onClick = onClick, modifier = modifier.testTag(tag),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 11.dp)) {
+            Text(label, style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value.ifBlank { "Select $hint" }, style = MaterialTheme.typography.bodyLarge,
+                color = if (value.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
+        }
+    }
 }
 
 private fun ExperienceRequirement.formLabel(): String = when (this) {

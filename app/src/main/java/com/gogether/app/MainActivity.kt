@@ -12,6 +12,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -40,7 +41,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
             GogetherTheme {
-                LocalBackendPermission { GogetherApp((application as GogetherApplication).repository) }
+                LocalBackendPermission {
+                    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).safeDrawingPadding()) {
+                        GogetherApp((application as GogetherApplication).repository)
+                    }
+                }
             }
         }
     }
