@@ -79,7 +79,7 @@ class FeedbackPhotoPreviewTest {
         compose.onNodeWithText("Previous").performClick()
         compose.onNodeWithTag("photo_page_count").assertTextEquals("1 / 3")
         compose.onNodeWithText("Previous").assertIsNotEnabled()
-        compose.onNodeWithText("< Back").performClick()
+        compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithTag("feedback_photo_preview").assertDoesNotExist()
     }
 

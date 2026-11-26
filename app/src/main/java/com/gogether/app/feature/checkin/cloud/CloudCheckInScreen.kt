@@ -1,26 +1,21 @@
 package com.gogether.app.feature.checkin.cloud
 
-import com.gogether.app.core.ui.PageActionButton
-import com.gogether.app.core.ui.OutlinedPageActionButton
+import com.gogether.app.core.ui.AppBackButton
 import android.Manifest
 import android.app.Activity
 import android.content.pm.PackageManager
 import android.os.SystemClock
 import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -31,10 +26,7 @@ import com.gogether.app.core.data.cloud.CloudOperations
 import com.gogether.app.core.model.*
 import com.gogether.app.core.ui.*
 import com.gogether.app.feature.checkin.prototype.*
-import com.gogether.app.feature.event.MeetingMapButton
 import com.google.firebase.functions.FirebaseFunctionsException
-import com.google.zxing.BarcodeFormat
-import com.journeyapps.barcodescanner.BarcodeEncoder
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.*
@@ -47,7 +39,7 @@ fun CloudCheckInScreen(repository:GogetherRepository, backend:CloudOperations, e
     val state by repository.state.collectAsStateWithLifecycle()
     val actor=state.currentUserId
     val event=state.event(eventId)
-    if(actor==null || event==null) { Page { Text("The event or account has changed."); TextButton(onClick=back){Text("Back")} }; return }
+    if(actor==null || event==null) { Page { Text("The event or account has changed."); AppBackButton(back) }; return }
     key(actor,eventId) { CloudEventContent(repository,backend,state,event,actor,now,back,attendanceOnly) }
 }
 
@@ -64,6 +56,11 @@ private fun CloudEventContent(repository:GogetherRepository, backend:CloudOperat
     val pendingError=pendingLoad.exceptionOrNull()?.message
     var information by remember { mutableStateOf<Map<String,Any?>>(emptyMap()) }
     var attendees by remember { mutableStateOf<List<Map<*,*>>>(emptyList()) }
+    var rosterLoaded by remember { mutableStateOf(false) }
+    var rosterLoading by remember { mutableStateOf(false) }
+    var rosterError by remember { mutableStateOf("") }
+    var rosterUpdatedAt by remember { mutableStateOf<Long?>(null) }
+    var organizerReviewReturn by rememberSaveable { mutableStateOf<String?>(null) }
     var reviews by remember { mutableStateOf<List<Map<*,*>>>(emptyList()) }
     var busy by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
@@ -83,12 +80,22 @@ private fun CloudEventContent(repository:GogetherRepository, backend:CloudOperat
     val ownReview=information.map("ownFeedback")
     val meeting=information.map("meeting")
 
+    suspend fun refreshAttendance() {
+        if (!organizer || rosterLoading) return
+        rosterLoading = true
+        try {
+            attendees = backend.call("attendance", mapOf("eventId" to event.id)).rows("attendees")
+            rosterLoaded = true; rosterError = ""; rosterUpdatedAt = System.currentTimeMillis()
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (error: Exception) { rosterError = error.message ?: "Could not refresh attendance. Try again." }
+        finally { rosterLoading = false }
+    }
     suspend fun refresh() {
         val next=backend.call("eventInfo",mapOf("eventId" to event.id))
         information=next
         serverTime=next.number("serverNow").takeIf{it>0}?:System.currentTimeMillis()
         receivedAt=SystemClock.elapsedRealtime()
-        if(organizer) attendees=backend.call("attendance",mapOf("eventId" to event.id)).rows("attendees")
+        if(organizer) refreshAttendance()
         reviews=backend.call("reviews",mapOf("eventId" to event.id)).rows("reviews")
         if(next.map("receipt")!=null && pending!=null) { pendingStore.clear(actor,event.id); pending=null }
         loading=false
@@ -185,6 +192,51 @@ private fun CloudEventContent(repository:GogetherRepository, backend:CloudOperat
     DisposableEffect(code,window){if(code!=null)window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         onDispose{window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)}}
 
+    BackHandler(enabled = organizer && ((tab == "reviews" && organizerReviewReturn != null) || (tab == "attendance" && !attendanceOnly))) {
+        tab = if (tab == "reviews") organizerReviewReturn ?: "checkin" else "checkin"
+    }
+    if (tab == "reviews") {
+        CloudFeedbackContent(backend,event,actor,confirmed,closed,ownReview,reviews,busy,
+            {action->perform{action();refresh();backend.refresh()}},{message=it},
+            organizerName=state.users.find { it.id == event.organizerId }?.displayName ?: "Organizer",
+            back={if(organizer && organizerReviewReturn != null) tab = organizerReviewReturn!! else back()},statusMessage=message,loading=loading)
+        return
+    }
+
+    if (organizer) {
+        val people = remember(attendees) { attendancePeople(attendees) }
+        if (tab == "attendance") {
+            CloudOrganizerAttendance(event, people, rosterLoaded, rosterLoading, rosterError, rosterUpdatedAt,
+                onRefresh = { scope.launch { refreshAttendance() } },
+                onBack = { if (attendanceOnly) back() else tab = "checkin" },
+                onReviews = { organizerReviewReturn = "attendance"; tab = "reviews" })
+        } else {
+            CloudOrganizerCheckInContent(event, effectiveNow, meeting != null, code, codeExpiresAt, showingCode,
+                loading, information.isNotEmpty(), busy, message, people, rosterLoaded, rosterLoading, rosterError,
+                onBack = back, onRefresh = { perform { refresh(); message = "Updated from the server." } },
+                onReviews = { organizerReviewReturn = "checkin"; tab = "reviews" }, onAttendance = { tab = "attendance" },
+                onShowCode = { request("code") }, onHideCode = { showingCode = false; code = null },
+                onBindMeeting = { showingCode = false; code = null; request("bind") },
+                extraMenuItems = { closeMenu ->
+                    // Preserve existing recovery and organizer-as-participant actions without crowding the desk.
+                    if (pendingError != null) DropdownMenuItem({
+                        Text("Saved check-in could not be read. Reopen the app to verify attendance.")
+                    }, {}, enabled = false)
+                    if (pending != null) {
+                        DropdownMenuItem({ Text("Check previous result") }, { closeMenu(); perform { resolvePending() } },
+                            enabled = !busy, modifier = Modifier.testTag("cloud_resolve_checkin"))
+                        DropdownMenuItem({ Text("Retry saved attempt") }, { closeMenu(); pending?.let { perform { send(it) } } },
+                            enabled = !busy, modifier = Modifier.testTag("cloud_retry_checkin"))
+                    }
+                    if (confirmed && receipt == null) DropdownMenuItem({ Text("Scan to check in") }, { closeMenu(); request("scan") },
+                        enabled = !busy && pending == null && pendingError == null && !closed,
+                        modifier = Modifier.testTag("cloud_scan_checkin"))
+                    if (receipt != null) DropdownMenuItem({ Text("Checked in · ${displayTime(receipt.number("checkedInAt"))}") }, {}, enabled = false)
+                })
+        }
+        return
+    }
+
     if (!organizer && tab == "checkin") {
         CloudParticipantCheckInContent(
             event = event,
@@ -210,62 +262,14 @@ private fun CloudEventContent(repository:GogetherRepository, backend:CloudOperat
         return
     }
 
-    Page {
-        TextButton(onClick=back){Text("< Back")}
-        SectionTitle(event.title,"Meeting, attendance and reviews")
-        Row(horizontalArrangement=Arrangement.spacedBy(6.dp)) {
-            FilterChip(tab=="checkin",{tab="checkin"},label={Text("Check-in")},modifier=Modifier.testTag("cloud_tab_checkin"))
-            if(organizer)FilterChip(tab=="attendance",{tab="attendance";showingCode=false},label={Text("Attendance")},modifier=Modifier.testTag("cloud_tab_attendance"))
-            FilterChip(tab=="reviews",{tab="reviews";showingCode=false},label={Text("Reviews")},modifier=Modifier.testTag("cloud_tab_reviews"))
+    // A participant can reach this route through an old/deep attendance link.
+    Column(Modifier.fillMaxSize()) {
+        AppPageHeader("Attendance", onBack = back)
+        Page(Modifier.weight(1f)) {
+            Text(event.title, style = MaterialTheme.typography.titleLarge)
+            Text("Only the organizer can view attendance.")
+            TextButton({ tab = "checkin" }, modifier = Modifier.testTag("cloud_tab_checkin")) { Text("Check-in") }
+            TextButton({ tab = "reviews" }, modifier = Modifier.testTag("cloud_tab_reviews")) { Text("Reviews") }
         }
-        if(loading)LinearProgressIndicator(Modifier.fillMaxWidth())
-        if(message.isNotBlank())Text(message,Modifier.testTag("cloud_attendance_message"))
-        if(pendingError!=null) InfoCard("Saved check-in could not be read", "Reopen the app or contact your organizer to verify attendance. A new scan is blocked to avoid duplicate submission.")
-        if(pending!=null) {
-            InfoCard("Check-in awaiting confirmation","Your request has been saved. Check its result before scanning another code.")
-            TextButton(onClick={perform{resolvePending()}},enabled=!busy,modifier=Modifier.testTag("cloud_resolve_checkin")){Text("Check previous result")}
-            TextButton(onClick={pending?.let{perform{send(it)}}},enabled=!busy,modifier=Modifier.testTag("cloud_retry_checkin")){Text("Retry saved attempt")}
-        }
-        when(tab) {
-            "attendance" -> {
-                if(!organizer)Text("Only the organizer can view attendance.")
-                else {
-                    Text("${attendees.count{it.number("checkedInAt")>0}} / ${attendees.size} checked in",Modifier.testTag("cloud_attendance_count"))
-                    var search by rememberSaveable{mutableStateOf("")}
-                    OutlinedTextField(search,{search=it},label={Text("Search participants")},modifier=Modifier.fillMaxWidth())
-                    attendees.filter{it.string("name").contains(search,true)}.forEach { person ->
-                        InfoCard(person.string("name"),person.number("checkedInAt").takeIf{it>0}?.let{"Checked in · ${displayTime(it)}"}?:"Not checked in")
-                    }
-                }
-            }
-            "reviews" -> CloudFeedbackContent(backend,event,actor,confirmed,closed,ownReview,reviews,busy,
-                {action->perform{action();refresh();backend.refresh()}},{message=it})
-            else -> {
-                InfoCard("Meeting point","${displayTime(event.meetingAt?:event.startAt)}\n${event.city} · ${event.meetingLocation?:event.location}\n${event.meetingNotes}")
-                MeetingMapButton("${event.city} ${event.meetingLocation?:event.location}")
-                receipt?.let{InfoCard("Checked in",displayTime(it.number("checkedInAt")),Modifier.testTag("cloud_checkin_receipt"))}
-                if(closed)Text(if(event.status==EventStatus.CANCELLED)"This event is cancelled." else "This event has ended. You can view its attendance and reviews.")
-                else if(meeting==null) {
-                    Text(if(organizer)"Confirm the GPS meeting point when you arrive." else "The organizer has not confirmed the meeting point yet.")
-                    if(organizer)PageActionButton(onClick={request("bind")},enabled=!busy,modifier=Modifier.testTag("cloud_bind_meeting")){Text("Set meeting point here")}
-                } else {
-                    Text("Check-in opens 30 minutes before the start and closes 30 minutes after it. Be within 200 m of the meeting point.")
-                    if(organizer){
-                        OutlinedPageActionButton(onClick={showingCode=false;code=null;request("bind")},enabled=!busy) { Text("Update meeting point here") }
-                        if(code!=null && effectiveNow<codeExpiresAt) {
-                            val qr=remember(code){BarcodeEncoder().createBitmap(com.gogether.app.core.ui.CheckInQr.matrix(requireNotNull(code))).asImageBitmap()}
-                            Image(qr,"Server-issued check-in QR code",Modifier.fillMaxWidth().height(280.dp).background(Color.White).testTag("cloud_qr"))
-                            Text("Refreshes automatically · ${(codeExpiresAt-effectiveNow).coerceAtLeast(0)/1000}s remaining")
-                        }
-                        PageActionButton(onClick={request("code")},enabled=!busy && !showingCode,modifier=Modifier.testTag("cloud_issue_code")){Text(if(showingCode)"Refreshing code…" else "Show check-in code")}
-                        if(showingCode)TextButton(onClick={showingCode=false;code=null}){Text("Hide code")}
-                    }
-                    if(confirmed && receipt==null)PageActionButton(onClick={request("scan")},enabled=!busy && pending==null && pendingError==null,
-                        modifier=Modifier.testTag("cloud_scan_checkin")){Text(if(busy)"Submitting…" else "Scan to check in")}
-                    else if(!confirmed)Text("Only confirmed participants can check in. A waitlist place is not enough.")
-                }
-            }
-        }
-        TextButton(onClick={perform{refresh();message="Updated from the server."}},enabled=!busy){Text("Refresh")}
     }
 }

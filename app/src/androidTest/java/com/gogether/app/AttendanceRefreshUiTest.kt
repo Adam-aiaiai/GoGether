@@ -102,7 +102,7 @@ class AttendanceRefreshUiTest {
         compose.onNodeWithTag("attendance_detail").assertTextEquals("Not checked in")
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
         compose.waitForIdle()
-        compose.onNodeWithText("< Back").performClick()
+        compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithTag("history_open_attendance").assertExists()
         compose.runOnIdle { assertEquals(session, state.session) }
     }

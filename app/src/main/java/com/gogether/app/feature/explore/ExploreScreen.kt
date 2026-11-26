@@ -1,9 +1,11 @@
 package com.gogether.app.feature.explore
 
+import com.gogether.app.core.ui.AppOutlinedTextField
+import com.gogether.app.core.ui.AppUi
+import com.gogether.app.core.ui.AppFilterChip
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -12,6 +14,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -46,10 +50,10 @@ fun ExploreScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
-        OutlinedTextField(
+        AppOutlinedTextField(
             value = filter.query,
             onValueChange = { onFilter(filter.copy(query = it)) },
-            placeholder = { Text("Search events or locations") },
+            label = { Text("Search events or locations") },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             trailingIcon = {
                 IconButton(onClick = { filtersExpanded = !filtersExpanded },
@@ -63,7 +67,7 @@ fun ExploreScreen(
             },
             singleLine = true,
             modifier = Modifier.fillMaxWidth().testTag("search"),
-            shape = RoundedCornerShape(18.dp),
+            shape = AppUi.FieldShape,
         )
 
         CategoryPicker(filter.categories) { category ->
@@ -90,7 +94,7 @@ fun ExploreScreen(
             }
         }
 
-        if (filtersExpanded) AdvancedFilters(filter, onFilter)
+        if (filtersExpanded) AdvancedFilters(filter, onFilter) { filtersExpanded = false }
 
         if (filter != ExploreFilter()) {
             TextButton(onClick = { onFilter(ExploreFilter()) },
@@ -121,9 +125,9 @@ private fun CategoryPicker(selected: Set<Category>, select: (Category) -> Unit) 
             val active = category in selected
             Surface(
                 onClick = { select(category) },
-                shape = RoundedCornerShape(18.dp),
-                color = if (active) MaterialTheme.colorScheme.primaryContainer
-                    else MaterialTheme.colorScheme.surface,
+                shape = AppUi.FieldShape,
+                color = if (active) AppUi.SelectedTag
+                    else MaterialTheme.colorScheme.surfaceContainerLow,
                 modifier = Modifier.widthIn(min = 62.dp)
                     .testTag("category_${category.name.lowercase()}"),
             ) {
@@ -132,7 +136,7 @@ private fun CategoryPicker(selected: Set<Category>, select: (Category) -> Unit) 
                     verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(category.symbol, style = MaterialTheme.typography.headlineSmall)
                     Text(category.label, style = MaterialTheme.typography.labelSmall,
-                        color = if (active) MaterialTheme.colorScheme.primary
+                        color = if (active) AppUi.SelectedTagText
                             else MaterialTheme.colorScheme.onSurface)
                 }
             }
@@ -141,91 +145,124 @@ private fun CategoryPicker(selected: Set<Category>, select: (Category) -> Unit) 
 }
 
 @Composable
-private fun AdvancedFilters(filter: ExploreFilter, onFilter: (ExploreFilter) -> Unit) {
-    Surface(shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surfaceContainerLow,
+private fun AdvancedFilters(filter: ExploreFilter, onFilter: (ExploreFilter) -> Unit, onClose: () -> Unit) {
+    Surface(color = MaterialTheme.colorScheme.surface,
         modifier = Modifier.fillMaxWidth().testTag("advanced_filters")) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("More ways to match", style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold)
-            OutlinedTextField(filter.organizerQuery,
-                { onFilter(filter.copy(organizerQuery = it)) }, label = { Text("Organizer") },
-                placeholder = { Text("e.g. Alice") }, singleLine = true,
-                modifier = Modifier.fillMaxWidth().testTag("organizer_filter"))
-            OutlinedTextField(filter.city, { onFilter(filter.copy(city = it)) },
-                label = { Text("City or meeting location") }, placeholder = { Text("e.g. Sports Hall") },
-                singleLine = true, modifier = Modifier.fillMaxWidth().testTag("location_filter"))
-
-            FilterHeading("Activity date · based on start time")
-            FilterRow {
-                EventTimeFilter.entries.forEach { option ->
-                    FilterChip(filter.time == option, { onFilter(filter.copy(time = option)) },
-                        label = { Text(option.label) },
-                        modifier = Modifier.testTag("date_${option.name.lowercase()}"))
+        Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            HorizontalDivider()
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Filters", style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    TextButton(onClick = onClose, modifier = Modifier.testTag("hide_filters")) { Text("Hide filters") }
+                }
+                Text("Tap options to filter events. Results update automatically.",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                AppOutlinedTextField(filter.organizerQuery,
+                    { onFilter(filter.copy(organizerQuery = it)) }, label = { Text("Organizer") },
+                    placeholder = { Text("e.g. Alice") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("organizer_filter"))
+                AppOutlinedTextField(filter.city, { onFilter(filter.copy(city = it)) },
+                    label = { Text("City or meeting location") }, placeholder = { Text("e.g. Sports Hall") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth().testTag("location_filter"))
+            }
+            FilterSection("Activity start date", "Choose one") {
+                FilterOptions {
+                    EventTimeFilter.entries.forEach { option ->
+                        AdvancedFilterOption(filter.time == option, { onFilter(filter.copy(time = option)) },
+                            option.label, "date_${option.name.lowercase()}")
+                    }
+                }
+                if (filter.time == EventTimeFilter.CUSTOM) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AppOutlinedTextField(filter.customStartDate,
+                            { onFilter(filter.copy(customStartDate = it)) },
+                            label = { Text("From") }, placeholder = { Text("YYYY-MM-DD") },
+                            singleLine = true, modifier = Modifier.weight(1f).testTag("custom_start_date"))
+                        AppOutlinedTextField(filter.customEndDate,
+                            { onFilter(filter.copy(customEndDate = it)) },
+                            label = { Text("To") }, placeholder = { Text("YYYY-MM-DD") },
+                            singleLine = true, modifier = Modifier.weight(1f).testTag("custom_end_date"))
+                    }
                 }
             }
-            if (filter.time == EventTimeFilter.CUSTOM) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(filter.customStartDate,
-                        { onFilter(filter.copy(customStartDate = it)) },
-                        label = { Text("From") }, placeholder = { Text("YYYY-MM-DD") },
-                        singleLine = true, modifier = Modifier.weight(1f).testTag("custom_start_date"))
-                    OutlinedTextField(filter.customEndDate,
-                        { onFilter(filter.copy(customEndDate = it)) },
-                        label = { Text("To") }, placeholder = { Text("YYYY-MM-DD") },
-                        singleLine = true, modifier = Modifier.weight(1f).testTag("custom_end_date"))
+            FilterSection("Time of day", "Choose one") {
+                FilterOptions {
+                    FreeTimeFilter.entries.forEach { option ->
+                        AdvancedFilterOption(filter.freeTime == option, { onFilter(filter.copy(freeTime = option)) },
+                            option.label, "free_time_${option.name.lowercase()}")
+                    }
                 }
             }
-
-            FilterHeading("Time of day")
-            FilterRow {
-                FreeTimeFilter.entries.forEach { option ->
-                    FilterChip(filter.freeTime == option, { onFilter(filter.copy(freeTime = option)) },
-                        label = { Text(option.label) },
-                        modifier = Modifier.testTag("free_time_${option.name.lowercase()}"))
+            FilterSection("Experience level", "Choose any") {
+                FilterOptions {
+                    ExperienceRequirement.entries.forEach { option ->
+                        AdvancedFilterOption(option in filter.experienceLevels,
+                            { onFilter(filter.copy(experienceLevels = filter.experienceLevels.toggle(option))) },
+                            option.filterLabel(), "experience_${option.name.lowercase()}")
+                    }
                 }
             }
-
-            FilterHeading("Experience level")
-            FilterRow {
-                ExperienceRequirement.entries.forEach { option ->
-                    FilterChip(option in filter.experienceLevels,
-                        { onFilter(filter.copy(
-                            experienceLevels = filter.experienceLevels.toggle(option))) },
-                        label = { Text(option.filterLabel()) },
-                        modifier = Modifier.testTag("experience_${option.name.lowercase()}"))
+            FilterSection("Participation support", "Choose any") {
+                FilterOptions {
+                    AdvancedFilterOption(filter.guidanceOnly,
+                        { onFilter(filter.copy(guidanceOnly = !filter.guidanceOnly)) },
+                        "Guidance provided", "filter_guidance")
+                    AdvancedFilterOption(filter.spareEquipmentOnly,
+                        { onFilter(filter.copy(spareEquipmentOnly = !filter.spareEquipmentOnly)) },
+                        "Spare gear available", "filter_spare")
                 }
             }
-
-            FilterHeading("Participation support")
-            FilterRow {
-                FilterChip(filter.guidanceOnly,
-                    { onFilter(filter.copy(guidanceOnly = !filter.guidanceOnly)) },
-                    label = { Text("Guidance provided") }, modifier = Modifier.testTag("filter_guidance"))
-                FilterChip(filter.spareEquipmentOnly,
-                    { onFilter(filter.copy(spareEquipmentOnly = !filter.spareEquipmentOnly)) },
-                    label = { Text("Spare gear available") }, modifier = Modifier.testTag("filter_spare"))
-            }
-
-            FilterHeading("Equipment to bring")
-            FilterRow {
-                EquipmentFilter.entries.forEach { option ->
-                    FilterChip(filter.equipment == option,
-                        { onFilter(filter.copy(equipment = option)) }, label = { Text(option.label) },
-                        modifier = Modifier.testTag("equipment_${option.name.lowercase()}"))
+            FilterSection("Equipment to bring", "Choose one") {
+                FilterOptions {
+                    EquipmentFilter.entries.forEach { option ->
+                        AdvancedFilterOption(filter.equipment == option,
+                            { onFilter(filter.copy(equipment = option)) }, option.label, "equipment_${option.name.lowercase()}")
+                    }
                 }
             }
+            HorizontalDivider()
         }
     }
 }
 
 @Composable
 private fun QuickFilterChip(label: String, selected: Boolean, tag: String, onClick: () -> Unit) {
-    FilterChip(selected, onClick, label = { Text(label) }, modifier = Modifier.testTag(tag))
+    AppFilterChip(selected, onClick, label = { Text(label) }, modifier = Modifier.testTag(tag))
 }
 
 @Composable
-private fun FilterHeading(text: String) {
-    Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+private fun FilterSection(title: String, choiceHint: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        HorizontalDivider(Modifier.padding(bottom = 12.dp))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(choiceHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        content()
+    }
+}
+
+@Composable
+private fun AdvancedFilterOption(selected: Boolean, onClick: () -> Unit, label: String, tag: String) {
+    FilterChip(selected, onClick, label = { Text(label) }, modifier = Modifier.testTag(tag),
+        shape = AppUi.TagShape, border = null,
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = if (MaterialTheme.colorScheme.surface.luminance() > 0.5f)
+                Color(0xFFF1F2F4) else Color(0xFF303136),
+            labelColor = MaterialTheme.colorScheme.onSurface,
+            selectedContainerColor = AppUi.SelectedTag, selectedLabelColor = AppUi.SelectedTagText,
+        ))
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FilterOptions(content: @Composable FlowRowScope.() -> Unit) {
+    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp), content = content)
 }
 
 @Composable

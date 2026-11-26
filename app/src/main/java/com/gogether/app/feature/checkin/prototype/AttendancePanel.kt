@@ -1,5 +1,6 @@
 package com.gogether.app.feature.checkin.prototype
 
+import com.gogether.app.core.ui.AppPageHeader
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -83,12 +84,10 @@ internal fun AttendanceRecordScreen(state: PrototypeUiState, session: PrototypeS
     var search by rememberSaveable(session.id) { mutableStateOf(false) }
     BackHandler { back() }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp).testTag("attendance_record_screen")) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = back, shape = CheckInStyle.shape) { Text("< Back") }
-            Text("Attendance record", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+        AppPageHeader("Attendance record", onBack = back, actions = {
             IconButton(onClick = { search = true }, enabled = state.attendance.session == session && state.attendance.loaded,
                 modifier = Modifier.testTag("attendance_search_open")) { Icon(Icons.Default.Search, "Find participants") }
-        }
+        })
         Text(LocalCheckInActivities.current.infoOrNull(session)?.title ?: "Event details unavailable", style = MaterialTheme.typography.titleMedium)
         Text(attendanceTime(session.startAt), style = MaterialTheme.typography.bodySmall)
         Text(if (state.history.find { it.session == session }?.cancelled == true) "Event cancelled. Attendance records are kept."

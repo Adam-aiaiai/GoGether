@@ -67,14 +67,14 @@ class AttendanceEntryNavigationTest {
         drafts.save("alice", recordId!!, draft)
         openManagement(repo)
         assertDirectAttendance()
-        compose.onNodeWithText("< Back").performClick()
+        compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithTag("manage_attendance").assertExists()
         assertEquals(draft, drafts.load("alice", recordId!!))
         assertNull(store.feedback(recordId!!, "alice"))
         Espresso.pressBack()
         compose.onNodeWithTag("open_checkin").performScrollTo().performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("feedback_submit").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithText("Event review").assertIsDisplayed()
+        compose.onNodeWithText("Write a review").assertIsDisplayed()
         compose.onNodeWithText("Attendance record").assertDoesNotExist()
         compose.onNodeWithTag("history_detail").performScrollToNode(hasTestTag("feedback_comment"))
         compose.onNodeWithTag("feedback_comment").assertTextContains(draft.comment)
@@ -92,7 +92,7 @@ class AttendanceEntryNavigationTest {
     @Test fun cancelledManagementKeepsHistoricalAttendanceReadable() {
         openManagement(repository(EventStatus.CANCELLED))
         assertDirectAttendance()
-        compose.onNodeWithText("< Back").performClick()
+        compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithTag("manage_attendance").assertExists()
     }
 

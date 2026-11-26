@@ -1,5 +1,7 @@
 package com.gogether.app.feature.profile
 
+import com.gogether.app.core.ui.AppOutlinedTextField
+import com.gogether.app.core.ui.AppFilterChip
 import com.gogether.app.core.ui.PageActionButton
 import com.gogether.app.core.ui.OutlinedPageActionButton
 import androidx.compose.foundation.horizontalScroll
@@ -22,15 +24,16 @@ fun EditProfileScreen(user: User, busy: Boolean, save: (String, Set<Category>) -
     val error = runCatching { AccountRules.name(name) }.exceptionOrNull()?.message
     val changed = name.trim() != user.displayName || interests.toSet() != user.interests.map { it.name }.toSet()
     Page {
-        SectionTitle("Edit your profile", "Let others know what you enjoy.")
-        OutlinedTextField(name, { name = it }, enabled = !busy, singleLine = true,
+        if (!LocalPageHeaderProvided.current) SectionTitle("Edit your profile", "Let others know what you enjoy.")
+        else Text("Let others know what you enjoy.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        AppOutlinedTextField(name, { name = it }, enabled = !busy, singleLine = true,
             label = { Text("Nickname") }, isError = error != null,
             supportingText = { Text(error ?: "2–30 characters") },
             modifier = Modifier.fillMaxWidth().testTag("profile_name"))
         Text("Your interests", style = MaterialTheme.typography.titleMedium)
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Category.entries.forEach { category ->
-                FilterChip(category.name in interests, {
+                AppFilterChip(category.name in interests, {
                     interests = if (category.name in interests) interests - category.name else interests + category.name
                 }, enabled = !busy, label = { Text(category.label) }, modifier = Modifier.testTag("interest_${category.name}"))
             }

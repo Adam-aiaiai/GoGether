@@ -29,7 +29,7 @@ class CloudAttendanceStateTest {
     @Test fun cloudReviewDraftRestoresEveryFieldAndDoesNotShareBetweenAccounts() {
         val context=ApplicationProvider.getApplicationContext<Context>()
         val actor="draft-${UUID.randomUUID()}"; val event="event-${UUID.randomUUID()}"
-        val draft=FeedbackDraft(5,"Private comments",FeedbackDetails(4,3,5,listOf("welcoming"),true,FeedbackVisibility.ORGANIZER_ONLY,listOf(UUID.randomUUID().toString())))
+        val draft=FeedbackDraft(5,"Private comments",FeedbackDetails(4,3,5,listOf("welcoming"),true,FeedbackVisibility.ORGANIZER_ONLY,listOf(UUID.randomUUID().toString()), "Friendly teammates.", "More warm-up time."))
         val store=CloudFeedbackDraftStore(context)
         try {
             store.save(actor,event,draft)

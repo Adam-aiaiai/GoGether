@@ -1,5 +1,6 @@
 package com.gogether.app.feature.checkin.prototype
 
+import com.gogether.app.core.ui.AppBackButton
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -43,7 +44,7 @@ internal fun FeedbackPhotoPreview(photos: List<String>, initialPage: Int, viewer
     Dialog(onDismissRequest = close, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(Modifier.fillMaxSize().background(Color.Black).safeDrawingPadding().testTag("feedback_photo_preview")) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = close) { Text("< Back", color = Color.White) }
+                CompositionLocalProvider(LocalContentColor provides Color.White) { AppBackButton(close) }
                 Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     Text("${pager.currentPage + 1} / ${photos.size}", color = Color.White,
                         modifier = Modifier.testTag("photo_page_count"))

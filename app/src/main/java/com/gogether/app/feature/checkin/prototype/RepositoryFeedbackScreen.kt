@@ -1,5 +1,7 @@
 package com.gogether.app.feature.checkin.prototype
 
+import com.gogether.app.core.ui.AppBackButton
+import com.gogether.app.core.ui.AppPageHeader
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -26,7 +28,7 @@ internal fun RepositoryFeedbackScreen(repository: GogetherRepository, bridge: Re
     val session = setup?.getOrNull()
     if (session == null) {
         Column(Modifier.padding(16.dp)) {
-            TextButton(onClick = back) { Text("< Back") }
+            AppBackButton(back)
             Text(setup?.exceptionOrNull()?.message ?: "Loading event records…")
         }
         return
@@ -67,15 +69,13 @@ internal fun RepositoryFeedbackScreen(repository: GogetherRepository, bridge: Re
                         AttendanceRefreshEffect(session, live = false, model::refreshAttendance, model::stopAttendance)
                         AttendanceRecordScreen(state, session, now, ::goBack, model::refreshAttendance)
                     }
-                    else -> Column(Modifier.fillMaxSize().imePadding().padding(horizontal = 16.dp)) {
-                        Row {
-                            TextButton(onClick = back, shape = CheckInStyle.shape) { Text("< Back") }
-                            Text(if (record?.feedback == null) "Event review" else "My review", style = MaterialTheme.typography.titleLarge,
-                                modifier = Modifier.padding(top = 12.dp))
-                        }
+                    else -> Column(Modifier.fillMaxSize().imePadding().then(if (record?.canReview(now) == true) Modifier else Modifier.padding(horizontal = 16.dp))) {
+                        if (record?.canReview(now) != true) AppPageHeader(if (record?.feedback == null) "Event review" else "My review", onBack = back)
                         if (record != null) HistoryDetail(actor, record, now, state.busy, state.message,
                             model::submitFeedback, Modifier.weight(1f), openCheckIn = { back() },
-                            openAttendance = { panel = "attendance" }, openReviews = { panel = "reviews" })
+                            openAttendance = { panel = "attendance" }, openReviews = { panel = "reviews" }, back = back,
+                            reviewSummary = ReviewEventSummary(event.title, snapshot.users.find { it.id == event.organizerId }?.displayName ?: "Organizer",
+                                event.startAt, event.imageUri, event.category.symbol))
                         else Text("Loading event records…")
                     }
                 }

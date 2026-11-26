@@ -1,5 +1,7 @@
 package com.gogether.app.feature.checkin.prototype
 
+import com.gogether.app.core.ui.AppPageHeader
+import com.gogether.app.core.ui.AppFilterChip
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,25 +29,22 @@ fun PrototypeHistoryScreen(actor: String, records: List<PrototypeHistoryEntry>, 
     var pendingOnly by rememberSaveable(actor) { mutableStateOf(false) }
     val selected = records.find { it.session.id == selectedId }
     BackHandler { if (selectedId != null) selectedId = null else back() }
-    Column(Modifier.fillMaxSize().imePadding().padding(horizontal = 16.dp).testTag("history_screen")) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(shape = CheckInStyle.shape, onClick = { if (selectedId != null) selectedId = null else back() }) { Text("< Back") }
-            Text(when {
-                selected == null -> "My records"
-                selected.feedback != null -> "My review"
-                selected.canReview(now) -> "Event review"
-                else -> "Event records"
-            }, style = MaterialTheme.typography.titleLarge)
-        }
+    Column(Modifier.fillMaxSize().imePadding().then(if (selected?.canReview(now) == true) Modifier else Modifier.padding(horizontal = 16.dp)).testTag("history_screen")) {
+        if (selected?.canReview(now) != true) AppPageHeader(when {
+            selected == null -> "My records"
+            selected.feedback != null -> "My review"
+            selected.canReview(now) -> "Event review"
+            else -> "Event records"
+        }, onBack = { if (selectedId != null) selectedId = null else back() })
         if (selected != null) {
             key(actor, selected.session.id) {
                 HistoryDetail(actor, selected, now, busy, message, submit, Modifier.weight(1f), openCheckIn, openAttendance, openReviews,
-                    pendingCheckIn = selected.session.id in pendingCheckIns)
+                    pendingCheckIn = selected.session.id in pendingCheckIns, back = { selectedId = null })
             }
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(!pendingOnly, { pendingOnly = false }, shape = CheckInStyle.shape, label = { Text("All") })
-                FilterChip(pendingOnly, { pendingOnly = true }, shape = CheckInStyle.shape, label = { Text("To review ${records.count { it.canReview(now) }}") },
+                AppFilterChip(!pendingOnly, { pendingOnly = false }, label = { Text("All") })
+                AppFilterChip(pendingOnly, { pendingOnly = true }, label = { Text("To review ${records.count { it.canReview(now) }}") },
                     modifier = Modifier.testTag("history_pending"))
             }
             val visible = if (pendingOnly) records.filter { it.canReview(now) } else records

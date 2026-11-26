@@ -1,5 +1,6 @@
 package com.gogether.app.core.ui
 
+import com.gogether.app.core.ui.AppUi
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.foundation.Image
@@ -46,13 +47,13 @@ fun Page(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> U
 fun SectionTitle(title: String, subtitle: String? = null) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(title, style = MaterialTheme.typography.headlineMedium)
-        subtitle?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        subtitle?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }
 
 @Composable
 fun InfoCard(title: String, text: String, modifier: Modifier = Modifier) {
-    Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+    Surface(modifier.fillMaxWidth(), shape = AppUi.CardShape, color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium)
             Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -62,14 +63,15 @@ fun InfoCard(title: String, text: String, modifier: Modifier = Modifier) {
 
 @Composable
 fun StatusPill(text: String) {
-    Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primaryContainer) {
+    Surface(shape = AppUi.TagShape, color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Text(text, Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-            style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
-fun EventImage(imageUri: String, contentDescription: String, modifier: Modifier = Modifier) {
+fun EventImage(imageUri: String, contentDescription: String, modifier: Modifier = Modifier,
+    shape: androidx.compose.ui.graphics.Shape = AppUi.CardShape, contentScale: ContentScale = ContentScale.Crop) {
     if (imageUri.isBlank()) return
     val context = LocalContext.current
     val repository = (context.applicationContext as? GogetherApplication)?.repository
@@ -108,15 +110,15 @@ fun EventImage(imageUri: String, contentDescription: String, modifier: Modifier 
         }
     }
     bitmap?.let {
-        Image(it, contentDescription, contentScale = ContentScale.Crop,
-            modifier = modifier.clip(RoundedCornerShape(20.dp)))
+        Image(it, contentDescription, contentScale = contentScale,
+            modifier = modifier.clip(shape))
     }
 }
 
 @Composable
 fun EventCard(event: Event, state: AppSnapshot, onClick: () -> Unit, now: Long = System.currentTimeMillis()) {
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth().testTag("event_${event.id}"),
-        shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+        shape = AppUi.CardShape, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
         Column {
             if (event.imageUri.isNotBlank()) {
                 EventImage(event.imageUri, event.title, Modifier.fillMaxWidth().height(190.dp))

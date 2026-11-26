@@ -1,7 +1,9 @@
 package com.gogether.app.feature.checkin.cloud
 
 import com.gogether.app.core.ui.PageActionButton
-import com.gogether.app.core.ui.OutlinedPageActionButton
+import com.gogether.app.core.ui.AppPageHeader
+import com.gogether.app.core.ui.Page
+import androidx.compose.runtime.saveable.rememberSaveable
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Base64
@@ -35,13 +37,15 @@ import java.io.File
 
 @Composable
 internal fun CloudFeedbackContent(backend:CloudOperations,event:Event,actor:String,confirmed:Boolean,ended:Boolean,
-    own:Map<*,*>?,reviews:List<Map<*,*>>,busy:Boolean,perform:(suspend ()->Unit)->Unit,message:(String)->Unit) {
+    own:Map<*,*>?,reviews:List<Map<*,*>>,busy:Boolean,perform:(suspend ()->Unit)->Unit,message:(String)->Unit,
+    organizerName:String,back:()->Unit,statusMessage:String = "",loading:Boolean = false) {
     val context=LocalContext.current.applicationContext
     val drafts=remember{CloudFeedbackDraftStore(context)}
     val photos=remember{FeedbackPhotoStore(context)}
     val initial=remember(actor,event.id){runCatching{drafts.load(actor,event.id)}}
     var draft by remember(actor,event.id){mutableStateOf(initial.getOrDefault(FeedbackDraft()))}
-    var draftError by remember{mutableStateOf(initial.exceptionOrNull()?.message.orEmpty())}
+    var draftError by remember(actor,event.id){mutableStateOf(initial.exceptionOrNull()?.message.orEmpty())}
+    var viewingReviews by rememberSaveable(actor,event.id){mutableStateOf(false)}
     fun update(value:FeedbackDraft){
         draft=value
         draftError=runCatching{drafts.save(actor,event.id,value)}.exceptionOrNull()?.message.orEmpty()
@@ -54,49 +58,10 @@ internal fun CloudFeedbackContent(backend:CloudOperations,event:Event,actor:Stri
         }
     }
     LaunchedEffect(own){if(own!=null)runCatching{drafts.clear(actor,event.id)}}
-    if(own!=null) {
-        Text("Your review",style=MaterialTheme.typography.titleLarge,modifier=Modifier.testTag("cloud_feedback_saved"))
-        CloudReviewCard(backend,own,true)
-    } else if(event.status==EventStatus.CANCELLED)Text("This event is cancelled. New reviews are closed.")
-    else if(!ended)Text("Reviews open after the event ends.")
-    else if(!confirmed)Text("Only confirmed participants can review this event.")
-    else {
-        Text("Share your experience",style=MaterialTheme.typography.titleLarge)
-        FeedbackDimension("Overall rating","rating",draft.rating,busy){update(draft.copy(rating=it))}
-        FeedbackDimension("Organization","organization",draft.details.organization,busy){score->detail{it.copy(organization=score)}}
-        FeedbackDimension("Venue","venue",draft.details.venue,busy){score->detail{it.copy(venue=score)}}
-        FeedbackDimension("Atmosphere","atmosphere",draft.details.atmosphere,busy){score->detail{it.copy(atmosphere=score)}}
-        TextButton(onClick={detail{it.copy(organization=0,venue=0,atmosphere=0)}},enabled=!busy){Text("Clear optional ratings")}
-        fun toggle(id:String)=detail{it.copy(tags=if(id in it.tags)it.tags-id else it.tags+id)}
-        FeedbackTags(false,draft.details.tags,busy,::toggle)
-        FeedbackTags(true,draft.details.tags,busy,::toggle)
-        OutlinedTextField(draft.comment,{update(draft.copy(comment=it))},enabled=!busy,minLines=3,
-            label={Text("Your experience")},supportingText={Text("${draft.comment.length}/500 characters")},
-            isError=draft.comment.length>500,modifier=Modifier.fillMaxWidth().testTag("cloud_feedback_comment"))
-        FeedbackPrivacyFields(draft.details.anonymous,draft.details.visibility,busy,
-            {value->detail{it.copy(anonymous=value)}},{value->detail{it.copy(visibility=value)}})
-        Text("Event photos · ${draft.details.photos.size}/3",style=MaterialTheme.typography.titleMedium)
-        Text("Photos are copied privately and uploaded only when you submit your review.",style=MaterialTheme.typography.bodySmall)
-        Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-            draft.details.photos.forEach { id ->
-                Column(Modifier.weight(1f)) {
-                    CloudLocalPhoto(File(context.filesDir,"feedback_photos/$id.jpg"))
-                    TextButton(onClick={
-                        val next=draft.copy(details=draft.details.copy(photos=draft.details.photos-id))
-                        update(next)
-                        // Only delete after the new draft was durably saved.
-                        if(draftError.isEmpty())perform{withContext(Dispatchers.IO){photos.removeDraft(id,actor,event.id)}}
-                    },enabled=!busy){Text("Remove")}
-                }
-            }
-        }
-        OutlinedPageActionButton(onClick={picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))},
-            enabled=!busy && draft.details.photos.size<3,modifier=Modifier.testTag("cloud_feedback_add_photo")){Text("Add photos")}
-        if(draftError.isNotBlank()) {
-            Text("Draft was not saved: $draftError",color=MaterialTheme.colorScheme.error)
-            TextButton(onClick={update(draft)},enabled=!busy){Text("Retry saving draft")}
-        } else Text("Draft saved on this device",style=MaterialTheme.typography.bodySmall)
-        PageActionButton(onClick={perform {
+    val canReview=own==null && event.status!=EventStatus.CANCELLED && ended && confirmed
+    if(canReview && !viewingReviews && !loading) {
+        FeedbackEditor("$actor/${event.id}", ReviewEventSummary(event.title,organizerName,event.startAt,event.imageUri,event.category.symbol),
+            draft,busy,draftError,statusMessage,::update,{update(draft)},submit={perform {
             val submitted=draft
             require(submitted.rating in 1..5 && submitted.comment.length<=500){"Choose a rating and use up to 500 characters."}
             submitted.details.requireValid()
@@ -117,14 +82,36 @@ internal fun CloudFeedbackContent(backend:CloudOperations,event:Event,actor:Stri
                 "comment" to submitted.comment,"details" to submitted.details.payload(paths)))
             drafts.clear(actor,event.id)
             message("Review saved on the server.")
-        }},enabled=!busy && draftError.isEmpty() && draft.rating in 1..5 && draft.comment.length<=500,
-            modifier=Modifier.fillMaxWidth().testTag("cloud_submit_feedback")){Text(if(busy)"Saving…" else "Submit review")}
+            }},back=back,reviews={viewingReviews=true},commentTag="cloud_feedback_comment",submitTag="cloud_submit_feedback",
+            photos={
+                FeedbackPhotoStrip(draft.details.photos,actor,event.id,busy,add={
+                    picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                },remove={id->
+                    update(draft.copy(details=draft.details.copy(photos=draft.details.photos-id)))
+                    if(draftError.isEmpty())perform{withContext(Dispatchers.IO){photos.removeDraft(id,actor,event.id)}}
+                },compact=true,addTag="cloud_feedback_add_photo")
+            })
+        return
     }
-    HorizontalDivider()
-    Text("Event reviews",style=MaterialTheme.typography.titleLarge)
-    if(reviews.isEmpty())Text("No reviews are available to you yet.")
-    reviews.filterNot{it["own"]==true && own!=null}.forEach { review ->
-        key(review.string("id")){CloudReviewCard(backend,review,review["own"]==true)}
+    Column(Modifier.fillMaxSize()) {
+        AppPageHeader(if(own!=null) "My review" else "Event reviews",onBack={if(viewingReviews && canReview)viewingReviews=false else back()})
+        Page(Modifier.weight(1f)) {
+            if(loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if(statusMessage.isNotBlank()) Text(statusMessage,color=MaterialTheme.colorScheme.error)
+            if(own!=null) {
+                Text("Your review",style=MaterialTheme.typography.titleLarge,modifier=Modifier.testTag("cloud_feedback_saved"))
+                CloudReviewCard(backend,own,true)
+            } else if(event.status==EventStatus.CANCELLED)Text("This event is cancelled. New reviews are closed.")
+            else if(!ended)Text("Reviews open after the event ends.")
+            else if(!confirmed)Text("Only confirmed participants can review this event.")
+            else if(viewingReviews) PageActionButton(onClick={viewingReviews=false}){Text("Write a review")}
+            HorizontalDivider()
+            Text("Event reviews",style=MaterialTheme.typography.titleLarge)
+            if(reviews.isEmpty())Text("No reviews are available to you yet.")
+            reviews.filterNot{it["own"]==true && own!=null}.forEach { review ->
+                key(review.string("id")){CloudReviewCard(backend,review,review["own"]==true)}
+            }
+        }
     }
 }
 

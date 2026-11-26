@@ -1,10 +1,18 @@
 package com.gogether.app.feature.checkin.prototype
 
+import com.gogether.app.core.ui.AppMediaAddTile
+import com.gogether.app.core.ui.AppMediaThumbnail
 import android.graphics.Bitmap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -14,6 +22,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -75,35 +87,24 @@ internal fun rememberFeedbackPhotoActions(actor: String, sessionId: String, phot
 
 @Composable
 internal fun FeedbackPhotoStrip(photos: List<String>, viewer: String, sessionId: String, busy: Boolean = false,
-    add: (() -> Unit)? = null, remove: ((String) -> Unit)? = null) {
+    add: (() -> Unit)? = null, remove: ((String) -> Unit)? = null, compact: Boolean = false, addTag: String = "feedback_add_photo") {
     var preview by remember(viewer, sessionId, photos.toList()) { mutableStateOf<String?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text(if (add != null) "Event photos (optional)" else "Event photos", style = MaterialTheme.typography.titleMedium)
+            Text(if (compact) "Photos" else if (add != null) "Event photos (optional)" else "Event photos", style = MaterialTheme.typography.titleMedium)
             Text("${photos.size} / 3", style = MaterialTheme.typography.bodySmall)
         }
-        if (add != null) Text("Up to 3 photos, 10 MB each", style = MaterialTheme.typography.bodySmall,
+        if (add != null && !compact) Text("Up to 3 photos, 10 MB each", style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for (index in 0..2) {
                 val id = photos.getOrNull(index)
-                if (id != null) Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(CheckInStyle.shape)
-                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                        .clickable { preview = id }.testTag("feedback_photo_$index"), contentAlignment = Alignment.Center) {
-                        FeedbackPhotoImage(id, viewer, sessionId, "View photo ${index + 1}", Modifier.fillMaxSize(), false)
-                    }
-                    if (remove != null) TextButton(onClick = { remove(id) }, enabled = !busy,
-                        modifier = Modifier.testTag("feedback_remove_photo_$index")) { Text("Remove") }
+                if (id != null) AppMediaThumbnail(onPreview = { preview = id }, modifier = Modifier.weight(1f),
+                    previewTag = "feedback_photo_$index", onRemove = remove?.let { { it(id) } },
+                    removeTag = "feedback_remove_photo_$index", enabled = !busy, removeDescription = "Remove photo ${index + 1}") {
+                    FeedbackPhotoImage(id, viewer, sessionId, "View photo ${index + 1}", Modifier.fillMaxSize(), false)
                 } else if (add != null && index == photos.size) {
-                    Surface(onClick = add, enabled = !busy, shape = CheckInStyle.shape,
-                        color = MaterialTheme.colorScheme.surfaceContainerLow,
-                        modifier = Modifier.weight(1f).aspectRatio(1f).testTag("feedback_add_photo")) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                            Text("+", style = MaterialTheme.typography.headlineMedium)
-                            Text(if (busy) "Processing" else "Add photo", style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
+                    AppMediaAddTile(add, Modifier.weight(1f).testTag(addTag), enabled = !busy, processing = busy)
                 } else Spacer(Modifier.weight(1f))
             }
         }

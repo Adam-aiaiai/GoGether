@@ -14,11 +14,13 @@ internal fun details(value: Map<*, *>?): FeedbackDetails = value?.let {
     FeedbackDetails(it.number("organization").toInt(), it.number("venue").toInt(), it.number("atmosphere").toInt(),
         (it["tags"] as? List<*>)?.filterIsInstance<String>().orEmpty(), it["anonymous"] == true,
         if (it["visibility"] == "ORGANIZER_ONLY") FeedbackVisibility.ORGANIZER_ONLY else FeedbackVisibility.PUBLIC,
-        (it["photos"] as? List<*>)?.filterIsInstance<String>().orEmpty())
+        (it["photos"] as? List<*>)?.filterIsInstance<String>().orEmpty(),
+        it["positiveComment"] as? String ?: "", it["improvementComment"] as? String ?: "")
 } ?: FeedbackDetails()
 internal fun FeedbackDetails.payload(photos: List<String> = this.photos): Map<String, Any?> = mapOf(
     "organization" to organization, "venue" to venue, "atmosphere" to atmosphere, "tags" to tags,
-    "anonymous" to anonymous, "visibility" to visibility.name, "photos" to photos)
+    "anonymous" to anonymous, "visibility" to visibility.name, "photos" to photos,
+    "positiveComment" to positiveComment, "improvementComment" to improvementComment)
 
 /** The elapsed age cannot accidentally become wall-clock age or a future timestamp. */
 internal fun PositionFix.cloudPayload(elapsedNow: Long = SystemClock.elapsedRealtime()): Map<String, Any?> {
@@ -55,7 +57,8 @@ internal class CloudFeedbackDraftStore(context: Context) {
         fun strings(name:String)=json.optJSONArray(name)?.let { a -> (0 until a.length()).map { index -> a.getString(index) } }.orEmpty()
         FeedbackDraft(json.optInt("rating"),json.optString("comment"),FeedbackDetails(json.optInt("organization"),json.optInt("venue"),
             json.optInt("atmosphere"),strings("tags"),json.optBoolean("anonymous"),
-            if(json.optString("visibility")=="ORGANIZER_ONLY") FeedbackVisibility.ORGANIZER_ONLY else FeedbackVisibility.PUBLIC,strings("photos")))
+            if(json.optString("visibility")=="ORGANIZER_ONLY") FeedbackVisibility.ORGANIZER_ONLY else FeedbackVisibility.PUBLIC,strings("photos"),
+            json.optString("positiveComment"),json.optString("improvementComment")))
     } ?: FeedbackDraft()
     fun save(actor:String,event:String,value:FeedbackDraft) {
         val fields=value.details.payload().toMutableMap(); fields["rating"]=value.rating; fields["comment"]=value.comment

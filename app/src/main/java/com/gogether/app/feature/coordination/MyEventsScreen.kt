@@ -20,7 +20,7 @@ fun MyEventsScreen(state: AppSnapshot, now: Long, openInbox: () -> Unit = {},
     val events = personalEvents(state, tab, now)
     Page {
         SectionTitle("Your plans", "Upcoming activities, waitlists and past experiences.")
-        TonalPageActionButton(onClick = openInbox, modifier = Modifier.fillMaxWidth().testTag("open_inbox")) {
+        PageActionButton(onClick = openInbox, modifier = Modifier.fillMaxWidth().testTag("open_inbox")) {
             Text("Notifications · ${state.notifications.count { it.userId == state.currentUserId && !it.isRead }} unread")
         }
         @Suppress("DEPRECATION")

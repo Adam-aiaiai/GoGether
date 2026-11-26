@@ -1,8 +1,8 @@
 # Full-row action buttons
 
-The UI polish branch uses `PageActionButton`, `OutlinedPageActionButton` and
-`TonalPageActionButton` for
-standalone actions across A–E. Their reference is the check-in result's **Done**
+The UI polish branch uses `PageActionButton` for standalone actions across A–E.
+Use `OutlinedPageActionButton` only for Cancel when it accompanies a filled
+save/confirm action. Their reference is the check-in result's **Done**
 button. This is a presentation change; click handlers, permissions, enabled states,
 data sources and navigation remain with the existing screens.
 
@@ -14,15 +14,18 @@ data sources and navigation remain with the existing screens.
 - Use a capsule shape and a 52 dp minimum height. All ordinary labels use 16 sp,
   bold, centered text. Long labels wrap inside the same width; enlarged system
   text can increase height instead of clipping the action.
-- Filled actions retain purple fill and white text. Outlined actions retain their
-  outline and purple text. Disabled colors are shared within each style. The
-  notifications action retains its original tonal colors with the shared geometry.
+- All enabled full-row actions use purple fill and bold white text, including
+  notifications, maps, attendance, image selection and event management.
+  A paired Cancel uses an outline and purple text; for example, Save changes and
+  Cancel in Edit profile. A standalone **Cancel event** is an event action, not
+  this dismissive exception, and uses the filled style. Disabled actions stay grey.
 - Small actions alongside other content, including **Join Event**, **Join Waitlist**,
   **Manage** and registration **Cancel**, retain their existing layout. Text links,
   icon buttons, tabs, filters and photo tiles also retain their existing treatment.
-- Light-theme page background and surface are white. Card colors and the
-  `surfaceContainer` used by the bottom navigation are unchanged. The existing
-  system dark-theme behavior is retained.
+- Light-theme page background and surface are white. The latest approved palette
+  uses `#746097` primary buttons and `#FAF5F9` bottom navigation. Filled full-row
+  actions now use the shared press/release spring; see
+  [palette and motion](UI_PALETTE_AND_MOTION.md). System dark-theme surfaces are retained.
 
 Use these components for future standalone actions rather than duplicating width,
 shape or label settings in individual screens.
@@ -57,8 +60,8 @@ the shared 80% proportion on phones and tablets, with 52 dp normal text height:
 | 840 | 672.0 | 80% |
 | 1024 | 819.2 | 80% |
 
-`PageActionButtonLayoutTest` compares Done with filled, outlined, disabled and
-tonal actions on real screen composables at these widths. It also checks on phones
+`PageActionButtonLayoutTest` compares Done with filled actions, paired Cancel and
+disabled actions on real screen composables at these widths. It also checks on phones
 and tablets that Join Event remains compact and right aligned, with the same size
 and horizontal position before and after changing the full-row sizing rule within
 each viewport. The entire `EventActionArea` function is unchanged from HEAD,
@@ -80,3 +83,11 @@ After setting the ratio to 80%, both APK builds and all three focused device tes
 passed: the six phone/tablet widths, compact Join Event isolation, and the
 scan/result/Done navigation flow. See
 `verification/button-gallery-20261126/button-80-device-tests.log`.
+
+## Review editor reference exception (2026-11-26)
+
+The approved two-screen review reference uses a compact right-aligned Submit review
+next to draft status, and a content-width Done on Review details, both with 8 dp
+corners. These E-only editor actions intentionally follow that later screen-specific
+request; the shared 80% capsule action component and other screens are unchanged.
+See REVIEW_EDITOR_UI.md.

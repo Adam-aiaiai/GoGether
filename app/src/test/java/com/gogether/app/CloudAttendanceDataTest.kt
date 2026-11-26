@@ -20,7 +20,8 @@ class CloudAttendanceDataTest {
 
     @Test fun feedbackDetailsPreservePrivacyAndDimensionsWithoutInventingAuthor() {
         val source=mapOf("organization" to 4,"venue" to 3L,"atmosphere" to 5.0,"tags" to listOf("welcoming"),
-            "anonymous" to true,"visibility" to "ORGANIZER_ONLY","photos" to listOf("opaque-media-id"))
+            "anonymous" to true,"visibility" to "ORGANIZER_ONLY","photos" to listOf("opaque-media-id"),
+            "positiveComment" to "Friendly teammates.", "improvementComment" to "More time to warm up.")
         val detail=details(source)
         assertTrue(detail.anonymous)
         assertEquals(FeedbackVisibility.ORGANIZER_ONLY,detail.visibility)
@@ -28,6 +29,10 @@ class CloudAttendanceDataTest {
         assertEquals(listOf("opaque-media-id"),detail.photos)
         val payload=detail.payload(listOf("reviews/uid/upload-id"))
         assertEquals(listOf("reviews/uid/upload-id"),payload["photos"])
+        assertEquals("Friendly teammates.", detail.positiveComment)
+        assertEquals("More time to warm up.", payload["improvementComment"])
+        assertEquals("", details(emptyMap<String, Any>()).positiveComment)
+        assertEquals("", details(null).improvementComment)
         assertFalse(payload.containsKey("userId"))
         assertFalse(payload.containsKey("authorId"))
     }

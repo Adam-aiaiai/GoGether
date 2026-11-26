@@ -1,5 +1,7 @@
 package com.gogether.app.feature.checkin.cloud
 
+import com.gogether.app.core.ui.AppPageHeader
+import com.gogether.app.core.ui.AppUi
 import com.gogether.app.core.ui.PageActionButton
 import android.content.ActivityNotFoundException
 import android.content.Intent
@@ -101,16 +103,13 @@ internal fun CloudParticipantCheckInContent(
     }
 
     Column(Modifier.fillMaxSize().imePadding().testTag("cloud_participant_checkin")) {
-        Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.testTag("cloud_checkin_back")) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back to event")
-            }
-            Text("Check in", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            IconButton(onClick = onRefresh, enabled = !busy && !loading, modifier = Modifier.testTag("cloud_checkin_refresh")) {
-                Icon(Icons.Default.Refresh, "Refresh check-in")
-            }
-        }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .5f))
+        AppPageHeader("Check in", onBack = onBack,
+            backModifier = Modifier.testTag("cloud_checkin_back"), backDescription = "Back to event",
+            actions = {
+                IconButton(onClick = onRefresh, enabled = !busy && !loading, modifier = Modifier.testTag("cloud_checkin_refresh")) {
+                    Icon(Icons.Default.Refresh, "Refresh check-in")
+                }
+            })
 
         Column(
             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp),
@@ -150,7 +149,7 @@ internal fun CloudParticipantCheckInContent(
                 }
                 if (message.isNotBlank()) {
                     // Keep server errors and uncertain results visible; they must never look like a receipt.
-                    Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                    Surface(shape = AppUi.CardShape, color = MaterialTheme.colorScheme.surfaceContainerLow) {
                         Text(message, Modifier.fillMaxWidth().padding(12.dp).testTag("cloud_attendance_message"),
                             style = MaterialTheme.typography.bodyMedium)
                     }
@@ -189,7 +188,7 @@ internal fun CloudParticipantCheckInContent(
 @Composable
 private fun MeetingSummary(event: Event) {
     val address = event.meetingLocation ?: event.location
-    Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+    Surface(shape = AppUi.CardShape, color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("Meeting point", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)

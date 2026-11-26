@@ -1,7 +1,7 @@
 package com.gogether.app.feature.checkin.prototype
 
+import com.gogether.app.core.ui.AppPageHeader
 import com.gogether.app.core.ui.PageActionButton
-import com.gogether.app.core.ui.OutlinedPageActionButton
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -39,16 +39,13 @@ internal fun OrganizerCheckInPanel(state: PrototypeUiState, now: Long, back: () 
         }
     }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp).testTag("organizer_panel")) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(shape = CheckInStyle.shape, onClick = back) { Text("< Back") }
-            Text(LocalCheckInActivities.current.infoOrNull(session)?.title ?: "Event check-in", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium,
-                maxLines = 1, overflow = TextOverflow.Ellipsis)
+        AppPageHeader(LocalCheckInActivities.current.infoOrNull(session)?.title ?: "Event check-in", onBack = back, actions = {
             IconButton(onClick = { searchOpen = true }, enabled = preview ||
                 (state.attendance.session == session && state.attendance.loaded), modifier = Modifier.testTag("attendance_search_open")) {
                 Icon(Icons.Default.Search, contentDescription = "Find participants")
             }
             TextButton(shape = CheckInStyle.shape, onClick = { more = true }, modifier = Modifier.testTag("organizer_more")) { Text("More") }
-        }
+        })
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(bottom = 8.dp)) {
             val people = if (preview) previewPeople else state.attendees
             if (maxWidth > maxHeight) {
@@ -86,7 +83,7 @@ internal fun OrganizerCheckInPanel(state: PrototypeUiState, now: Long, back: () 
             if (!integrated) TextButton(shape = CheckInStyle.shape, onClick = { preview = !preview; more = false }, modifier = Modifier.testTag("attendance_preview")) {
                 Text(if (preview) "Back to current attendance" else "Preview larger attendance list")
             }
-            if (!integrated && !state.cancelled && now < session.startAt) OutlinedPageActionButton(onClick = { more = false; cancel() }, enabled = !state.busy) { Text("Cancel event") }
+            if (!integrated && !state.cancelled && now < session.startAt) PageActionButton(onClick = { more = false; cancel() }, enabled = !state.busy) { Text("Cancel event") }
             if (!integrated) TextButton(shape = CheckInStyle.shape, onClick = { more = false; newMeeting() }, enabled = !state.busy) { Text("Create another event") }
             else Text("Cancel from event management to update registrations and the waitlist together.")
         }

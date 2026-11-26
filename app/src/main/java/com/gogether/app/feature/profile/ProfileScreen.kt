@@ -1,7 +1,6 @@
 package com.gogether.app.feature.profile
 
 import com.gogether.app.core.ui.PageActionButton
-import com.gogether.app.core.ui.OutlinedPageActionButton
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -33,12 +32,12 @@ fun ProfileScreen(state: AppSnapshot, now: Long, busy: Boolean, mode: AccountMod
             "${personalEvents(state, PersonalEventTab.WAITLISTED, now).size} waitlisted · " +
             "${personalEvents(state, PersonalEventTab.CREATED, now).size} created")
         InfoCard("Your data", storageDescription)
-        if (mode == AccountMode.LOCAL_DEMO) OutlinedPageActionButton(onClick = { context.startActivity(Intent(context, PrototypeCheckInActivity::class.java)) },
+        if (mode == AccountMode.LOCAL_DEMO) PageActionButton(onClick = { context.startActivity(Intent(context, PrototypeCheckInActivity::class.java)) },
             modifier = Modifier.fillMaxWidth().testTag("checkin_prototype")) { Text("Check-in and review records") }
         if (mode == AccountMode.LOCAL_DEMO) {
             Text("Switch test user", style = MaterialTheme.typography.titleLarge)
             state.users.filter { it.id != user.id && it.status == UserStatus.DEMO }.forEach { target ->
-                OutlinedPageActionButton(onClick = { switchUser(target.id) }, enabled = !busy,
+                PageActionButton(onClick = { switchUser(target.id) }, enabled = !busy,
                     modifier = Modifier.fillMaxWidth().testTag("switch_${target.id}")) { Text("Switch to ${target.displayName}") }
             }
         }

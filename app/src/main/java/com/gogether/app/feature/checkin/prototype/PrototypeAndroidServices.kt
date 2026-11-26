@@ -116,7 +116,8 @@ class PreferencesPrototypeStore(private val context: Context) : PrototypeStore {
                         null, "", "PUBLIC" -> FeedbackVisibility.PUBLIC
                         else -> FeedbackVisibility.ORGANIZER_ONLY
                     },
-                    if (photos == null) emptyList() else (0 until photos.length()).map { index -> photos.getString(index) }))
+                    if (photos == null) emptyList() else (0 until photos.length()).map { index -> photos.getString(index) },
+                    details?.optString("positiveComment").orEmpty(), details?.optString("improvementComment").orEmpty()))
         }
     override fun feedbackForSession(sessionId: String): List<PrototypeFeedback> = prefs.all.keys
         .filter { it.startsWith("feedback.$sessionId.") }
@@ -132,7 +133,8 @@ class PreferencesPrototypeStore(private val context: Context) : PrototypeStore {
             .put("details", JSONObject().put("organization", feedback.details.organization).put("venue", feedback.details.venue)
                 .put("atmosphere", feedback.details.atmosphere).put("tags", JSONArray(feedback.details.tags))
                 .put("anonymous", feedback.details.anonymous).put("visibility", feedback.details.visibility.name)
-                .put("photos", JSONArray(feedback.details.photos)))
+                .put("photos", JSONArray(feedback.details.photos))
+                .put("positiveComment", feedback.details.positiveComment).put("improvementComment", feedback.details.improvementComment))
         require(prefs.edit().putString(key, value.toString())
             .remove(FeedbackDraftStore.key(feedback.userId, feedback.sessionId)).commit()) { "Could not save your review. Try again." }
         draftPhotos.filterNot { it in feedback.details.photos }.forEach {

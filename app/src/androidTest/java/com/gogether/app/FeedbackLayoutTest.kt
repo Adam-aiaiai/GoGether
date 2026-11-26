@@ -49,8 +49,7 @@ class FeedbackLayoutTest {
     @Test fun detailedReviewPreservesSelectionsAfterFailureAndSavesThemOnRetry() {
         launch()
         fun find(tag: String): SemanticsNodeInteraction {
-            compose.onNodeWithTag("history_detail").performScrollToNode(hasTestTag(tag))
-            return compose.onNodeWithTag(tag)
+            return compose.reviewNode(tag)
         }
         compose.onNodeWithTag("feedback_rating_4").performClick()
         capture("feedback-full-top.png")
@@ -59,26 +58,26 @@ class FeedbackLayoutTest {
         find("feedback_organization_5").assertIsNotSelected().performClick()
         find("feedback_venue_3").performClick()
         find("feedback_atmosphere_4").performClick()
-        compose.onNodeWithTag("history_detail").performScrollToIndex(3)
+        compose.onNodeWithTag("history_detail").performScrollToNode(hasTestTag("feedback_ratings_section"))
         capture("feedback-full-dimensions.png")
         find("feedback_tag_welcoming").performClick()
         find("feedback_tag_join_again").performClick().performClick().assertIsNotSelected()
         find("feedback_tag_more_guidance").performClick()
-        compose.onNodeWithTag("history_detail").performScrollToIndex(8)
+        compose.onNodeWithTag("history_detail").performScrollToNode(hasTestTag("feedback_improvements"))
         capture("feedback-full-tags.png")
         find("feedback_comment").performTextInput("A little more guidance for beginners would help next time.")
         Espresso.closeSoftKeyboard()
         capture("feedback-full-comment.png")
         compose.runOnIdle { failure = true }
-        compose.onNodeWithTag("feedback_submit").performClick()
+        compose.reviewNode("feedback_submit").performClick()
         compose.onNodeWithText("Could not save. Please try again.").assertIsDisplayed()
         find("feedback_organization_5").assertIsSelected()
         find("feedback_tag_welcoming").assertIsSelected()
         find("feedback_tag_more_guidance").assertIsSelected()
         find("feedback_comment").assertTextContains("A little more guidance for beginners would help next time.")
         compose.runOnIdle { failure = false }
-        compose.onNodeWithTag("feedback_submit").performClick()
-        compose.onNodeWithTag("feedback_submit").assertDoesNotExist()
+        compose.reviewNode("feedback_submit").performClick()
+        compose.reviewNode("feedback_submit").assertDoesNotExist()
         compose.runOnIdle {
             assertEquals(FeedbackDetails(5, 3, 4, listOf("welcoming", "more_guidance")), record.feedback!!.details)
             assertEquals(2, submissions)
@@ -89,42 +88,42 @@ class FeedbackLayoutTest {
 
     @Test fun compactFormHasExplicitStarsAndPinnedSubmitThenShowsSavedReview() {
         launch()
-        compose.onNodeWithText("Event review").assertIsDisplayed()
-        compose.onNodeWithTag("feedback_submit").assertIsDisplayed().assertIsNotEnabled()
+        compose.onNodeWithText("Write a review").assertIsDisplayed()
+        compose.reviewNode("feedback_submit").assertIsDisplayed().assertIsNotEnabled()
         (1..5).forEach { compose.onNodeWithTag("feedback_rating_$it").assertIsDisplayed().assertIsNotSelected() }
-        val footer = compose.onNodeWithTag("feedback_submit").fetchSemanticsNode().boundsInRoot
+        val footer = compose.reviewNode("feedback_submit").fetchSemanticsNode().boundsInRoot
         capture("feedback-redesign-empty.png")
         compose.onNodeWithContentDescription("4 out of 5, Good").performClick()
-        compose.onNodeWithTag("feedback_rating_label").assertTextEquals("4 / 5  Good")
+        compose.onNodeWithTag("feedback_rating_label").assertTextEquals("Good")
         compose.onNodeWithTag("history_detail").performScrollToNode(hasTestTag("feedback_comment"))
         compose.onNodeWithTag("feedback_comment").performScrollTo().performTextInput("The directions were clear, and I had a great time with everyone.")
         Espresso.closeSoftKeyboard()
         compose.onNodeWithTag("history_detail").performScrollToIndex(0)
-        compose.onNodeWithTag("feedback_submit").assertIsDisplayed().assertIsEnabled()
-        assertEquals(footer, compose.onNodeWithTag("feedback_submit").fetchSemanticsNode().boundsInRoot)
+        compose.reviewNode("feedback_submit").assertIsDisplayed().assertIsEnabled()
+        assertEquals(footer, compose.reviewNode("feedback_submit").fetchSemanticsNode().boundsInRoot)
         capture("feedback-redesign-filled.png")
-        compose.onNodeWithTag("feedback_submit").performClick()
+        compose.reviewNode("feedback_submit").performClick()
         compose.onNodeWithText("My review").assertIsDisplayed()
         compose.onNodeWithTag("feedback_saved").assertTextEquals("My review 4 / 5")
         compose.onNodeWithText("The directions were clear, and I had a great time with everyone.").assertExists()
-        compose.onNodeWithTag("feedback_submit").assertDoesNotExist()
+        compose.reviewNode("feedback_submit").assertDoesNotExist()
         assertEquals(1, submissions)
         capture("feedback-redesign-saved.png")
     }
 
     @Test fun largeTextKeepsSubmitVisibleAndValidatesLengthAndBusyState() {
         launch(1.6f)
-        compose.onNodeWithTag("feedback_submit").assertIsDisplayed().assertIsNotEnabled()
+        compose.reviewNode("feedback_submit").assertIsDisplayed().assertIsNotEnabled()
         compose.onNodeWithTag("history_detail").performScrollToNode(hasTestTag("feedback_rating_5"))
         compose.onNodeWithTag("feedback_rating_5").assertIsDisplayed().performClick()
         compose.onNodeWithTag("history_detail").performScrollToNode(hasTestTag("feedback_comment"))
         compose.onNodeWithTag("feedback_comment").performScrollTo().performClick().performTextInput("a".repeat(501))
-        compose.onNodeWithTag("feedback_submit").assertIsDisplayed().assertIsNotEnabled()
+        compose.reviewNode("feedback_submit").assertIsDisplayed().assertIsNotEnabled()
         compose.onNodeWithTag("feedback_comment").performTextReplacement("a".repeat(500))
         Espresso.closeSoftKeyboard()
-        compose.onNodeWithTag("feedback_submit").assertIsDisplayed().assertIsEnabled()
+        compose.reviewNode("feedback_submit").assertIsDisplayed().assertIsEnabled()
         compose.runOnIdle { busy = true }
-        compose.onNodeWithTag("feedback_submit").assertIsNotEnabled()
+        compose.reviewNode("feedback_submit").assertIsNotEnabled()
         compose.onNodeWithTag("history_detail").performScrollToNode(hasTestTag("feedback_comment"))
         compose.onNodeWithTag("feedback_comment").performScrollTo().assertIsNotEnabled()
         compose.runOnIdle { busy = false }
@@ -132,9 +131,9 @@ class FeedbackLayoutTest {
         Espresso.closeSoftKeyboard()
         compose.onNodeWithTag("history_detail").performScrollToIndex(0)
         capture("feedback-redesign-large-text.png")
-        compose.onNodeWithTag("feedback_submit").assertIsDisplayed()
+        compose.reviewNode("feedback_submit").assertIsDisplayed()
         compose.runOnIdle { record = record.copy(cancelled = true) }
-        compose.onNodeWithTag("feedback_submit").assertDoesNotExist()
+        compose.reviewNode("feedback_submit").assertDoesNotExist()
         assertEquals(0, submissions)
     }
 

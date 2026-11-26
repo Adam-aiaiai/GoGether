@@ -1,10 +1,12 @@
 package com.gogether.app.feature.coordination
 
+import com.gogether.app.core.ui.AppFilterChip
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.testTag
 import com.gogether.app.core.model.*
 import com.gogether.app.core.ui.*
@@ -17,9 +19,9 @@ fun InboxContent(state: AppSnapshot, busy: Boolean, read: (String) -> Unit,
     val all = state.notifications.filter { it.userId == state.currentUserId }.sortedByDescending { it.createdAt }
     val notifications = all.filter { !unreadOnly || !it.isRead }
     Text("Inbox · ${all.count { !it.isRead }} unread", style = MaterialTheme.typography.titleLarge)
-    Row {
-        FilterChip(!unreadOnly, { unreadOnly = false }, label = { Text("All") }, modifier = Modifier.testTag("inbox_all"))
-        FilterChip(unreadOnly, { unreadOnly = true }, label = { Text("Unread") }, modifier = Modifier.testTag("inbox_unread"))
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        AppFilterChip(!unreadOnly, { unreadOnly = false }, label = { Text("All") }, modifier = Modifier.testTag("inbox_all"))
+        AppFilterChip(unreadOnly, { unreadOnly = true }, label = { Text("Unread") }, modifier = Modifier.testTag("inbox_unread"))
     }
     TextButton(enabled = !busy && all.any { !it.isRead }, onClick = readAll, modifier = Modifier.testTag("read_all")) {
         Text(if (busy) "Updating…" else "Mark all as read")
@@ -29,8 +31,8 @@ fun InboxContent(state: AppSnapshot, busy: Boolean, read: (String) -> Unit,
         TextButton(onClick = explore) { Text("Explore activities") }
     }
     notifications.forEach { notification ->
-        InfoCard(if (notification.isRead) "Read · ${displayTime(notification.createdAt)}" else "New · ${displayTime(notification.createdAt)}",
-            notification.content, Modifier.testTag("notification_${notification.id}"))
+        MessageCard(if (notification.isRead) "Read" else "New", notification.content, displayTime(notification.createdAt),
+            Modifier.testTag("notification_${notification.id}"))
         TextButton(onClick = {
             if (notification.questionId != null && openQuestion != null) openQuestion(notification.eventId, notification.questionId)
             else openEvent(notification.eventId)

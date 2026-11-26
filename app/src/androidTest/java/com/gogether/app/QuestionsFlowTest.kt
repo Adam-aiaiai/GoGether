@@ -52,7 +52,7 @@ class QuestionsFlowTest {
         launch(repo)
         tap("event_event-1"); tap("open_questions")
         compose.onNodeWithTag("post_question").assertIsNotEnabled()
-        text("question_input", "Can I borrow a racket?"); tap("post_question")
+        text("question_input", "Can I borrow a racket?"); capture("question-input"); tap("post_question")
         compose.waitUntil(5_000) { repo.state.value.questions.size == 1 }
         val q = repo.state.value.questions.single()
         compose.onNodeWithTag("question_input").assertTextContains("")
@@ -60,7 +60,7 @@ class QuestionsFlowTest {
         val questionNotice = repo.state.value.notifications.single { it.type == NotificationType.QUESTION_ASKED }
         tap("notification_open_${questionNotice.id}")
         compose.onNodeWithTag("question_${q.id}").performScrollTo().assertIsDisplayed()
-        tap("reply_${q.id}"); text("answer_input", "Yes, spare rackets are available."); tap("send_answer_${q.id}")
+        tap("reply_${q.id}"); text("answer_input", "Yes, spare rackets are available."); capture("answer-input"); tap("send_answer_${q.id}")
         compose.waitUntil(5_000) { repo.state.value.questions.single().answer != null }
         switch("finn"); inbox()
         val answerNotice = repo.state.value.notifications.single { it.type == NotificationType.QUESTION_ANSWERED }

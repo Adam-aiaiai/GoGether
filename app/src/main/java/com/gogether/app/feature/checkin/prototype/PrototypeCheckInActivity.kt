@@ -1,5 +1,6 @@
 package com.gogether.app.feature.checkin.prototype
 
+import com.gogether.app.core.ui.AppBackButton
 import com.gogether.app.core.ui.PageActionButton
 import android.Manifest
 import android.content.Intent
@@ -166,7 +167,7 @@ fun PrototypeScreen(actor: String, state: PrototypeUiState, now: Long, back: () 
     if (state.identityExpired || (state.ownerUserId != null && state.ownerUserId != actor)) {
         Page {
             Text("Your account has changed. Reopen check-in.", Modifier.testTag("checkin_identity_expired"))
-            TextButton(onClick = back, shape = CheckInStyle.shape) { Text("< Back") }
+            AppBackButton(back)
         }
         return
     }
@@ -215,7 +216,7 @@ fun PrototypeScreen(actor: String, state: PrototypeUiState, now: Long, back: () 
                     retryLocation = retryLocation, resolveCheckIn = resolveCheckIn)
             } else Page {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    TextButton(shape = CheckInStyle.shape, onClick = back) { Text("< Back") }
+                    AppBackButton(back)
                     TextButton(shape = CheckInStyle.shape, onClick = ::viewHistory, modifier = Modifier.testTag("open_history")) { Text("My records") }
                 }
                 SectionTitle(if (organizerMode) "Event check-in" else "Scan to check in", "Account: $actor")

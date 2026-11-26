@@ -48,9 +48,9 @@ class CloudAttendanceUiTest {
     @Test fun endedOrganizerEntryShowsServerRosterDirectly() {
         val (state,event)=seed("alice");val repo=FakeGogetherRepository(state);val backend=Backend(System.currentTimeMillis())
         compose.setContent{GogetherTheme{CloudCheckInScreen(repo,backend,event.id,System.currentTimeMillis(),{},attendanceOnly=true)}}
-        compose.onNodeWithTag("cloud_attendance_count").performScrollTo().assertTextEquals("1 / 1 checked in")
+        compose.onNodeWithTag("cloud_attendance_count").performScrollTo().assertTextEquals("1 of 1 checked in")
         compose.onNodeWithText("Bob cloud").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithTag("cloud_submit_feedback").assertDoesNotExist()
+        compose.reviewNode("cloud_submit_feedback").assertDoesNotExist()
     }
 
     @Test fun reviewFailureKeepsDraftThenSuccessfulRetryShowsCloudRecord() {
@@ -59,17 +59,25 @@ class CloudAttendanceUiTest {
         compose.onNodeWithTag("feedback_rating_5").performScrollTo().performClick()
         compose.onNodeWithTag("cloud_feedback_comment").performScrollTo().performTextReplacement("Cloud draft survives failure")
         closeSoftKeyboard()
-        compose.onNodeWithTag("feedback_anonymous").performScrollTo().performClick()
-        compose.onNodeWithTag("feedback_visibility_ORGANIZER_ONLY").performScrollTo().performClick()
-        compose.onNodeWithTag("cloud_submit_feedback").performScrollTo().performClick()
+        compose.reviewNode("feedback_positive_comment").performTextInput("Friendly teammates.")
+        closeSoftKeyboard()
+        compose.reviewNode("feedback_improvement_comment").performTextInput("More warm-up time.")
+        closeSoftKeyboard()
+        compose.reviewNode("feedback_anonymous").performScrollTo().performClick()
+        compose.reviewNode("feedback_visibility_ORGANIZER_ONLY").performClick()
+        compose.reviewNode("cloud_submit_feedback").performClick()
         compose.waitUntil(5000){backend.submissions==1}
         compose.onNodeWithTag("cloud_feedback_comment").assertTextContains("Cloud draft survives failure")
         assertNull(backend.own)
         compose.runOnIdle{backend.fail=false}
-        compose.onNodeWithTag("cloud_submit_feedback").performScrollTo().performClick()
+        compose.reviewNode("cloud_submit_feedback").performClick()
         compose.waitUntil(5000){backend.own!=null}
         compose.onNodeWithTag("cloud_feedback_saved").performScrollTo().assertIsDisplayed()
         val details=backend.last!!["details"] as Map<*,*>
+        assertEquals("Friendly teammates.",details["positiveComment"])
+        assertEquals("More warm-up time.",details["improvementComment"])
+        compose.onNodeWithText("Friendly teammates.").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("More warm-up time.").performScrollTo().assertIsDisplayed()
         assertEquals(true,details["anonymous"])
         assertEquals("ORGANIZER_ONLY",details["visibility"])
         assertEquals(2,backend.submissions)

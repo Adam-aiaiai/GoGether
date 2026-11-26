@@ -10,8 +10,9 @@ class PrototypeFeedbackTest {
         val session = session()
         backend().rememberCode("bob", raw(session))
         time = session.endAt
-        val details = FeedbackDetails(5, 3, 4, listOf("welcoming", "more_guidance"))
-        for (bad in listOf(details.copy(venue = 6), details.copy(organization = -1),
+        val details = FeedbackDetails(5, 3, 4, listOf("welcoming", "more_guidance"),
+            positiveComment = "Friendly teammates.", improvementComment = "More warm-up time.")
+        for (bad in listOf(details.copy(positiveComment = "x".repeat(501)), details.copy(improvementComment = "x".repeat(501)), details.copy(venue = 6), details.copy(organization = -1),
             details.copy(tags = listOf("unknown")), details.copy(tags = listOf("welcoming", "welcoming")))) {
             assertThrows(IllegalArgumentException::class.java) { backend().submitFeedback("bob", session.id, 4, "", bad) }
             assertNull(backend().history("bob").single().feedback)

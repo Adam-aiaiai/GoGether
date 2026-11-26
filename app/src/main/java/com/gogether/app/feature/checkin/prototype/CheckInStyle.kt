@@ -1,5 +1,6 @@
 package com.gogether.app.feature.checkin.prototype
 
+import com.gogether.app.core.ui.AppUi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -9,8 +10,8 @@ import androidx.compose.ui.unit.dp
 
 /** Shared only by the check-in flow. A visual approximation of the supplied reference cards. */
 internal object CheckInStyle {
-    val cornerRadius = 12.dp
-    val shape = RoundedCornerShape(cornerRadius)
+    val cornerRadius = 16.dp
+    val shape = AppUi.CardShape
     val sheetShape = RoundedCornerShape(topStart = cornerRadius, topEnd = cornerRadius)
 }
 

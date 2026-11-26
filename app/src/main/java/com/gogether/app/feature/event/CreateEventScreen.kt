@@ -1,14 +1,16 @@
 package com.gogether.app.feature.event
 
+import com.gogether.app.core.ui.AppOutlinedTextField
+import com.gogether.app.core.ui.AppCommentField
+import com.gogether.app.core.ui.AppUi
+import com.gogether.app.core.ui.AppFilterChip
 import com.gogether.app.core.ui.PageActionButton
-import com.gogether.app.core.ui.OutlinedPageActionButton
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import com.gogether.app.R
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +18,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -96,6 +100,7 @@ private fun EventFormScreen(
     var requiredItems by rememberSaveable(initial?.id) { mutableStateOf(retained?.requiredItems ?: initial?.requiredItems.orEmpty()) }
     var spareEquipment by rememberSaveable(initial?.id) { mutableStateOf(retained?.spareEquipment ?: initial?.spareEquipment.orEmpty()) }
     var imageUri by rememberSaveable(initial?.id) { mutableStateOf(retained?.imageUri ?: initial?.imageUri.orEmpty()) }
+    var coverPreview by remember(initial?.id) { mutableStateOf(false) }
     var error by rememberSaveable(initial?.id) { mutableStateOf<String?>(null) }
     var meetingDate by rememberSaveable(initial?.id) { mutableStateOf(initial?.meetingAt?.let { formatDate(it, zone) }.orEmpty()) }
     var meetingTime by rememberSaveable(initial?.id) { mutableStateOf(initial?.meetingAt?.let { formatClock(it, zone) }.orEmpty()) }
@@ -113,7 +118,7 @@ private fun EventFormScreen(
 
     Page {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(when (mode) {
+            if (!LocalPageHeaderProvided.current) Text(when (mode) {
                 FormMode.CREATE -> "Create an event"
                 FormMode.EDIT -> "Edit your event"
                 FormMode.REUSE -> "Reuse this event"
@@ -126,24 +131,35 @@ private fun EventFormScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
-        if (imageUri.isNotBlank()) {
-            EventImage(imageUri, title.ifBlank { "Event image" }, Modifier.fillMaxWidth().height(180.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                TextButton(onClick = { imagePicker.launch("image/*") },
-                    modifier = Modifier.testTag("${prefix}_choose_image")) { Text("Change cover") }
-                TextButton(onClick = { imageUri = "" },
-                    modifier = Modifier.testTag("${prefix}_remove_image")) { Text("Remove") }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("Event cover", style = MaterialTheme.typography.titleMedium)
+            Text("${if (imageUri.isBlank()) 0 else 1} / 1", style = MaterialTheme.typography.bodySmall)
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (imageUri.isNotBlank()) {
+                AppMediaThumbnail(onPreview = { coverPreview = true }, modifier = Modifier.weight(1f),
+                    previewTag = "${prefix}_cover_preview", onRemove = { imageUri = "" },
+                    removeTag = "${prefix}_remove_image", enabled = !busy, removeDescription = "Remove cover") {
+                    EventImage(imageUri, title.ifBlank { "Event cover" }, Modifier.fillMaxSize(), shape = RoundedCornerShape(8.dp))
+                }
+            } else {
+                AppMediaAddTile({ imagePicker.launch("image/*") }, Modifier.weight(1f).testTag("${prefix}_choose_image"),
+                    enabled = !busy, description = "Add event cover")
             }
-        } else {
-            OutlinedPageActionButton(onClick = { imagePicker.launch("image/*") },
-                modifier = Modifier.testTag("${prefix}_choose_image")) {
-                Text("Add an event cover")
-            }
-            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Choose a photo from your gallery", style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("Optional · 16:9 recommended", style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.weight(1f))
+        }
+        if (imageUri.isNotBlank()) TextButton(onClick = { imagePicker.launch("image/*") }, enabled = !busy,
+            modifier = Modifier.testTag("${prefix}_choose_image")) { Text("Change cover") }
+        Text("Optional · One photo · 16:9 recommended", style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (coverPreview && imageUri.isNotBlank()) Dialog(onDismissRequest = { coverPreview = false }) {
+            Surface(shape = AppUi.CardShape, color = Color.White, modifier = Modifier.testTag("event_cover_preview")) {
+                Column {
+                    EventImage(imageUri, title.ifBlank { "Event cover" }, Modifier.fillMaxWidth().aspectRatio(1f),
+                        shape = RoundedCornerShape(8.dp), contentScale = androidx.compose.ui.layout.ContentScale.Fit)
+                    TextButton(onClick = { coverPreview = false }, modifier = Modifier.align(Alignment.End)) { Text("Close") }
+                }
             }
         }
 
@@ -155,7 +171,7 @@ private fun EventFormScreen(
         Row(Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Category.entries.forEach { option ->
-                FilterChip(category == option.name, { category = option.name },
+                AppFilterChip(category == option.name, { category = option.name },
                     label = { Text(option.label) })
             }
         }
@@ -194,11 +210,11 @@ private fun EventFormScreen(
         }
         HorizontalDivider()
         FormSectionHeader("03", "Participation")
-        OutlinedTextField(capacity, { capacity = it }, label = { Text("Maximum participants") },
+        AppOutlinedTextField(capacity, { capacity = it }, label = { Text("Maximum participants") },
             placeholder = { Text("e.g. 6") },
             supportingText = { Text("2–50 people, including the organizer") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true,
-            shape = RoundedCornerShape(16.dp),
+            shape = AppUi.FieldShape,
             modifier = Modifier.fillMaxWidth().testTag("${prefix}_capacity"))
         Text("Experience level", style = MaterialTheme.typography.labelLarge)
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -297,9 +313,15 @@ private fun FormField(
     multiline: Boolean = false,
     placeholder: String? = null,
 ) {
-    OutlinedTextField(value, change, label = { Text(label) }, singleLine = !multiline,
-        placeholder = placeholder?.let { { Text(it) } }, minLines = if (multiline) 3 else 1,
-        shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().testTag(tag))
+    if (multiline) {
+        AppCommentField(value, change, label = { Text(label) },
+            placeholder = placeholder?.let { { Text(it) } }, minLines = 3,
+            modifier = Modifier.fillMaxWidth().testTag(tag))
+    } else {
+        AppOutlinedTextField(value, change, label = { Text(label) }, singleLine = true,
+            placeholder = placeholder?.let { { Text(it) } },
+            shape = AppUi.FieldShape, modifier = Modifier.fillMaxWidth().testTag(tag))
+    }
 }
 
 @Composable
@@ -345,16 +367,7 @@ private fun SelectionField(
     modifier: Modifier,
     onClick: () -> Unit,
 ) {
-    Surface(onClick = onClick, modifier = modifier.testTag(tag),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 11.dp)) {
-            Text(label, style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value.ifBlank { "Select $hint" }, style = MaterialTheme.typography.bodyLarge,
-                color = if (value.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
-        }
-    }
+    AppOutlinedPickerField(label, value, hint, modifier.testTag(tag), onClick)
 }
 
 private fun ExperienceRequirement.formLabel(): String = when (this) {

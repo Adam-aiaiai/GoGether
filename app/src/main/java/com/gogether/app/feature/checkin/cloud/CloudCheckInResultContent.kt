@@ -1,5 +1,7 @@
 package com.gogether.app.feature.checkin.cloud
 
+import com.gogether.app.core.ui.AppPageHeader
+import com.gogether.app.core.ui.AppUi
 import com.gogether.app.core.ui.PageActionButton
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -9,7 +11,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -21,8 +22,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gogether.app.core.model.Event
@@ -43,20 +44,13 @@ internal fun CloudCheckInResultContent(
     val primaryText = if (dark) MaterialTheme.colorScheme.onSurface else Color(0xFF26272B)
     val secondaryText = if (dark) MaterialTheme.colorScheme.onSurfaceVariant else Color(0xFF70737A)
     val success = if (dark) Color(0xFF76D99A) else Color(0xFF14853D)
-    val panelTop = if (dark) MaterialTheme.colorScheme.surface else Color(0xFFFAFBFD)
-    val panelBottom = if (dark) MaterialTheme.colorScheme.surfaceContainer else Color(0xFFEDF1FB)
+    val panelTop = if (dark) MaterialTheme.colorScheme.surface else Color(0xFFFCFAFC)
+    val panelBottom = if (dark) MaterialTheme.colorScheme.surfaceContainer else AppUi.Lilac
 
     Surface(color = background, contentColor = primaryText, modifier = Modifier.fillMaxSize().testTag("cloud_checkin_result")) {
         Column {
-            Box(Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
-                Text("Check-in result", Modifier.align(Alignment.Center).padding(horizontal = 56.dp, vertical = 14.dp),
-                    style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
-                IconButton(onClick = onDone, modifier = Modifier.align(Alignment.CenterStart).padding(start = 4.dp)
-                    .testTag("cloud_checkin_result_back")) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back to check-in")
-                }
-            }
-            HorizontalDivider(color = secondaryText.copy(alpha = .12f))
+            AppPageHeader("Check-in result", onBack = onDone,
+                backModifier = Modifier.testTag("cloud_checkin_result_back"), backDescription = "Back to check-in")
             Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally) {
                 Column(
@@ -77,14 +71,15 @@ internal fun CloudCheckInResultContent(
                         Text("Check-in successful", Modifier.weight(1f, fill = false).testTag("cloud_participant_status"),
                             fontSize = 23.sp, lineHeight = 29.sp, fontWeight = FontWeight.Bold, color = success)
                     }
-                    Text("$participantName, your attendance is recorded.", Modifier.padding(top = 12.dp, bottom = 24.dp),
-                        style = MaterialTheme.typography.bodyMedium, color = secondaryText, textAlign = TextAlign.Center)
+                    // Keep the approved result/card/button positions after removing the redundant sentence.
+                    val captionHeight = with(LocalDensity.current) { MaterialTheme.typography.bodyMedium.lineHeight.toDp() }
+                    Spacer(Modifier.height(captionHeight + 36.dp))
 
-                    Surface(shape = RoundedCornerShape(14.dp), color = background, contentColor = primaryText) {
+                    Surface(shape = AppUi.CardShape, color = background, contentColor = primaryText) {
                         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                                 // Category stays visible if the event has no cover or its cover is unavailable.
-                                Box(Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)).background(panelBottom),
+                                Box(Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)).background(AppUi.SelectedTag),
                                     contentAlignment = Alignment.Center) {
                                     Text(event.category.symbol, fontSize = 30.sp)
                                     EventImage(event.imageUri, event.title, Modifier.fillMaxSize())

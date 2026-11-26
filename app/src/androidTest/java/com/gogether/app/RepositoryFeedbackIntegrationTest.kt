@@ -40,8 +40,7 @@ class RepositoryFeedbackIntegrationTest {
         compose.waitUntil(5000) { compose.onAllNodesWithTag("feedback_submit").fetchSemanticsNodes().isNotEmpty() }
     }
     private fun find(tag: String): SemanticsNodeInteraction {
-        compose.onNodeWithTag("history_detail").performScrollToNode(hasTestTag(tag))
-        return compose.onNodeWithTag(tag)
+        return compose.reviewNode(tag)
     }
     @After fun cleanup() {
         val prefs = context.getSharedPreferences("checkin_prototype_v1", Context.MODE_PRIVATE)
@@ -66,14 +65,14 @@ class RepositoryFeedbackIntegrationTest {
         find("feedback_visibility_ORGANIZER_ONLY").assertIsSelected()
         find("feedback_comment").performTextReplacement("I came back to add a few more thoughts.")
         Espresso.closeSoftKeyboard()
-        compose.onNodeWithText("< Back").performClick()
+        compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithTag("open_checkin").performScrollTo().performClick()
         find("feedback_comment").assertTextContains("I came back to add a few more thoughts.")
         find("feedback_photo_0").assertExists()
-        compose.onNodeWithTag("feedback_submit").performClick()
+        compose.reviewNode("feedback_submit").performClick()
         compose.waitUntil(5000) { store.feedback(id, "bob") != null }
         find("feedback_saved").assertExists()
-        compose.onNodeWithTag("feedback_submit").assertDoesNotExist()
+        compose.reviewNode("feedback_submit").assertDoesNotExist()
         val restored = PreferencesPrototypeStore(context)
         val saved = restored.feedback(id, "bob")!!
         assertEquals(listOf(image), saved.details.photos)
@@ -85,7 +84,7 @@ class RepositoryFeedbackIntegrationTest {
         assertTrue(photos.canRead(image, "alice", id))
         assertEquals(FeedbackDraft(), FeedbackDraftStore(context).load("bob", id))
         assertTrue(repo.state.value.checkIns.isEmpty())
-        compose.onNodeWithText("< Back").performClick()
+        compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithTag("nav_my-events").performClick()
         compose.onNodeWithTag("personal_tab_HISTORY").performScrollTo().performClick()
         compose.onNodeWithTag("participation_event-1").performScrollTo()
@@ -99,12 +98,12 @@ class RepositoryFeedbackIntegrationTest {
         find("feedback_comment").assertTextContains("I enjoyed meeting everyone. I will finish this review later.")
         repo.login("emma").getOrThrow()
         compose.waitUntil(5000) { compose.onAllNodesWithText("Only confirmed participants can review this event.").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithTag("feedback_submit").assertDoesNotExist()
+        compose.reviewNode("feedback_submit").assertDoesNotExist()
         compose.onAllNodesWithText("I enjoyed meeting everyone. I will finish this review later.", substring = true).assertCountEquals(0)
         repo.login("carol").getOrThrow()
         compose.waitUntil(5000) { compose.onAllNodesWithTag("feedback_submit").fetchSemanticsNodes().isNotEmpty() }
         find("feedback_comment").assertTextContains("")
-        compose.onNodeWithTag("feedback_submit").assertIsNotEnabled()
+        compose.reviewNode("feedback_submit").assertIsNotEnabled()
         repo.login("bob").getOrThrow()
         find("feedback_comment").assertTextContains("I enjoyed meeting everyone. I will finish this review later.")
     }

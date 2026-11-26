@@ -1,5 +1,6 @@
 package com.gogether.app.feature.checkin.prototype
 
+import com.gogether.app.core.ui.AppPageHeader
 import com.gogether.app.core.ui.PageActionButton
 import android.content.ActivityNotFoundException
 import android.content.Intent
@@ -71,12 +72,9 @@ internal fun ParticipantCheckInPanel(actor: String, state: PrototypeUiState, now
         else -> "Ready to check in"
     }
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp).testTag("participant_panel")) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween) {
-            TextButton(shape = CheckInStyle.shape, onClick = back) { Text("< Back") }
-            Text("My event", style = MaterialTheme.typography.titleSmall)
-            TextButton(shape = CheckInStyle.shape, onClick = history, modifier = Modifier.testTag("open_history")) { Text("Records") }
-        }
+        AppPageHeader("My event", onBack = back, actions = {
+            TextButton(onClick = history, modifier = Modifier.testTag("open_history")) { Text("Records") }
+        })
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
             .testTag("participant_status_area"), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

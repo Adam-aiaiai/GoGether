@@ -262,7 +262,13 @@ class CloudParticipantCheckInUiTest {
         }
         val repo = FakeGogetherRepository(base.copy(currentUserId = "bob", events = listOf(event), registrations = registrations))
         val backend = Backend(clock)
-        compose.setContent { GogetherTheme { CloudCheckInScreen(repo, backend, event.id, clock, {}) } }
+        var screenGeneration by mutableIntStateOf(0)
+        var reviewBacks = 0
+        compose.setContent { GogetherTheme {
+            key(screenGeneration) {
+                CloudCheckInScreen(repo, backend, event.id, clock, { reviewBacks++ })
+            }
+        } }
         compose.onNodeWithTag("cloud_scan_checkin").assertIsEnabled()
         compose.runOnIdle { backend.receipt = mapOf("checkedInAt" to clock) }
         compose.onNodeWithTag("cloud_checkin_refresh").performClick()
@@ -277,8 +283,15 @@ class CloudParticipantCheckInUiTest {
         compose.onNodeWithTag("cloud_checkin_receipt").assertDoesNotExist()
         compose.onNodeWithTag("cloud_scan_checkin").assertIsNotEnabled()
         compose.onNodeWithTag("cloud_tab_reviews").performScrollTo().performClick()
-        compose.onNodeWithTag("cloud_tab_checkin").performScrollTo().performClick()
+        // Reviews now have an independent page and return to the caller, not an old tab.
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.runOnIdle {
+            assertEquals(1, reviewBacks)
+            screenGeneration++ // Re-enter check-in through its normal entry point.
+        }
         compose.onNodeWithTag("cloud_participant_status").performScrollTo().assertTextEquals("You're on the waitlist")
+        compose.onNodeWithTag("cloud_checkin_receipt").assertDoesNotExist()
+        compose.onNodeWithTag("cloud_scan_checkin").assertIsNotEnabled()
     }
 
     @Test fun serverLoadFailureCanRetryThroughRealScreen() {

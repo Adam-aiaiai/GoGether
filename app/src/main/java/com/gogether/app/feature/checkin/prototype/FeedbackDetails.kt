@@ -9,8 +9,11 @@ data class FeedbackDetails(
     val anonymous: Boolean = false,
     val visibility: FeedbackVisibility = FeedbackVisibility.PUBLIC,
     val photos: List<String> = emptyList(),
+    val positiveComment: String = "",
+    val improvementComment: String = "",
 ) {
     fun requireValid() {
+        require(positiveComment.length <= 500 && improvementComment.length <= 500) { "Keep each optional comment within 500 characters." }
         require(listOf(organization, venue, atmosphere).all { it in 0..5 }) { "Rate each category from 1 to 5, or leave it blank." }
         require(tags.size == tags.distinct().size && tags.all { id -> feedbackTags.any { it.id == id } }) { "Invalid review tags. Choose again." }
         require(photos.size <= 3 && photos.distinct().size == photos.size && photos.all { photoIdPattern.matches(it) }) {

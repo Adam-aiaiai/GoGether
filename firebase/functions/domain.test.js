@@ -101,3 +101,19 @@ test('resolveRequest cleans committed review staging before reporting success',a
  const resolved=await createService(db,bucket)({auth:{uid:'alice'},data:{action:'resolveRequest',requestIdToResolve:'saved-review-request'}});
  assert.equal(deleted,true);assert.deepEqual(resolved,{status:'COMMITTED',action:'submitFeedback',result});
 });
+
+
+test('optional review comments accept empty and bounded text and keep existing visibility rules',()=>{
+ const defaults=D.feedbackDetails({},'bob');
+ assert.equal(defaults.positiveComment,'');assert.equal(defaults.improvementComment,'');
+ const detail=D.feedbackDetails({positiveComment:'Friendly teammates.',improvementComment:'More warm-up time.',anonymous:true,visibility:'ORGANIZER_ONLY'},'bob');
+ assert.equal(detail.positiveComment,'Friendly teammates.');assert.equal(detail.improvementComment,'More warm-up time.');
+ for(const key of ['positiveComment','improvementComment']) {
+  assert.equal(D.feedbackDetails({[key]:'x'.repeat(500)},'bob')[key].length,500);
+  for(const value of ['x'.repeat(501),42,[],{}])assert.throws(()=>D.feedbackDetails({[key]:value},'bob'));
+ }
+ const review={id:'event_bob',publicId:'opaque',userId:'bob',details:detail};
+ assert.equal(visibleReview(review,'carol','alice',[]),null);
+ assert.equal(visibleReview(review,'alice','alice',[]).details.positiveComment,'Friendly teammates.');
+ assert.equal(visibleReview(review,'bob','alice',[]).details.improvementComment,'More warm-up time.');
+});

@@ -1,5 +1,6 @@
 package com.gogether.app.feature.checkin.prototype
 
+import com.gogether.app.core.ui.AppPageHeader
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -22,11 +23,9 @@ internal fun ActivityReviewsScreen(actor: String, session: PrototypeSession, rev
     val activity = LocalCheckInActivities.current.infoOrNull(session)
     BackHandler(onBack = back)
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp).testTag("activity_reviews")) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = back) { Text("< Back") }
-            Text("Event review", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
+        AppPageHeader("Event review", onBack = back, actions = {
             TextButton(onClick = refresh, enabled = !busy) { Text("Refresh") }
-        }
+        })
         Text(activity?.title ?: "Event details unavailable", style = MaterialTheme.typography.titleMedium)
         Text(if (activity?.organizerId == actor) "Public reviews and feedback shared with you" else "Public reviews and your own feedback",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

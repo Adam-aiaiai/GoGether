@@ -1,5 +1,7 @@
 package com.gogether.app.feature.checkin.prototype
 
+import com.gogether.app.core.ui.AppOutlinedTextField
+import com.gogether.app.core.ui.AppUi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -41,7 +43,7 @@ internal fun ParticipantSearchSheet(people: List<PrototypeAttendee>, dismiss: ()
         Column(Modifier.fillMaxWidth().fillMaxHeight(0.85f).imePadding().padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Find participants", style = MaterialTheme.typography.titleLarge)
-            OutlinedTextField(shape = CheckInStyle.shape, value = query, onValueChange = { query = it }, label = { Text("Search by name") },
+            AppOutlinedTextField(shape = AppUi.FieldShape, value = query, onValueChange = { query = it }, label = { Text("Search by name") },
                 singleLine = true, modifier = Modifier.fillMaxWidth().testTag("attendance_search_input"),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { keyboard?.hide() }),

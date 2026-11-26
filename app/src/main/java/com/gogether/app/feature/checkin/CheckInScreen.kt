@@ -1,5 +1,7 @@
 package com.gogether.app.feature.checkin
 
+import com.gogether.app.core.ui.AppCommentField
+import com.gogether.app.core.ui.AppFilterChip
 import com.gogether.app.core.ui.PageActionButton
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -37,9 +39,9 @@ fun CheckInScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
                 else -> {
                     Text("Your rating", style = MaterialTheme.typography.titleLarge)
                     Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
-                        (1..5).forEach { score -> FilterChip(rating == score, { rating = score }, label = { Text("$score") }) }
+                        (1..5).forEach { score -> AppFilterChip(rating == score, { rating = score }, label = { Text("$score") }) }
                     }
-                    OutlinedTextField(comment, { comment = it }, label = { Text("Comment (optional)") }, minLines = 3,
+                    AppCommentField(comment, { comment = it }, label = { Text("Comment (optional)") }, minLines = 3,
                         supportingText = { Text("Up to 500 characters") }, modifier = Modifier.fillMaxWidth())
                     PageActionButton(onClick = { feedback(rating, comment) }, enabled = !busy && FeedbackInput.valid(rating, comment),
                         modifier = Modifier.fillMaxWidth()) { Text("Submit feedback") }

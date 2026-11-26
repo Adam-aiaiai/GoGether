@@ -1,7 +1,8 @@
 package com.gogether.app.feature.auth
 
+import com.gogether.app.core.ui.AppOutlinedTextField
+import com.gogether.app.core.ui.AppFilterChip
 import com.gogether.app.core.ui.PageActionButton
-import com.gogether.app.core.ui.OutlinedPageActionButton
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
@@ -45,18 +46,18 @@ fun AuthScreen(state: AppSnapshot, busy: Boolean, login: (String) -> Unit, regis
             Text("Choose a test profile", style = MaterialTheme.typography.titleLarge)
             Text("Alice hosts badminton. Bob has a place. Emma is first on the waitlist.", style = MaterialTheme.typography.bodyMedium)
             state.users.filter { it.status == UserStatus.DEMO }.forEach { user ->
-                OutlinedPageActionButton(onClick = { login(user.id) }, enabled = !busy, modifier = Modifier.fillMaxWidth().testTag("login_${user.id}")) {
+                PageActionButton(onClick = { login(user.id) }, enabled = !busy, modifier = Modifier.fillMaxWidth().testTag("login_${user.id}")) {
                     Text("Continue as ${user.displayName}", Modifier.padding(6.dp))
                 }
             }
         } else {
-            OutlinedTextField(nickname, { nickname = it }, label = { Text("Demo nickname") },
+            AppOutlinedTextField(nickname, { nickname = it }, label = { Text("Demo nickname") },
                 supportingText = { Text("2–30 characters. Use fictional details.") }, singleLine = true,
                 modifier = Modifier.fillMaxWidth().testTag("nickname"))
             Text("Your interests", style = MaterialTheme.typography.titleMedium)
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Category.entries.forEach { category ->
-                    FilterChip(selected = category.name in selected, onClick = {
+                    AppFilterChip(selected = category.name in selected, onClick = {
                         selected = if (category.name in selected) selected - category.name else selected + category.name
                     }, label = { Text(category.label) })
                 }
@@ -91,19 +92,19 @@ private fun AccountSignInScreen(state: AppSnapshot, busy: Boolean, signIn: (Stri
             Tab(!registering, { registering = false; password = ""; confirmation = "" }, text = { Text("Sign in") })
             Tab(registering, { registering = true; password = ""; confirmation = "" }, text = { Text("Create account") })
         }
-        OutlinedTextField(email, { email = it }, label = { Text("Email") }, enabled = !busy, singleLine = true,
+        AppOutlinedTextField(email, { email = it }, label = { Text("Email") }, enabled = !busy, singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email), modifier = Modifier.fillMaxWidth().testTag("account_email"))
         if (registering) {
-            OutlinedTextField(name, { name = it }, label = { Text("Nickname") }, enabled = !busy, singleLine = true,
+            AppOutlinedTextField(name, { name = it }, label = { Text("Nickname") }, enabled = !busy, singleLine = true,
                 supportingText = { Text("2–30 characters") }, modifier = Modifier.fillMaxWidth().testTag("account_name"))
         }
-        OutlinedTextField(password, { password = it }, label = { Text("Password") }, enabled = !busy, singleLine = true,
+        AppOutlinedTextField(password, { password = it }, label = { Text("Password") }, enabled = !busy, singleLine = true,
             visualTransformation = if (reveal) VisualTransformation.None else PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             trailingIcon = { TextButton(onClick = { reveal = !reveal }) { Text(if (reveal) "Hide" else "Show") } },
             modifier = Modifier.fillMaxWidth().testTag("account_password"))
         if (registering) {
-            OutlinedTextField(confirmation, { confirmation = it }, label = { Text("Confirm password") }, enabled = !busy,
+            AppOutlinedTextField(confirmation, { confirmation = it }, label = { Text("Confirm password") }, enabled = !busy,
                 singleLine = true, visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 isError = confirmation.isNotEmpty() && confirmation != password,
@@ -112,7 +113,7 @@ private fun AccountSignInScreen(state: AppSnapshot, busy: Boolean, signIn: (Stri
             Text("Interests (optional)")
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Category.entries.forEach { category ->
-                    FilterChip(category.name in interests, {
+                    AppFilterChip(category.name in interests, {
                         interests = if (category.name in interests) interests - category.name else interests + category.name
                     }, label = { Text(category.label) }, enabled = !busy)
                 }

@@ -1,9 +1,11 @@
 package com.gogether.app.core.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,6 +28,7 @@ fun PageActionButton(
     content: @Composable RowScope.() -> Unit,
 ) = PageAction(onClick, modifier, enabled, PageActionStyle.Filled, content)
 
+/** Only for a full-row Cancel displayed alongside its filled save/confirm action. */
 @Composable
 fun OutlinedPageActionButton(
     onClick: () -> Unit,
@@ -50,16 +53,19 @@ private fun PageAction(
     style: PageActionStyle,
     content: @Composable RowScope.() -> Unit,
 ) {
+    val interactions = remember { MutableInteractionSource() }
+    val scale = rememberPressScale(interactions, enabled && style == PageActionStyle.Filled)
     // The theme computes this once from the page viewport, before nested padding.
     // A narrower pane or sheet can constrain it without overflowing its bounds.
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        val shape = RoundedCornerShape(50)
         val buttonModifier = Modifier.width(LocalPageActionWidth.current).then(modifier).heightIn(min = 52.dp)
+            .then(if (style == PageActionStyle.Filled) Modifier.pressBounce(scale, shape, enabled) else Modifier)
         val labelStyle = MaterialTheme.typography.titleMedium.copy(
             fontSize = 16.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
         )
         val label: @Composable RowScope.() -> Unit = { ProvideTextStyle(labelStyle) { content() } }
         val padding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
-        val shape = RoundedCornerShape(50)
         when (style) {
             PageActionStyle.Outlined -> OutlinedButton(onClick, buttonModifier, enabled, shape = shape,
                 colors = ButtonDefaults.outlinedButtonColors(
@@ -67,6 +73,8 @@ private fun PageAction(
                     disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = .38f),
                 ), contentPadding = padding, content = label)
             PageActionStyle.Filled -> Button(onClick, buttonModifier, enabled, shape = shape,
+                interactionSource = interactions,
+                elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp, 0.dp, 0.dp, 0.dp),
                 colors = ButtonDefaults.buttonColors(contentColor = Color.White,
                     disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = .12f),
                     disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = .38f),

@@ -1,5 +1,6 @@
 package com.gogether.app.feature.checkin.prototype
 
+import com.gogether.app.core.ui.AppBackButton
 import com.gogether.app.core.ui.PageActionButton
 import android.Manifest
 import android.app.Activity
@@ -38,13 +39,13 @@ fun RepositoryCheckInScreen(repository: GogetherRepository, eventId: String, now
     val event = snapshot.event(eventId)
     val actor = snapshot.currentUserId
     if (event == null || actor == null) {
-        Page { Text("The event or account has changed. Go back."); TextButton(onClick = back) { Text("< Back") } }
+        Page { Text("The event or account has changed. Go back."); AppBackButton(back) }
         return
     }
     if (attendanceOnly && event.organizerId != actor) {
         Page {
             Text("Only this event's organizer can view attendance.")
-            TextButton(onClick = back) { Text("< Back") }
+            AppBackButton(back)
         }
         return
     }
@@ -80,7 +81,7 @@ fun RepositoryCheckInScreen(repository: GogetherRepository, eventId: String, now
     }
     if (session == null) {
         Page {
-            TextButton(onClick = back, shape = CheckInStyle.shape) { Text("< Back") }
+            AppBackButton(back)
             SectionTitle("Meetup and check-in", event.title)
             Text("${displayTime(event.meetingAt ?: event.startAt)}\n${event.city} ${event.meetingLocation ?: event.location}")
             if (event.meetingNotes.isNotBlank()) Text(event.meetingNotes)

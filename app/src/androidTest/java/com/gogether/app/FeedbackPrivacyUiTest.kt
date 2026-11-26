@@ -51,8 +51,7 @@ class FeedbackPrivacyUiTest {
     }
 
     private fun find(tag: String): SemanticsNodeInteraction {
-        compose.onNodeWithTag("history_detail").performScrollToNode(hasTestTag(tag))
-        return compose.onNodeWithTag(tag)
+        return compose.reviewNode(tag)
     }
 
     private fun fixture(): Uri {
@@ -106,7 +105,7 @@ class FeedbackPrivacyUiTest {
             capture("feedback-photos.png")
             compose.onNodeWithTag("feedback_photo_0").performClick()
             compose.onNodeWithTag("feedback_photo_preview").assertIsDisplayed()
-            compose.onAllNodesWithText("< Back").onLast().performClick()
+            compose.onAllNodesWithContentDescription("Back").onLast().performClick()
             compose.onNodeWithTag("feedback_photo_preview").assertDoesNotExist()
             find("feedback_remove_photo_1").performScrollTo().assertIsDisplayed().performClick()
             find("feedback_add_photo").assertExists()
@@ -119,12 +118,12 @@ class FeedbackPrivacyUiTest {
             find("feedback_visibility_ORGANIZER_ONLY").assertIsSelected()
             find("feedback_photo_1").assertExists()
             compose.runOnIdle { failSubmission = true }
-            compose.onNodeWithTag("feedback_submit").performClick()
+            compose.reviewNode("feedback_submit").performClick()
             compose.onNodeWithText("Could not save. Please try again.").assertIsDisplayed()
             find("feedback_anonymous").assertIsOn()
             compose.runOnIdle { failSubmission = false }
-            compose.onNodeWithTag("feedback_submit").performClick()
-            compose.onNodeWithTag("feedback_submit").assertDoesNotExist()
+            compose.reviewNode("feedback_submit").performClick()
+            compose.reviewNode("feedback_submit").assertDoesNotExist()
             val saved = store.feedback(session.id, "bob")!!
             assertEquals(2, saved.details.photos.size)
             assertTrue(saved.details.anonymous)
@@ -142,7 +141,7 @@ class FeedbackPrivacyUiTest {
             compose.onNodeWithTag("history_detail").performScrollToNode(hasTestTag("feedback_rating_4"))
             compose.onNodeWithTag("feedback_rating_4").performClick()
             find("feedback_add_photo").performClick() // Empty result is cancellation.
-            compose.onNodeWithTag("feedback_submit").assertIsEnabled()
+            compose.reviewNode("feedback_submit").assertIsEnabled()
             selectedUris = List(4) { fixture() }
             compose.onNodeWithTag("feedback_add_photo").performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithTag("feedback_photo_error").fetchSemanticsNodes().isNotEmpty() }
@@ -155,7 +154,7 @@ class FeedbackPrivacyUiTest {
             find("feedback_visibility_PUBLIC").assertIsSelected()
             find("feedback_add_photo").assertExists()
             compose.onNodeWithTag("feedback_photo_0").assertDoesNotExist()
-            compose.onNodeWithTag("feedback_submit").assertIsNotEnabled()
+            compose.reviewNode("feedback_submit").assertIsNotEnabled()
         } finally { cleanup() }
     }
 
@@ -205,12 +204,14 @@ class FeedbackPrivacyUiTest {
             }
             assertTrue(automation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK))
             compose.waitUntil(8_000) { compose.onAllNodesWithTag("feedback_submit").fetchSemanticsNodes().isNotEmpty() }
-            compose.onNodeWithTag("feedback_submit").assertIsEnabled()
+            compose.reviewNode("feedback_submit").assertIsEnabled()
             compose.onNodeWithTag("feedback_photo_0").assertDoesNotExist()
         } finally { cleanup() }
     }
 
     private fun capture(name: String) {
+        if (compose.onAllNodesWithTag("feedback_visibility_done").fetchSemanticsNodes().isNotEmpty())
+            compose.onNodeWithTag("feedback_visibility_done").performClick()
         compose.mainClock.advanceTimeBy(1_000)
         File(context.getExternalFilesDir(null), name).outputStream().use {
             compose.onRoot().captureToImage().asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it)

@@ -51,8 +51,7 @@ class FeedbackDraftUiTest {
         }
     }
     private fun find(tag: String): SemanticsNodeInteraction {
-        compose.onNodeWithTag("history_detail").performScrollToNode(hasTestTag(tag))
-        return compose.onNodeWithTag(tag)
+        return compose.reviewNode(tag)
     }
     @After fun cleanup() {
         val edit = prefs.edit()
@@ -75,7 +74,8 @@ class FeedbackDraftUiTest {
         find("feedback_anonymous").performClick()
         find("feedback_visibility_ORGANIZER_ONLY").performClick()
         // Real navigation removes the form from composition, rather than relying on instance-state restore.
-        compose.onNodeWithText("< Back").performClick()
+        compose.reviewNode("feedback_comment")
+        compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithTag("history_list").assertExists()
         compose.onNodeWithTag("history_${sessions[0].id}").performClick()
         find("feedback_comment").assertTextContains("I would love to join again.")
@@ -86,14 +86,14 @@ class FeedbackDraftUiTest {
         find("feedback_anonymous").assertIsOn()
         find("feedback_visibility_ORGANIZER_ONLY").assertIsSelected()
         compose.runOnIdle { actor = "carol" }
-        compose.onNodeWithTag("feedback_submit").assertIsNotEnabled()
+        compose.reviewNode("feedback_submit").assertIsNotEnabled()
         find("feedback_comment").performTextInput("The venue was comfortable and easy to find.")
         Espresso.closeSoftKeyboard()
         compose.onAllNodesWithText("I would love to join again.", substring = true).assertCountEquals(0)
         find("feedback_anonymous").assertIsOff()
         find("feedback_visibility_PUBLIC").assertIsSelected()
         compose.runOnIdle { actor = "bob"; activity = 1 }
-        compose.onNodeWithTag("feedback_submit").assertIsNotEnabled()
+        compose.reviewNode("feedback_submit").assertIsNotEnabled()
         find("feedback_rating_2").performClick()
         find("feedback_comment").performTextInput("This event had a relaxed and friendly atmosphere.")
         Espresso.closeSoftKeyboard()
@@ -109,15 +109,15 @@ class FeedbackDraftUiTest {
         find("feedback_rating_4").performClick()
         find("feedback_comment").performTextInput("A good start. I will finish this review later.")
         Espresso.closeSoftKeyboard()
-        compose.onNodeWithTag("feedback_submit").assertIsDisplayed().performClick()
+        compose.reviewNode("feedback_submit").assertIsDisplayed().performClick()
         compose.onNodeWithText("Could not save. Please try again.").assertIsDisplayed()
         compose.runOnIdle { showing = false }
         compose.onNodeWithTag("history_screen").assertDoesNotExist()
         compose.runOnIdle { showing = true; message = "" }
         find("feedback_comment").assertTextContains("A good start. I will finish this review later.")
-        compose.onNodeWithTag("feedback_submit").assertIsDisplayed()
+        compose.reviewNode("feedback_submit").assertIsDisplayed()
         compose.runOnIdle { fail = false }
-        compose.onNodeWithTag("feedback_submit").performClick()
+        compose.reviewNode("feedback_submit").performClick()
         compose.onNodeWithTag("feedback_saved").assertExists()
         assertFalse(prefs.contains(FeedbackDraftStore.key("bob", sessions[0].id)))
         assertEquals("A good start. I will finish this review later.", PreferencesPrototypeStore(context).feedback(sessions[0].id, "bob")!!.comment)

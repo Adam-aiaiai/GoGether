@@ -30,7 +30,8 @@ class FeedbackDraftStore(private val context: Context) {
         FeedbackDraft(value.optInt("rating"), value.optString("comment"), FeedbackDetails(
             value.optInt("organization"), value.optInt("venue"), value.optInt("atmosphere"), strings("tags"),
             value.optBoolean("anonymous"), if (value.optString("visibility", "PUBLIC") == "PUBLIC")
-                FeedbackVisibility.PUBLIC else FeedbackVisibility.ORGANIZER_ONLY, strings("photos")))
+                FeedbackVisibility.PUBLIC else FeedbackVisibility.ORGANIZER_ONLY, strings("photos"),
+            value.optString("positiveComment"), value.optString("improvementComment")))
             .also { require(it.rating in 0..5); it.details.requireValid() }
     }
 
@@ -47,6 +48,7 @@ class FeedbackDraftStore(private val context: Context) {
             .put("organization", details.organization).put("venue", details.venue).put("atmosphere", details.atmosphere)
             .put("tags", JSONArray(details.tags)).put("anonymous", details.anonymous)
             .put("visibility", details.visibility.name).put("photos", JSONArray(details.photos))
+            .put("positiveComment", details.positiveComment).put("improvementComment", details.improvementComment)
         val edit = prefs.edit()
         if (draft == FeedbackDraft()) edit.remove(key(actor, sessionId)) else edit.putString(key(actor, sessionId), value.toString())
         check(edit.commit()) { "Could not save draft. Tap to retry." }

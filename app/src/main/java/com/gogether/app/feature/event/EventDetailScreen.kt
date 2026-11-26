@@ -1,6 +1,7 @@
 package com.gogether.app.feature.event
 
-import com.gogether.app.core.ui.OutlinedPageActionButton
+import com.gogether.app.core.ui.AppUi
+import com.gogether.app.core.ui.PageActionButton
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
@@ -117,7 +118,7 @@ fun EventDetailScreen(
             MeetingMapButton("${event.city} ${event.meetingLocation ?: event.location}")
         }
         AnnouncementSection(event, state)
-        OutlinedPageActionButton(onClick = onQuestions, modifier = Modifier.fillMaxWidth().testTag("open_questions")) {
+        PageActionButton(onClick = onQuestions, modifier = Modifier.fillMaxWidth().testTag("open_questions")) {
             Text("Questions & answers (${state.questions.count { it.eventId == event.id }})")
         }
 
@@ -148,7 +149,7 @@ fun EventDetailScreen(
 
         if (registration?.status == RegistrationStatus.CONFIRMED &&
             event.status != EventStatus.CANCELLED) {
-            OutlinedPageActionButton(onClick = onCheckIn,
+            PageActionButton(onClick = onCheckIn,
                 modifier = Modifier.fillMaxWidth().testTag("open_checkin")) {
                 Text(if (event.statusAt(now) == EventStatus.COMPLETED)
                     "Leave feedback" else "Check-in & meeting")
@@ -205,7 +206,7 @@ private fun EventHero(event: Event) {
         EventImage(event.imageUri, event.title, Modifier.fillMaxWidth().height(235.dp))
     } else {
         Box(Modifier.fillMaxWidth().height(190.dp)
-            .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(24.dp)),
+            .background(MaterialTheme.colorScheme.secondaryContainer, AppUi.CardShape),
             contentAlignment = Alignment.Center) {
             Text(event.category.symbol, style = MaterialTheme.typography.displayLarge)
         }
@@ -229,7 +230,7 @@ private fun DetailFact(icon: String, title: String, subtitle: String) {
 
 @Composable
 private fun DetailTile(label: String, value: String, modifier: Modifier) {
-    Surface(modifier = modifier, shape = RoundedCornerShape(16.dp),
+    Surface(modifier = modifier, shape = AppUi.CardShape,
         color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(label, style = MaterialTheme.typography.labelMedium,
@@ -269,7 +270,7 @@ private fun EventActionArea(
     onCancel: () -> Unit,
     onJoin: () -> Unit,
 ) {
-    Surface(shape = RoundedCornerShape(20.dp),
+    Surface(shape = AppUi.CardShape,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically,
@@ -319,7 +320,7 @@ private fun detailClock(epoch: Long): String = Instant.ofEpochMilli(epoch)
 fun MeetingMapButton(location: String) {
     val context = LocalContext.current
     var error by remember { mutableStateOf(false) }
-    OutlinedPageActionButton(onClick = {
+    PageActionButton(onClick = {
         try {
             context.startActivity(Intent(Intent.ACTION_VIEW,
                 "geo:0,0?q=${Uri.encode(location)}".toUri()))

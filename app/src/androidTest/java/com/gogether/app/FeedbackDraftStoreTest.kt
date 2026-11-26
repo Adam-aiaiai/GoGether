@@ -44,7 +44,7 @@ class FeedbackDraftStoreTest {
     @Test fun completeDraftRestoresAcrossStoreInstancesAndScopes(): Unit = runBlocking {
         val id = image()
         val original = FeedbackDraft(4, "I will finish this review when I have more time.\n" + "a".repeat(501), FeedbackDetails(5, 3, 4,
-            listOf("welcoming", "more_guidance"), true, FeedbackVisibility.ORGANIZER_ONLY, listOf(id)))
+            listOf("welcoming", "more_guidance"), true, FeedbackVisibility.ORGANIZER_ONLY, listOf(id), "Friendly teammates.", "More warm-up time."))
         drafts.save("bob", ids[0], original)
         drafts.save("carol", ids[0], FeedbackDraft(2, "The venue was comfortable and easy to find."))
         drafts.save("bob", ids[1], FeedbackDraft(3, "The other event had a great atmosphere."))
@@ -60,12 +60,14 @@ class FeedbackDraftStoreTest {
     @Test fun failedSubmissionRetainsDraftSuccessfulSubmissionClearsItAndLateSaveCannotRestoreIt(): Unit = runBlocking {
         val keep = image(); val remove = image()
         store.rememberSession("bob", session)
-        val draft = FeedbackDraft(4, "I will add a few more thoughts later.", FeedbackDetails(photos = listOf(keep, remove)))
+        val draft = FeedbackDraft(4, "I will add a few more thoughts later.", FeedbackDetails(photos = listOf(keep, remove),
+            positiveComment = "Clear instructions.", improvementComment = "More time to practise."))
         drafts.save("bob", session.id, draft)
         val backend = LocalPrototypeBackend(store, { session.endAt }, { 0 })
         assertThrows(IllegalArgumentException::class.java) { backend.submitFeedback("bob", session.id, 0, "") }
         assertEquals(draft, drafts.load("bob", session.id))
         backend.submitFeedback("bob", session.id, 4, draft.comment, draft.details.copy(photos = listOf(keep)))
+        assertEquals(draft.details.copy(photos = listOf(keep)), PreferencesPrototypeStore(context).feedback(session.id, "bob")!!.details)
         assertFalse(prefs.contains(FeedbackDraftStore.key("bob", session.id)))
         drafts.save("bob", session.id, draft) // A stale editor is not allowed to recreate the draft.
         assertEquals(FeedbackDraft(), drafts.load("bob", session.id))

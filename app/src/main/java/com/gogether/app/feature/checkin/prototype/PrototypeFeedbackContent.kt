@@ -1,7 +1,7 @@
 package com.gogether.app.feature.checkin.prototype
 
+import com.gogether.app.core.ui.AppUi
 import com.gogether.app.core.ui.PageActionButton
-import com.gogether.app.core.ui.OutlinedPageActionButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -45,7 +45,8 @@ private fun ratingLabel(rating: Int) = when (rating) {
 @Composable
 internal fun HistoryDetail(actor: String, entry: PrototypeHistoryEntry, now: Long, busy: Boolean, message: String,
     submit: (String, Int, String, FeedbackDetails) -> Unit, modifier: Modifier, openCheckIn: (PrototypeSession) -> Unit,
-    openAttendance: (PrototypeSession) -> Unit, openReviews: (PrototypeSession) -> Unit, pendingCheckIn: Boolean = false) {
+    openAttendance: (PrototypeSession) -> Unit, openReviews: (PrototypeSession) -> Unit, pendingCheckIn: Boolean = false,
+    back: () -> Unit = {}, reviewSummary: ReviewEventSummary? = null) {
     val context = LocalContext.current.applicationContext
     val activity = LocalCheckInActivities.current.infoOrNull(entry.session)
     val drafts = remember(context) { FeedbackDraftStore(context) }
@@ -74,6 +75,25 @@ internal fun HistoryDetail(actor: String, entry: PrototypeHistoryEntry, now: Lon
         }
     }
     val canReview = entry.canReview(now)
+    if (canReview) {
+        FeedbackEditor("$actor/${entry.session.id}", reviewSummary ?: ReviewEventSummary(
+            activity?.title ?: "Event details unavailable", activity?.organizerName ?: "Organizer", entry.session.startAt),
+            draft, blocked, draftError, message, { value -> updateDraft { value } }, { updateDraft { it } },
+            submit = { submit(entry.session.id, rating, comment, draft.details) }, back = back,
+            reviews = { openReviews(entry.session) }, modifier = modifier,
+            extraActions = {
+                if (activity?.organizerId == actor) DropdownMenuItem(text = { Text("View attendance") },
+                    onClick = { openAttendance(entry.session) }, modifier = Modifier.testTag("history_open_attendance"))
+                if (pendingCheckIn) DropdownMenuItem(text = { Text("Check unconfirmed check-in") },
+                    onClick = { openCheckIn(entry.session) }, modifier = Modifier.testTag("history_resolve_checkin"))
+            }, photos = {
+                FeedbackPhotoStrip(photos, actor, entry.session.id, blocked, photoActions.add, photoActions.remove, compact = true)
+                if (photoActions.importing) LinearProgressIndicator(Modifier.fillMaxWidth())
+                if (photoActions.error.isNotBlank()) Text(photoActions.error, color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("feedback_photo_error"))
+            })
+        return
+    }
     Column(modifier.fillMaxWidth()) {
         LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("history_detail"),
             verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(top = 12.dp, bottom = 16.dp)) {
@@ -104,7 +124,7 @@ internal fun HistoryDetail(actor: String, entry: PrototypeHistoryEntry, now: Lon
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (activity?.organizerId == actor) item {
-                OutlinedPageActionButton(onClick = { openAttendance(entry.session) }, modifier = Modifier.testTag("history_open_attendance")) { Text("View attendance") }
+                PageActionButton(onClick = { openAttendance(entry.session) }, modifier = Modifier.testTag("history_open_attendance")) { Text("View attendance") }
             }
             item { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
             when {
@@ -144,94 +164,15 @@ internal fun HistoryDetail(actor: String, entry: PrototypeHistoryEntry, now: Lon
                 !entry.hasEnded(now) -> item {
                     Text("Review after the event ends. No need to scan again.")
                     Text("Ends: ${reviewTime(entry.session.endAt)}", style = MaterialTheme.typography.bodySmall)
-                    OutlinedPageActionButton(onClick = { openCheckIn(entry.session) }, enabled = !blocked,
+                    PageActionButton(onClick = { openCheckIn(entry.session) }, enabled = !blocked,
                         modifier = Modifier.testTag("history_open_checkin")) { Text("Open event check-in") }
                 }
-                else -> {
-                    item {
-                        Text("How was your experience?", style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.height(8.dp))
-                        Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            (1..5).forEach { score ->
-                                Box(Modifier.weight(1f).heightIn(min = 56.dp).clip(CheckInStyle.shape)
-                                    .selectable(selected = rating == score, enabled = !blocked, role = Role.RadioButton,
-                                        onClick = { updateDraft { it.copy(rating = score) } })
-                                    .semantics { contentDescription = "$score out of 5, ${ratingLabel(score)}" }
-                                    .testTag("feedback_rating_$score"), contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Default.Star, null,
-                                        Modifier.size(36.dp), tint = if (score <= rating) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.outlineVariant)
-                                }
-                            }
-                        }
-                        Text(if (rating == 0) ratingLabel(0) else "$rating / 5  ${ratingLabel(rating)}",
-                            Modifier.padding(top = 4.dp).testTag("feedback_rating_label"), style = MaterialTheme.typography.bodyMedium,
-                            color = if (rating == 0) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary)
-                    }
-                    item {
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically) {
-                            Text("Experience ratings (optional)", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-                            TextButton(onClick = { updateDraft { it.copy(details = it.details.copy(organization = 0, venue = 0, atmosphere = 0)) } },
-                                enabled = !blocked && (organization + venue + atmosphere > 0),
-                                modifier = Modifier.testTag("feedback_clear_dimensions")) { Text("Clear") }
-                        }
-                        Text("Rate only the parts you experienced", style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    item { FeedbackDimension("Organization", "organization", organization, blocked) { score -> updateDraft { it.copy(details = it.details.copy(organization = score)) } } }
-                    item { FeedbackDimension("Venue", "venue", venue, blocked) { score -> updateDraft { it.copy(details = it.details.copy(venue = score)) } } }
-                    item { FeedbackDimension("Atmosphere", "atmosphere", atmosphere, blocked) { score -> updateDraft { it.copy(details = it.details.copy(atmosphere = score)) } } }
-                    item { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
-                    item { FeedbackTags(false, tags, blocked, ::toggleTag) }
-                    item { FeedbackTags(true, tags, blocked, ::toggleTag) }
-                    item {
-                        Text("Share your experience", style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.height(10.dp))
-                        TextField(comment, { text -> updateDraft { it.copy(comment = text) } }, shape = CheckInStyle.shape, enabled = !blocked,
-                            label = { Text("Comment (optional)") },
-                            placeholder = { Text("What did you enjoy? What could be better next time?") },
-                            minLines = 3, maxLines = 6, isError = comment.length > 500,
-                            supportingText = { Text(if (comment.length > 500) "Over 500 characters. Shorten your comment." else "${comment.length} / 500") },
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                                focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent),
-                            modifier = Modifier.fillMaxWidth().testTag("feedback_comment"))
-                    }
-                    item {
-                        FeedbackPhotoStrip(photos, actor, entry.session.id, blocked, photoActions.add, photoActions.remove)
-                        if (photoActions.importing) LinearProgressIndicator(Modifier.fillMaxWidth())
-                        if (photoActions.error.isNotBlank()) Text(photoActions.error, color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("feedback_photo_error"))
-                        Text("Photos are stored on this device.", style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    item { FeedbackPrivacyFields(anonymous, visibility, blocked, { value -> updateDraft { it.copy(details = it.details.copy(anonymous = value)) } }, { value -> updateDraft { it.copy(details = it.details.copy(visibility = value)) } }) }
-                }
+                else -> Unit
             }
+
             item {
                 TextButton(onClick = { openReviews(entry.session) }, enabled = !blocked,
                     modifier = Modifier.testTag("feedback_open_reviews")) { Text("View event reviews >") }
-            }
-        }
-        if (canReview) {
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (message.isNotBlank()) {
-                    Text(message, Modifier.testTag("feedback_message"), color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall)
-                }
-                Text(draftError.ifBlank { "Draft saved automatically. One review per event." },
-                    modifier = Modifier.testTag("feedback_draft_status").clickable(enabled = draftError.isNotBlank() && !blocked) { updateDraft { it } },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (draftError.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error)
-                PageActionButton(onClick = { submit(entry.session.id, rating, comment,
-                    FeedbackDetails(organization, venue, atmosphere, tags.toList(), anonymous, visibility, photos.toList())) }, enabled = !blocked && FeedbackInput.valid(rating, comment),
-                    modifier = Modifier.fillMaxWidth().testTag("feedback_submit")) {
-                    Text(if (photoActions.importing) "Processing photos…" else if (busy) "Saving…" else "Submit review")
-                }
             }
         }
     }

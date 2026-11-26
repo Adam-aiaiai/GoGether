@@ -1,5 +1,6 @@
 package com.gogether.app.feature.registration
 
+import com.gogether.app.core.ui.AppUi
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDp
 import androidx.compose.animation.core.animateFloat
@@ -81,7 +82,7 @@ fun ParticipantsCard(event: Event, state: AppSnapshot, modifier: Modifier = Modi
 
     Surface(
         modifier = modifier.fillMaxWidth().testTag("participants_card"),
-        shape = RoundedCornerShape(20.dp),
+        shape = AppUi.CardShape,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

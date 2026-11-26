@@ -2,20 +2,16 @@ package com.gogether.app.navigation
 
 import com.gogether.app.core.ui.PageActionButton
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.SystemClock
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
@@ -35,14 +31,6 @@ import com.gogether.app.feature.profile.*
 import com.gogether.app.core.account.AccountMode
 import com.gogether.app.feature.registration.*
 import kotlinx.coroutines.launch
-
-private data class Destination(val route: String, val label: String, val icon: ImageVector)
-private val destinations = listOf(
-    Destination("explore", "Explore", Icons.Default.Home),
-    Destination("create", "Create", Icons.Default.Add),
-    Destination("my-events", "My Events", Icons.Default.Favorite),
-    Destination("profile", "Profile", Icons.Default.Person),
-)
 
 @Composable
 fun GogetherApp(repository: GogetherRepository) {
@@ -104,6 +92,8 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
     val authBusy by auth.busy.collectAsStateWithLifecycle()
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route ?: "explore"
+    var selectedRoot by rememberSaveable { mutableStateOf("explore") }
+    LaunchedEffect(route) { if (route in AppTopLevelRoutes) selectedRoot = route }
     val subpage = route.contains("{eventId}") || route == "edit-profile" || route == "notifications"
     val scope = rememberCoroutineScope()
     listOf(eventsVm, registration, coordination, profile).forEach { vm ->
@@ -131,44 +121,37 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
                     }
                 }
             }
-            if (route != "explore" && route != "create" && !route.startsWith("check-in")) {
-                TopAppBar(title = { Text(if (subpage) when {
-                    route == "edit-profile" -> "Your profile"
+            if (subpage && !route.startsWith("check-in")) {
+                AppPageHeader(title = when {
+                    route == "edit-profile" -> "Edit profile"
                     route == "notifications" -> "Notifications"
                     route.startsWith("questions") -> "Questions & answers"
                     route.startsWith("manage") -> "Event management"
                     route.startsWith("edit") -> "Edit event"
                     route.startsWith("reuse") -> "Reuse event"
-                    route.startsWith("check-in") -> "Check-in & feedback"
                     else -> "Event details"
-                } else "Gogether") },
-                    navigationIcon = { if (subpage) IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    } }, actions = { Text(if (repository.accountMode == AccountMode.LOCAL_DEMO) "DEMO" else "CONNECTED", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(end = 16.dp)) })
+                }, onBack = { nav.popBackStack() })
             }
             }
         },
         bottomBar = {
             if (!route.startsWith("check-in")) {
-            NavigationBar {
-                destinations.forEach { destination ->
-                    NavigationBarItem(selected = route == destination.route,
-                        onClick = {
-                            if (route != destination.route) {
-                                if (destination.route == "explore") {
-                                    nav.popBackStack("explore", inclusive = false)
-                                } else nav.navigate(destination.route) {
-                                    popUpTo("explore") { saveState = !subpage }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
+                AppBottomNavigation(selectedRoute = route.takeIf { it in AppTopLevelRoutes } ?: selectedRoot,
+                    onNavigate = { destination ->
+                        if (route != destination) {
+                            if (destination == "explore") {
+                                nav.popBackStack("explore", inclusive = false)
+                            } else nav.navigate(destination) {
+                                popUpTo("explore") { saveState = !subpage }
+                                launchSingleTop = true
+                                restoreState = true
                             }
-                        }, icon = { Icon(destination.icon, contentDescription = null) },
-                        label = { Text(destination.label, maxLines = 2, style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center) }, modifier = Modifier.testTag("nav_${destination.route}"))
-                }
-            } }
+                        }
+                    })
+            }
         }, snackbarHost = { AppSnackbarHost(snackbars) },
     ) { padding ->
+        CompositionLocalProvider(LocalPageHeaderProvided provides (subpage && !route.startsWith("check-in"))) {
         NavHost(navController = nav, startDestination = "explore", modifier = Modifier.padding(padding)) {
             composable("explore") { ExploreScreen(state, events, filter, now, explore::filter) { nav.navigate("event/$it") } }
             composable("create") {
@@ -249,6 +232,7 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
                     attendanceOnly = backStack.arguments?.getBoolean("attendance") == true)
             }
         }
+    }
     }
 }
 
