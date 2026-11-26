@@ -8,10 +8,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.test.platform.app.InstrumentationRegistry
 import com.gogether.app.core.data.DemoData
 import com.gogether.app.core.ui.AppBottomNavigation
@@ -39,6 +42,17 @@ class PressBounceUiTest {
     private fun width(tag: String) = compose.onNodeWithTag(tag, useUnmergedTree = true)
         .fetchSemanticsNode().boundsInRoot.width
 
+    private fun assertNavigationLabelSizes() {
+        for (label in listOf("Explore", "Create", "My Events", "Profile")) {
+            val layouts = mutableListOf<TextLayoutResult>()
+            compose.onNodeWithText(label, useUnmergedTree = true)
+                .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            assertEquals("One text layout for $label", 1, layouts.size)
+            assertEquals("Unchanged font size for $label", 12.sp, layouts.single().layoutInput.style.fontSize)
+            assertEquals("Unchanged line height for $label", 16.sp, layouts.single().layoutInput.style.lineHeight)
+        }
+    }
+
     private fun capture(name: String) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val folder = File(context.getExternalFilesDir(null), "nav-bounce").apply { mkdirs() }
@@ -60,7 +74,7 @@ class PressBounceUiTest {
         action.assertWidthIsEqualTo(320.dp).assertHeightIsEqualTo(52.dp)
         val resting = width("action_label")
         val pixels = action.captureToImage().asAndroidBitmap()
-        assertEquals("One primary purple", 0xFF746097.toInt(), pixels.getPixel(pixels.width / 2, pixels.height / 5))
+        assertEquals("Approved primary orange", 0xFFF45B2B.toInt(), pixels.getPixel(pixels.width / 2, pixels.height / 5))
         capture("01-action-rest")
         compose.mainClock.autoAdvance = false
         action.performTouchInput { down(center) }
@@ -130,7 +144,7 @@ class PressBounceUiTest {
         assertEquals(4, clicks)
     }
 
-    @Test fun navigationUsesPinkBackgroundSelectedSizeAndPressFeedback() {
+    @Test fun navigationUsesWhiteBackgroundSelectedSizeAndPressFeedback() {
         var selected by mutableStateOf("explore")
         var clicks = 0
         frame {
@@ -140,9 +154,10 @@ class PressBounceUiTest {
             }
         }
         val idleIcon = width("nav_icon_profile")
-        assertEquals(1.12f, width("nav_icon_explore") / idleIcon, .005f)
+        assertEquals(1.40f, width("nav_icon_explore") / idleIcon, .005f)
+        assertNavigationLabelSizes()
         val background = compose.onNodeWithTag("bottom_navigation").captureToImage().asAndroidBitmap()
-        assertEquals(0xFFFAF5F9.toInt(), background.getPixel(3, 3))
+        assertEquals(0xFFFFFFFF.toInt(), background.getPixel(3, 3))
         capture("04-navigation-explore")
         compose.mainClock.autoAdvance = false
         val profile = compose.onNodeWithTag("nav_profile")
@@ -153,7 +168,8 @@ class PressBounceUiTest {
         compose.mainClock.advanceTimeBy(1800)
         profile.assertIsSelected()
         compose.onNodeWithTag("nav_explore").assertIsNotSelected()
-        assertEquals(1.12f, width("nav_icon_profile") / idleIcon, .005f)
+        assertEquals(1.40f, width("nav_icon_profile") / idleIcon, .005f)
+        assertNavigationLabelSizes()
         assertEquals(1f, width("nav_icon_explore") / idleIcon, .005f)
         assertEquals(1, clicks)
         capture("05-navigation-profile")
@@ -161,7 +177,8 @@ class PressBounceUiTest {
             compose.onNodeWithTag("nav_$route").performTouchInput { click() }
             compose.mainClock.advanceTimeBy(1800)
             compose.onNodeWithTag("nav_$route").assertIsSelected()
-            assertEquals(1.12f, width("nav_icon_$route") / idleIcon, .005f)
+            assertEquals(1.40f, width("nav_icon_$route") / idleIcon, .005f)
+            assertNavigationLabelSizes()
         }
         assertEquals(4, clicks)
     }

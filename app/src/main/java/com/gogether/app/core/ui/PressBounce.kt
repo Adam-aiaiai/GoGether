@@ -24,7 +24,7 @@ internal object AppMotion {
     const val PressedScale = 0.94f
     const val Stiffness = 260f
     const val Damping = 12f
-    const val SelectedIconScale = 1.12f
+    const val SelectedIconScale = 1.40f
     // Compose takes a damping ratio, not the physical damping coefficient.
     // With unit mass: ratio = c / (2 * sqrt(k * m)). Passing 12 would remove bounce.
     val DampingRatio = Damping / (2f * sqrt(Stiffness))

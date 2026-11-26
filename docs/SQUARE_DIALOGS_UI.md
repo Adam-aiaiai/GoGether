@@ -17,7 +17,8 @@ of its width, growing when its content needs it. Width fits the window with 16 d
 outer margins and is capped at 400 dp on large screens.
 Long text can increase the height; short windows scroll rather than clip content.
 Descriptions use neutral gray `#646870`. Titles and option names use `#26272B`.
-Buttons and selected radio controls use the existing primary `#746097`.
+Buttons and selected radio controls follow the shared primary, now orange
+`#F45B2B`. The earlier purple validation below records the palette at that time.
 
 Actions reuse the shared capsule button and its press animation. The paired keep
 action is outlined; confirmation is filled. Done is centered at 80% of the dialog

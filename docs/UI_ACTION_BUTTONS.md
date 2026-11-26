@@ -14,16 +14,16 @@ data sources and navigation remain with the existing screens.
 - Use a capsule shape and a 52 dp minimum height. All ordinary labels use 16 sp,
   bold, centered text. Long labels wrap inside the same width; enlarged system
   text can increase height instead of clipping the action.
-- All enabled full-row actions use purple fill and bold white text, including
+- All enabled full-row actions use orange fill and bold white text, including
   notifications, maps, attendance, image selection and event management.
-  A paired Cancel uses an outline and purple text; for example, Save changes and
+  A paired Cancel uses an outline and orange text; for example, Save changes and
   Cancel in Edit profile. A standalone **Cancel event** is an event action, not
   this dismissive exception, and uses the filled style. Disabled actions stay grey.
 - Small actions alongside other content, including **Join Event**, **Join Waitlist**,
   **Manage** and registration **Cancel**, retain their existing layout. Text links,
   icon buttons, tabs, filters and photo tiles also retain their existing treatment.
 - Light-theme page background and surface are white. The latest approved palette
-  uses `#746097` primary buttons and `#FAF5F9` bottom navigation. Filled full-row
+  uses `#F45B2B` primary buttons and white bottom navigation. Filled full-row
   actions now use the shared press/release spring; see
   [palette and motion](UI_PALETTE_AND_MOTION.md). System dark-theme surfaces are retained.
 

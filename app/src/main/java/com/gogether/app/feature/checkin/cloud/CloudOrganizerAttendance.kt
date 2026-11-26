@@ -44,7 +44,7 @@ internal fun AttendanceAvatar(person: CloudAttendancePerson, modifier: Modifier 
         person.name.trim().split(Regex("\\s+")).take(2).joinToString("") { it.take(1).uppercase(Locale.ENGLISH) }
     }
     Surface(modifier.semantics { contentDescription = person.name }, shape = CircleShape,
-        color = AppUi.Lilac, contentColor = AppUi.Primary) {
+        color = AppUi.SoftAccent, contentColor = AppUi.OnSoftAccent) {
         Box(contentAlignment = Alignment.Center) {
             Text(initials, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }

@@ -44,8 +44,8 @@ internal fun CloudCheckInResultContent(
     val primaryText = if (dark) MaterialTheme.colorScheme.onSurface else Color(0xFF26272B)
     val secondaryText = if (dark) MaterialTheme.colorScheme.onSurfaceVariant else Color(0xFF70737A)
     val success = if (dark) Color(0xFF76D99A) else Color(0xFF14853D)
-    val panelTop = if (dark) MaterialTheme.colorScheme.surface else Color(0xFFFCFAFC)
-    val panelBottom = if (dark) MaterialTheme.colorScheme.surfaceContainer else AppUi.Lilac
+    val panelTop = if (dark) MaterialTheme.colorScheme.surface else AppUi.AccentFadeStart
+    val panelBottom = if (dark) MaterialTheme.colorScheme.surfaceContainer else AppUi.SoftAccent
 
     Surface(color = background, contentColor = primaryText, modifier = Modifier.fillMaxSize().testTag("cloud_checkin_result")) {
         Column {

@@ -43,7 +43,7 @@ private const val StaggerMillis = 40
 private const val MoveMillis = 360
 private const val CollapsedFaces = 3
 private val AvatarColors = listOf(
-    Color(0xFFE6D9FF), Color(0xFFFFDCBE), Color(0xFFD4EBDD),
+    Color(0xFFFFE5D4), Color(0xFFFFDCBE), Color(0xFFD4EBDD),
     Color(0xFFD9E7FF), Color(0xFFFFDCE6), Color(0xFFF3E8BC),
 )
 
@@ -211,7 +211,7 @@ private fun InitialAvatar(name: String, color: Color, modifier: Modifier = Modif
     }
     Surface(
         modifier = modifier.semantics { contentDescription = name },
-        shape = CircleShape, color = color, contentColor = Color(0xFF30213F),
+        shape = CircleShape, color = color, contentColor = Color(0xFF26272B),
         border = BorderStroke(2.dp, MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
         Box(contentAlignment = Alignment.Center) {

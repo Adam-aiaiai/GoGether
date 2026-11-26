@@ -17,11 +17,13 @@ object AppUi {
     val CardShape = RoundedCornerShape(16.dp)
     val FieldShape = RoundedCornerShape(12.dp)
     val TagShape = RoundedCornerShape(12.dp)
-    val Primary = Color(0xFF746097)
-    val NavigationBackground = Color(0xFFFAF5F9)
-    val Lilac = Color(0xFFECD9ED)
-    val SelectedTag = Color(0xFFEADACB)
-    val SelectedTagText = Color(0xFF5A2F10)
+    val Primary = Color(0xFFF45B2B)
+    val OnSoftAccent = Color(0xFFC94B1B)
+    val NavigationBackground = Color.White
+    val SoftAccent = Color(0xFFFFF1E7)
+    val AccentFadeStart = Color(0xFFFFFCFA)
+    val SelectedTag = Color(0xFFFFE5D4)
+    val SelectedTagText = Color(0xFF8B3A17)
 }
 
 // Screens can also render independently in previews and UI tests.
