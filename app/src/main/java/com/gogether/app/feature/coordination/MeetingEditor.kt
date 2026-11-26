@@ -1,5 +1,7 @@
 package com.gogether.app.feature.coordination
 
+import com.gogether.app.core.ui.PageActionButton
+import com.gogether.app.core.ui.OutlinedPageActionButton
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import androidx.compose.foundation.layout.*
@@ -37,7 +39,7 @@ fun MeetingEditor(event: Event, now: Long, busy: Boolean, save: (MeetingUpdate, 
     val notesError = if (notes.length > 1000) "Use up to 1,000 characters." else null
     InfoCard("Meeting point", "${displayTime(event.meetingAt ?: event.startAt)}\n${event.meetingLocation ?: event.location}\n${event.meetingNotes}")
     if (!editing) {
-        OutlinedButton(enabled = !busy && event.status == EventStatus.OPEN && now < event.endAt,
+        OutlinedPageActionButton(enabled = !busy && event.status == EventStatus.OPEN && now < event.endAt,
             modifier = Modifier.testTag("edit_meeting"), onClick = {
             val local = Instant.ofEpochMilli(event.meetingAt ?: event.startAt).atZone(ZoneId.systemDefault())
             date = local.toLocalDate().toString(); time = local.format(DateTimeFormatter.ofPattern("HH:mm"))
@@ -46,8 +48,8 @@ fun MeetingEditor(event: Event, now: Long, busy: Boolean, save: (MeetingUpdate, 
         }) { Text("Edit meeting information") }
     } else {
         Text("Meeting time · ${ZoneId.systemDefault()}")
-        OutlinedButton(enabled = !busy, onClick = { dateDialog = true }, modifier = Modifier.testTag("meeting_date")) { Text("Date: $date") }
-        OutlinedButton(enabled = !busy, onClick = { timeDialog = true }, modifier = Modifier.testTag("meeting_time")) { Text("Time: $time") }
+        OutlinedPageActionButton(enabled = !busy, onClick = { dateDialog = true }, modifier = Modifier.testTag("meeting_date")) { Text("Date: $date") }
+        OutlinedPageActionButton(enabled = !busy, onClick = { timeDialog = true }, modifier = Modifier.testTag("meeting_time")) { Text("Time: $time") }
         if (submitted && timeError != null) Text(timeError, color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("meeting_time_error"))
         OutlinedTextField(location, { location = it }, label = { Text("Meeting location") }, enabled = !busy,
             isError = submitted && locationError != null,
@@ -56,7 +58,7 @@ fun MeetingEditor(event: Event, now: Long, busy: Boolean, save: (MeetingUpdate, 
         OutlinedTextField(notes, { notes = it }, label = { Text("Meeting notes") }, enabled = !busy,
             isError = submitted && notesError != null,
             supportingText = { Text(notesError ?: "${notes.length}/1000") }, modifier = Modifier.fillMaxWidth().testTag("meeting_notes"))
-        Button(enabled = !busy, modifier = Modifier.testTag("save_meeting"), onClick = {
+        PageActionButton(enabled = !busy, modifier = Modifier.testTag("save_meeting"), onClick = {
             submitted = true
             if (parsed != null && timeError == null && locationError == null && notesError == null)
                 save(MeetingUpdate(parsed, location, notes)) { editing = false }

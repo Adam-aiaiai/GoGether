@@ -1,5 +1,7 @@
 package com.gogether.app.feature.checkin.prototype
 
+import com.gogether.app.core.ui.PageActionButton
+import com.gogether.app.core.ui.OutlinedPageActionButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -102,8 +104,7 @@ internal fun HistoryDetail(actor: String, entry: PrototypeHistoryEntry, now: Lon
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (activity?.organizerId == actor) item {
-                OutlinedButton(onClick = { openAttendance(entry.session) }, shape = CheckInStyle.shape,
-                    modifier = Modifier.testTag("history_open_attendance")) { Text("View attendance") }
+                OutlinedPageActionButton(onClick = { openAttendance(entry.session) }, modifier = Modifier.testTag("history_open_attendance")) { Text("View attendance") }
             }
             item { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
             when {
@@ -143,8 +144,8 @@ internal fun HistoryDetail(actor: String, entry: PrototypeHistoryEntry, now: Lon
                 !entry.hasEnded(now) -> item {
                     Text("Review after the event ends. No need to scan again.")
                     Text("Ends: ${reviewTime(entry.session.endAt)}", style = MaterialTheme.typography.bodySmall)
-                    OutlinedButton(onClick = { openCheckIn(entry.session) }, enabled = !blocked,
-                        shape = CheckInStyle.shape, modifier = Modifier.testTag("history_open_checkin")) { Text("Open event check-in") }
+                    OutlinedPageActionButton(onClick = { openCheckIn(entry.session) }, enabled = !blocked,
+                        modifier = Modifier.testTag("history_open_checkin")) { Text("Open event check-in") }
                 }
                 else -> {
                     item {
@@ -226,10 +227,9 @@ internal fun HistoryDetail(actor: String, entry: PrototypeHistoryEntry, now: Lon
                     modifier = Modifier.testTag("feedback_draft_status").clickable(enabled = draftError.isNotBlank() && !blocked) { updateDraft { it } },
                     style = MaterialTheme.typography.bodySmall,
                     color = if (draftError.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error)
-                Button(onClick = { submit(entry.session.id, rating, comment,
-                    FeedbackDetails(organization, venue, atmosphere, tags.toList(), anonymous, visibility, photos.toList())) }, shape = CheckInStyle.shape,
-                    enabled = !blocked && FeedbackInput.valid(rating, comment),
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("feedback_submit")) {
+                PageActionButton(onClick = { submit(entry.session.id, rating, comment,
+                    FeedbackDetails(organization, venue, atmosphere, tags.toList(), anonymous, visibility, photos.toList())) }, enabled = !blocked && FeedbackInput.valid(rating, comment),
+                    modifier = Modifier.fillMaxWidth().testTag("feedback_submit")) {
                     Text(if (photoActions.importing) "Processing photos…" else if (busy) "Saving…" else "Submit review")
                 }
             }

@@ -1,5 +1,7 @@
 package com.gogether.app.feature.checkin.cloud
 
+import com.gogether.app.core.ui.PageActionButton
+import com.gogether.app.core.ui.OutlinedPageActionButton
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Base64
@@ -88,13 +90,13 @@ internal fun CloudFeedbackContent(backend:CloudOperations,event:Event,actor:Stri
                 }
             }
         }
-        OutlinedButton(onClick={picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))},
+        OutlinedPageActionButton(onClick={picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))},
             enabled=!busy && draft.details.photos.size<3,modifier=Modifier.testTag("cloud_feedback_add_photo")){Text("Add photos")}
         if(draftError.isNotBlank()) {
             Text("Draft was not saved: $draftError",color=MaterialTheme.colorScheme.error)
             TextButton(onClick={update(draft)},enabled=!busy){Text("Retry saving draft")}
         } else Text("Draft saved on this device",style=MaterialTheme.typography.bodySmall)
-        Button(onClick={perform {
+        PageActionButton(onClick={perform {
             val submitted=draft
             require(submitted.rating in 1..5 && submitted.comment.length<=500){"Choose a rating and use up to 500 characters."}
             submitted.details.requireValid()

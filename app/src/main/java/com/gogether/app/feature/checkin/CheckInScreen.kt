@@ -1,5 +1,6 @@
 package com.gogether.app.feature.checkin
 
+import com.gogether.app.core.ui.PageActionButton
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -40,13 +41,13 @@ fun CheckInScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
                     }
                     OutlinedTextField(comment, { comment = it }, label = { Text("Comment (optional)") }, minLines = 3,
                         supportingText = { Text("Up to 500 characters") }, modifier = Modifier.fillMaxWidth())
-                    Button(onClick = { feedback(rating, comment) }, enabled = !busy && FeedbackInput.valid(rating, comment),
+                    PageActionButton(onClick = { feedback(rating, comment) }, enabled = !busy && FeedbackInput.valid(rating, comment),
                         modifier = Modifier.fillMaxWidth()) { Text("Submit feedback") }
                 }
             }
         } else if (event.status != EventStatus.CANCELLED) {
             InfoCard("Demo Check-in", "This button records a local test check-in. It does not scan a QR code or verify your identity or physical presence.")
-            Button(onClick = checkIn, enabled = !busy && eligibility == CheckInEligibility.READY,
+            PageActionButton(onClick = checkIn, enabled = !busy && eligibility == CheckInEligibility.READY,
                 modifier = Modifier.fillMaxWidth().testTag("demo_checkin")) { Text("Demo Check-in") }
         }
     }

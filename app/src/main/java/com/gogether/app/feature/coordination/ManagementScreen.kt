@@ -1,5 +1,7 @@
 package com.gogether.app.feature.coordination
 
+import com.gogether.app.core.ui.PageActionButton
+import com.gogether.app.core.ui.OutlinedPageActionButton
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,13 +29,13 @@ fun ManagementScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
         StatusPill(event.statusAt(now).name.lowercase())
         InfoCard("At a glance", "${state.confirmed(event.id).size} / ${event.capacity} confirmed\n${state.waitlist(event.id).size} waitlisted\n${state.checkIns.count { it.eventId == event.id }} checked in")
         InfoCard("Event schedule", "${displayTime(event.startAt)} – ${displayTime(event.endAt)}\n${event.city} · ${event.location}\n${event.notes}")
-        attendance?.let { open -> OutlinedButton(onClick = open, modifier = Modifier.fillMaxWidth().testTag("manage_attendance")) {
+        attendance?.let { open -> OutlinedPageActionButton(onClick = open, modifier = Modifier.fillMaxWidth().testTag("manage_attendance")) {
             Text("View check-in and attendance")
         } }
         CheckInWindowCard(event, now)
         MeetingEditor(event, now, busy, updateMeeting)
         AnnouncementSection(event, state)
-        questions?.let { open -> OutlinedButton(onClick = open, modifier = Modifier.fillMaxWidth().testTag("manage_questions")) {
+        questions?.let { open -> OutlinedPageActionButton(onClick = open, modifier = Modifier.fillMaxWidth().testTag("manage_questions")) {
             Text("Questions & answers · ${state.questions.count { it.eventId == event.id && it.answer == null }} unanswered")
         } }
         InfoCard("Participation information", buildString {
@@ -43,12 +45,12 @@ fun ManagementScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
             append("\nSpare equipment: ${event.spareEquipment.ifBlank { "None listed" }}")
         })
         MeetingMapButton("${event.city} ${event.meetingLocation ?: event.location}")
-        OutlinedButton(onClick = reuse, enabled = !busy,
+        OutlinedPageActionButton(onClick = reuse, enabled = !busy,
             modifier = Modifier.fillMaxWidth().testTag("reuse_event")) {
             Text("Reuse as a new event")
         }
         if (event.status == EventStatus.OPEN && now < event.startAt) {
-            Button(onClick = edit, enabled = !busy,
+            PageActionButton(onClick = edit, enabled = !busy,
                 modifier = Modifier.fillMaxWidth().testTag("edit_event")) { Text("Edit event") }
         }
         Text("Confirmed participants", style = MaterialTheme.typography.titleLarge)
@@ -67,9 +69,9 @@ fun ManagementScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
                 enabled = !busy, isError = announcement.length > 500,
                 supportingText = { Text("${announcement.length}/500 characters · participant inbox") }, minLines = 3,
                 modifier = Modifier.fillMaxWidth().testTag("announcement_input"))
-            OutlinedButton(onClick = { announce(announcement) { announcement = "" } }, enabled = !busy && announcement.trim().length in 1..500,
+            OutlinedPageActionButton(onClick = { announce(announcement) { announcement = "" } }, enabled = !busy && announcement.trim().length in 1..500,
                 modifier = Modifier.fillMaxWidth().testTag("post_announcement")) { Text(if (busy) "Publishing…" else "Post announcement") }
-            if (now < event.startAt) OutlinedButton(onClick = { confirmation = true }, enabled = !busy,
+            if (now < event.startAt) OutlinedPageActionButton(onClick = { confirmation = true }, enabled = !busy,
                 modifier = Modifier.fillMaxWidth().testTag("cancel_event")) { Text("Cancel event") }
         }
     }

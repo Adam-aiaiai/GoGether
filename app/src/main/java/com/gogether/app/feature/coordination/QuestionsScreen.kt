@@ -1,5 +1,6 @@
 package com.gogether.app.feature.coordination
 
+import com.gogether.app.core.ui.PageActionButton
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,7 +32,7 @@ fun QuestionsScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
                 label = { Text("Your question") }, minLines = 2,
                 supportingText = { Text("${draft.length}/500 characters") }, isError = draft.trim().length > 500,
                 modifier = Modifier.fillMaxWidth().testTag("question_input"))
-            Button(onClick = { ask(draft) { draft = ""; unanswered = false } },
+            PageActionButton(onClick = { ask(draft) { draft = ""; unanswered = false } },
                 enabled = !busy && draft.trim().length in 1..500,
                 modifier = Modifier.fillMaxWidth().testTag("post_question")) {
                 Text(if (busy) "Sending…" else "Ask organizer")
@@ -58,7 +59,7 @@ fun QuestionsScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
                             supportingText = { Text("${answerDraft.length}/1,000 characters") },
                             isError = answerDraft.trim().length > 1000,
                             modifier = Modifier.fillMaxWidth().testTag("answer_input"))
-                        Button(onClick = { answer(question.id, answerDraft) { editingId = null; answerDraft = "" } },
+                        PageActionButton(onClick = { answer(question.id, answerDraft) { editingId = null; answerDraft = "" } },
                             enabled = !busy && answerDraft.trim().length in 1..1000 && answerDraft.trim() != question.answer,
                             modifier = Modifier.testTag("send_answer_${question.id}")) {
                             Text(if (busy) "Saving…" else "Save answer")

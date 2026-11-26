@@ -1,5 +1,7 @@
 package com.gogether.app.feature.auth
 
+import com.gogether.app.core.ui.PageActionButton
+import com.gogether.app.core.ui.OutlinedPageActionButton
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
@@ -43,7 +45,7 @@ fun AuthScreen(state: AppSnapshot, busy: Boolean, login: (String) -> Unit, regis
             Text("Choose a test profile", style = MaterialTheme.typography.titleLarge)
             Text("Alice hosts badminton. Bob has a place. Emma is first on the waitlist.", style = MaterialTheme.typography.bodyMedium)
             state.users.filter { it.status == UserStatus.DEMO }.forEach { user ->
-                OutlinedButton(onClick = { login(user.id) }, enabled = !busy, modifier = Modifier.fillMaxWidth().testTag("login_${user.id}")) {
+                OutlinedPageActionButton(onClick = { login(user.id) }, enabled = !busy, modifier = Modifier.fillMaxWidth().testTag("login_${user.id}")) {
                     Text("Continue as ${user.displayName}", Modifier.padding(6.dp))
                 }
             }
@@ -59,7 +61,7 @@ fun AuthScreen(state: AppSnapshot, busy: Boolean, login: (String) -> Unit, regis
                     }, label = { Text(category.label) })
                 }
             }
-            Button(onClick = { register(nickname, selected.map(Category::valueOf).toSet()) },
+            PageActionButton(onClick = { register(nickname, selected.map(Category::valueOf).toSet()) },
                 enabled = !busy && nickname.trim().length in 2..30, modifier = Modifier.fillMaxWidth()) {
                 Text("Create Demo profile")
             }
@@ -116,7 +118,7 @@ private fun AccountSignInScreen(state: AppSnapshot, busy: Boolean, signIn: (Stri
                 }
             }
         }
-        Button(onClick = {
+        PageActionButton(onClick = {
             if (registering) signUp(email, password, name, interests.map(Category::valueOf).toSet()) else signIn(email, password)
         }, enabled = !busy && email.isNotBlank() && password.isNotEmpty() &&
             (!registering || (name.trim().length in 2..30 && password.length >= 8 && confirmation == password)),

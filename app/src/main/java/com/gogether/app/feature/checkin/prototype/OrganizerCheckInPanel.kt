@@ -1,5 +1,7 @@
 package com.gogether.app.feature.checkin.prototype
 
+import com.gogether.app.core.ui.PageActionButton
+import com.gogether.app.core.ui.OutlinedPageActionButton
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -84,8 +86,7 @@ internal fun OrganizerCheckInPanel(state: PrototypeUiState, now: Long, back: () 
             if (!integrated) TextButton(shape = CheckInStyle.shape, onClick = { preview = !preview; more = false }, modifier = Modifier.testTag("attendance_preview")) {
                 Text(if (preview) "Back to current attendance" else "Preview larger attendance list")
             }
-            if (!integrated && !state.cancelled && now < session.startAt) OutlinedButton(shape = CheckInStyle.shape,
-                onClick = { more = false; cancel() }, enabled = !state.busy) { Text("Cancel event") }
+            if (!integrated && !state.cancelled && now < session.startAt) OutlinedPageActionButton(onClick = { more = false; cancel() }, enabled = !state.busy) { Text("Cancel event") }
             if (!integrated) TextButton(shape = CheckInStyle.shape, onClick = { more = false; newMeeting() }, enabled = !state.busy) { Text("Create another event") }
             else Text("Cancel from event management to update registrations and the waitlist together.")
         }
@@ -121,9 +122,9 @@ private fun OrganizerCode(state: PrototypeUiState, now: Long, show: () -> Unit, 
         }
         Text(status, Modifier.testTag("prototype_status"), style = MaterialTheme.typography.bodySmall,
             maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Button(shape = CheckInStyle.shape, onClick = show, enabled = !state.busy && available,
+        PageActionButton(onClick = show, enabled = !state.busy && available,
             modifier = Modifier.fillMaxWidth().testTag("prototype_show")) {
-            Text(if (code != null) "Refresh code" else "Get location and show code", maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(if (code != null) "Refresh code" else "Get location and show code")
         }
     }
 }

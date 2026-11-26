@@ -1,5 +1,7 @@
 package com.gogether.app.feature.checkin.cloud
 
+import com.gogether.app.core.ui.PageActionButton
+import com.gogether.app.core.ui.OutlinedPageActionButton
 import android.Manifest
 import android.app.Activity
 import android.content.pm.PackageManager
@@ -183,6 +185,31 @@ private fun CloudEventContent(repository:GogetherRepository, backend:CloudOperat
     DisposableEffect(code,window){if(code!=null)window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         onDispose{window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)}}
 
+    if (!organizer && tab == "checkin") {
+        CloudParticipantCheckInContent(
+            event = event,
+            participantName = state.users.find { it.id == actor }?.displayName ?: "Participant",
+            organizerName = state.users.find { it.id == event.organizerId }?.displayName ?: "the organizer",
+            registration = state.registration(event.id, actor)?.status,
+            now = effectiveNow,
+            meetingReady = meeting != null,
+            checkedInAt = receipt?.number("checkedInAt")?.takeIf { it > 0 },
+            loading = loading,
+            hasInformation = information.isNotEmpty(),
+            busy = busy,
+            pending = pending != null,
+            unreadableAttempt = pendingError != null,
+            message = message,
+            onBack = back,
+            onRefresh = { perform { refresh(); message = "Updated from the server." } },
+            onReviews = { tab = "reviews" },
+            onScan = { request("scan") },
+            onResolve = { perform { resolvePending() } },
+            onRetryAttempt = { pending?.let { perform { send(it) } } },
+        )
+        return
+    }
+
     Page {
         TextButton(onClick=back){Text("< Back")}
         SectionTitle(event.title,"Meeting, attendance and reviews")
@@ -220,20 +247,20 @@ private fun CloudEventContent(repository:GogetherRepository, backend:CloudOperat
                 if(closed)Text(if(event.status==EventStatus.CANCELLED)"This event is cancelled." else "This event has ended. You can view its attendance and reviews.")
                 else if(meeting==null) {
                     Text(if(organizer)"Confirm the GPS meeting point when you arrive." else "The organizer has not confirmed the meeting point yet.")
-                    if(organizer)Button(onClick={request("bind")},enabled=!busy,modifier=Modifier.testTag("cloud_bind_meeting")){Text("Set meeting point here")}
+                    if(organizer)PageActionButton(onClick={request("bind")},enabled=!busy,modifier=Modifier.testTag("cloud_bind_meeting")){Text("Set meeting point here")}
                 } else {
                     Text("Check-in opens 30 minutes before the start and closes 30 minutes after it. Be within 200 m of the meeting point.")
                     if(organizer){
-                        OutlinedButton(onClick={showingCode=false;code=null;request("bind")},enabled=!busy) { Text("Update meeting point here") }
+                        OutlinedPageActionButton(onClick={showingCode=false;code=null;request("bind")},enabled=!busy) { Text("Update meeting point here") }
                         if(code!=null && effectiveNow<codeExpiresAt) {
                             val qr=remember(code){BarcodeEncoder().createBitmap(com.gogether.app.core.ui.CheckInQr.matrix(requireNotNull(code))).asImageBitmap()}
                             Image(qr,"Server-issued check-in QR code",Modifier.fillMaxWidth().height(280.dp).background(Color.White).testTag("cloud_qr"))
                             Text("Refreshes automatically · ${(codeExpiresAt-effectiveNow).coerceAtLeast(0)/1000}s remaining")
                         }
-                        Button(onClick={request("code")},enabled=!busy && !showingCode,modifier=Modifier.testTag("cloud_issue_code")){Text(if(showingCode)"Refreshing code…" else "Show check-in code")}
+                        PageActionButton(onClick={request("code")},enabled=!busy && !showingCode,modifier=Modifier.testTag("cloud_issue_code")){Text(if(showingCode)"Refreshing code…" else "Show check-in code")}
                         if(showingCode)TextButton(onClick={showingCode=false;code=null}){Text("Hide code")}
                     }
-                    if(confirmed && receipt==null)Button(onClick={request("scan")},enabled=!busy && pending==null && pendingError==null,
+                    if(confirmed && receipt==null)PageActionButton(onClick={request("scan")},enabled=!busy && pending==null && pendingError==null,
                         modifier=Modifier.testTag("cloud_scan_checkin")){Text(if(busy)"Submitting…" else "Scan to check in")}
                     else if(!confirmed)Text("Only confirmed participants can check in. A waitlist place is not enough.")
                 }

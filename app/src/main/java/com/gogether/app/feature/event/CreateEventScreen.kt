@@ -1,5 +1,7 @@
 package com.gogether.app.feature.event
 
+import com.gogether.app.core.ui.PageActionButton
+import com.gogether.app.core.ui.OutlinedPageActionButton
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import com.gogether.app.R
@@ -133,22 +135,15 @@ private fun EventFormScreen(
                     modifier = Modifier.testTag("${prefix}_remove_image")) { Text("Remove") }
             }
         } else {
-            OutlinedButton(onClick = { imagePicker.launch("image/*") },
-                modifier = Modifier.fillMaxWidth().height(112.dp)
-                    .testTag("${prefix}_choose_image"),
-                shape = MaterialTheme.shapes.large) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("▧ +", style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.primary)
-                    Text("Add an event cover", fontWeight = FontWeight.SemiBold)
-                    Text("Choose a photo from your gallery",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("Optional · 16:9 recommended",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+            OutlinedPageActionButton(onClick = { imagePicker.launch("image/*") },
+                modifier = Modifier.testTag("${prefix}_choose_image")) {
+                Text("Add an event cover")
+            }
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Choose a photo from your gallery", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Optional · 16:9 recommended", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
 
@@ -229,7 +224,7 @@ private fun EventFormScreen(
             "${prefix}_spare_equipment", multiline = true)
         FormField("Additional notes (optional)", notes, { notes = it }, "${prefix}_notes", multiline = true)
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("${prefix}_error")) }
-        Button(onClick = {
+        PageActionButton(onClick = {
             try {
                 val missing = listOf(
                     "Start date" to startDate, "Start time" to startTime,
@@ -260,8 +255,7 @@ private fun EventFormScreen(
             } catch (e: IllegalArgumentException) {
                 error = e.message
             }
-        }, enabled = !busy, shape = RoundedCornerShape(16.dp),
-            modifier = Modifier.fillMaxWidth().height(52.dp).testTag(when (mode) {
+        }, enabled = !busy, modifier = Modifier.fillMaxWidth().testTag(when (mode) {
             FormMode.EDIT -> "save_event"
             FormMode.REUSE -> "publish_reused_event"
             FormMode.CREATE -> "publish_event"

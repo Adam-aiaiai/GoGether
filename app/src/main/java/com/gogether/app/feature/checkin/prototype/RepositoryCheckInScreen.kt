@@ -1,5 +1,6 @@
 package com.gogether.app.feature.checkin.prototype
 
+import com.gogether.app.core.ui.PageActionButton
 import android.Manifest
 import android.app.Activity
 import android.content.pm.PackageManager
@@ -87,9 +88,9 @@ fun RepositoryCheckInScreen(repository: GogetherRepository, eventId: String, now
             Text(if (event.status == EventStatus.CANCELLED) "This event has been cancelled."
                 else if (event.organizerId == actor) "Once you arrive, confirm your location as this event's fixed meeting point."
                 else "The organizer has not set the meeting point. Try again later.", Modifier.testTag("meeting_setup_status"))
-            if (event.organizerId == actor && event.status == EventStatus.OPEN) Button(
+            if (event.organizerId == actor && event.status == EventStatus.OPEN) PageActionButton(
                 onClick = { permission.launch(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION)) },
-                enabled = !busy, shape = CheckInStyle.shape, modifier = Modifier.fillMaxWidth().testTag("bind_meeting")) {
+                enabled = !busy, modifier = Modifier.fillMaxWidth().testTag("bind_meeting")) {
                 Text(if (busy) "Getting location…" else "Set meeting point here")
             }
             if (message.isNotBlank()) Text(message)

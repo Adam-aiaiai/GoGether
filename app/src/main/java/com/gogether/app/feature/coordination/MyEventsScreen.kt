@@ -1,5 +1,6 @@
 package com.gogether.app.feature.coordination
 
+import com.gogether.app.core.ui.PageActionButton
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,7 +20,7 @@ fun MyEventsScreen(state: AppSnapshot, now: Long, openInbox: () -> Unit = {},
     val events = personalEvents(state, tab, now)
     Page {
         SectionTitle("Your plans", "Upcoming activities, waitlists and past experiences.")
-        FilledTonalButton(onClick = openInbox, modifier = Modifier.fillMaxWidth().testTag("open_inbox")) {
+        TonalPageActionButton(onClick = openInbox, modifier = Modifier.fillMaxWidth().testTag("open_inbox")) {
             Text("Notifications · ${state.notifications.count { it.userId == state.currentUserId && !it.isRead }} unread")
         }
         @Suppress("DEPRECATION")
@@ -35,7 +36,7 @@ fun MyEventsScreen(state: AppSnapshot, now: Long, openInbox: () -> Unit = {},
             PersonalEventTab.CREATED -> "Your published activities will appear here."
             PersonalEventTab.HISTORY -> "Ended activities, cancelled plans and withdrawals will appear here."
         })
-        if (events.isEmpty()) Button(onClick = if (tab == PersonalEventTab.CREATED) create else explore,
+        if (events.isEmpty()) PageActionButton(onClick = if (tab == PersonalEventTab.CREATED) create else explore,
             modifier = Modifier.testTag("empty_events_action")) {
             Text(if (tab == PersonalEventTab.CREATED) "Create an activity" else "Explore activities")
         }

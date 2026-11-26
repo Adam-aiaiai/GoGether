@@ -1,5 +1,7 @@
 package com.gogether.app.feature.profile
 
+import com.gogether.app.core.ui.PageActionButton
+import com.gogether.app.core.ui.OutlinedPageActionButton
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,17 +28,17 @@ fun ProfileScreen(state: AppSnapshot, now: Long, busy: Boolean, mode: AccountMod
         StatusPill(if (mode == AccountMode.LOCAL_DEMO) "Demo profile" else "Account")
         user.email?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
         InfoCard("Your interests", user.interests.joinToString { it.label }.ifEmpty { "Ready to try something new" })
-        Button(onClick = edit, enabled = !busy, modifier = Modifier.fillMaxWidth().testTag("edit_profile")) { Text("Edit profile") }
+        PageActionButton(onClick = edit, enabled = !busy, modifier = Modifier.fillMaxWidth().testTag("edit_profile")) { Text("Edit profile") }
         InfoCard("Your plans", "${personalEvents(state, PersonalEventTab.JOINED, now).size} joined · " +
             "${personalEvents(state, PersonalEventTab.WAITLISTED, now).size} waitlisted · " +
             "${personalEvents(state, PersonalEventTab.CREATED, now).size} created")
         InfoCard("Your data", storageDescription)
-        if (mode == AccountMode.LOCAL_DEMO) OutlinedButton(onClick = { context.startActivity(Intent(context, PrototypeCheckInActivity::class.java)) },
+        if (mode == AccountMode.LOCAL_DEMO) OutlinedPageActionButton(onClick = { context.startActivity(Intent(context, PrototypeCheckInActivity::class.java)) },
             modifier = Modifier.fillMaxWidth().testTag("checkin_prototype")) { Text("Check-in and review records") }
         if (mode == AccountMode.LOCAL_DEMO) {
             Text("Switch test user", style = MaterialTheme.typography.titleLarge)
             state.users.filter { it.id != user.id && it.status == UserStatus.DEMO }.forEach { target ->
-                OutlinedButton(onClick = { switchUser(target.id) }, enabled = !busy,
+                OutlinedPageActionButton(onClick = { switchUser(target.id) }, enabled = !busy,
                     modifier = Modifier.fillMaxWidth().testTag("switch_${target.id}")) { Text("Switch to ${target.displayName}") }
             }
         }

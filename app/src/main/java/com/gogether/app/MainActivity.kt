@@ -1,5 +1,6 @@
 package com.gogether.app
 
+import com.gogether.app.core.ui.PageActionButton
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -72,7 +73,7 @@ private fun LocalBackendPermission(content: @Composable () -> Unit) {
         Column(Modifier.safeDrawingPadding().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text("Connect to the local test server", style = MaterialTheme.typography.headlineMedium)
             Text("Allow local network access to use the shared test backend running on your computer. The app will connect after permission is granted.")
-            Button(onClick = { request.launch(permission) }, modifier = Modifier.testTag("allow_backend_network")) { Text("Allow local network access") }
+            PageActionButton(onClick = { request.launch(permission) }, modifier = Modifier.testTag("allow_backend_network")) { Text("Allow local network access") }
             TextButton(onClick = { context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                 Uri.parse("package:${context.packageName}"))) }) { Text("Open app permissions") }
         }

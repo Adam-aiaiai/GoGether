@@ -1,5 +1,7 @@
 package com.gogether.app.feature.profile
 
+import com.gogether.app.core.ui.PageActionButton
+import com.gogether.app.core.ui.OutlinedPageActionButton
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -34,10 +36,10 @@ fun EditProfileScreen(user: User, busy: Boolean, save: (String, Set<Category>) -
             }
         }
         Text("Interests are optional. You can change them at any time.", style = MaterialTheme.typography.bodySmall)
-        Button(onClick = { save(name, interests.map(Category::valueOf).toSet()) },
+        PageActionButton(onClick = { save(name, interests.map(Category::valueOf).toSet()) },
             enabled = !busy && changed && error == null, modifier = Modifier.fillMaxWidth().testTag("save_profile")) {
             Text(if (busy) "Saving…" else "Save changes")
         }
-        OutlinedButton(onClick = back, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("Cancel") }
+        OutlinedPageActionButton(onClick = back, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("Cancel") }
     }
 }

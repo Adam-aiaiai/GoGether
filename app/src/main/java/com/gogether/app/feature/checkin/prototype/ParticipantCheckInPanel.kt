@@ -1,5 +1,6 @@
 package com.gogether.app.feature.checkin.prototype
 
+import com.gogether.app.core.ui.PageActionButton
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
@@ -139,11 +140,11 @@ internal fun ParticipantCheckInPanel(actor: String, state: PrototypeUiState, now
                 Text("About this event >", style = MaterialTheme.typography.bodySmall)
             }
         }
-        Button(shape = CheckInStyle.shape, enabled = !busy && (needsResolution || (!cancelled &&
+        PageActionButton(enabled = !busy && (needsResolution || (!cancelled &&
             (canOpenRecord || (!ended && !early && !late && confirmed)))),
             onClick = { if (needsResolution) resolveCheckIn() else if (canOpenRecord) record(entry!!.session.id)
                 else if (canRetryLocation) retryLocation() else scan() },
-            modifier = Modifier.fillMaxWidth().padding(top = 10.dp).heightIn(min = 48.dp).testTag("prototype_scan")) {
+            modifier = Modifier.fillMaxWidth().padding(top = 10.dp).testTag("prototype_scan")) {
             Text(when {
                 resolving -> "Checking…"
                 busy -> "Verifying…"
@@ -175,7 +176,7 @@ internal fun ParticipantCheckInPanel(actor: String, state: PrototypeUiState, now
                     Text((activity?.meetingName ?: "Meeting point not confirmed"))
                     Text("Meet near the location confirmed by the organizer on site.")
                     session?.meeting?.let { point ->
-                        Button(shape = CheckInStyle.shape, onClick = {
+                        PageActionButton(onClick = {
                             val uri = Uri.parse("geo:${point.latitude},${point.longitude}?q=${point.latitude},${point.longitude}(${Uri.encode("Meeting point")})")
                             try { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
                             catch (_: ActivityNotFoundException) { mapError = true }

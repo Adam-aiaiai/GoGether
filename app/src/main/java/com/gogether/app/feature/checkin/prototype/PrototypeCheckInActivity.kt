@@ -1,5 +1,6 @@
 package com.gogether.app.feature.checkin.prototype
 
+import com.gogether.app.core.ui.PageActionButton
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -221,7 +222,7 @@ fun PrototypeScreen(actor: String, state: PrototypeUiState, now: Long, back: () 
                 if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                 Text(if (state.entry is CheckInEntry.Activity) "Organizer check-in details are unavailable. Go back and check the event."
                     else "Confirm the meeting point on site. It stays fixed when your phone moves. The event starts in 10 minutes.")
-                Button(shape = CheckInStyle.shape, onClick = locate, enabled = !state.busy && state.entry !is CheckInEntry.Activity,
+                PageActionButton(onClick = locate, enabled = !state.busy && state.entry !is CheckInEntry.Activity,
                     modifier = Modifier.fillMaxWidth().testTag("prototype_meeting")) { Text("Locate meeting point") }
                 if (organizerMode && state.session == null)
                     CheckInInfoCard("Status", state.message, Modifier.testTag("prototype_status"))

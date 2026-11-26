@@ -1,5 +1,6 @@
 package com.gogether.app.navigation
 
+import com.gogether.app.core.ui.PageActionButton
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -255,7 +256,7 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
 private fun MissingEvent(explore: () -> Unit) {
     Page {
         InfoCard("Event not found", "This activity is no longer available. Your notification remains in your inbox.")
-        Button(onClick = explore, modifier = Modifier.testTag("missing_event_explore")) { Text("Back to Explore") }
+        PageActionButton(onClick = explore, modifier = Modifier.testTag("missing_event_explore")) { Text("Back to Explore") }
     }
 }
 
