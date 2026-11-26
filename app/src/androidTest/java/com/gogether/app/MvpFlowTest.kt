@@ -47,6 +47,18 @@ class MvpFlowTest {
     private fun scrollClick(tag: String) { awaitSnackbar(); compose.onNodeWithTag(tag).performScrollTo().performClick() }
     private fun text(tag: String, value: String) = compose.onNodeWithTag(tag).performScrollTo().performTextReplacement(value)
 
+    private fun captureDialog(name: String) {
+        compose.waitForIdle()
+        android.os.SystemClock.sleep(350)
+        val instrumentation = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+        val folder = java.io.File(instrumentation.targetContext.getExternalFilesDir(null), "square-dialogs").apply { mkdirs() }
+        val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
+        java.io.File(folder, "$name.png").outputStream().use {
+            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+        }
+        bitmap.recycle()
+    }
+
     @Test fun createEventAppearsInExploreAndCreatedTab() {
         scrollClick("login_alice")
         click("nav_create")
@@ -140,7 +152,24 @@ class MvpFlowTest {
         scrollClick("login_bob")
         scrollClick("event_event-1")
         scrollClick("cancel_registration")
-        compose.onNodeWithText("Yes, cancel registration").performClick()
+        compose.onNodeWithText("Cancel your registration?").assertIsDisplayed()
+        captureDialog("01-cancel-registration")
+        compose.onNodeWithTag("registration_cancel_dialog").performTouchInput { click(center) }.assertIsDisplayed()
+        compose.onNodeWithText("Keep my place").performClick()
+        assertEquals(RegistrationStatus.CONFIRMED, repo.state.value.registration("event-1", "bob")?.status)
+        assertEquals(RegistrationStatus.WAITLISTED, repo.state.value.registration("event-1", "emma")?.status)
+        scrollClick("cancel_registration")
+        androidx.test.espresso.Espresso.pressBack()
+        compose.onNodeWithTag("registration_cancel_dialog").assertDoesNotExist()
+        assertEquals(RegistrationStatus.CONFIRMED, repo.state.value.registration("event-1", "bob")?.status)
+        scrollClick("cancel_registration")
+        compose.onNode(isDialog()).performTouchInput {
+            click(androidx.compose.ui.geometry.Offset(center.x, height * .15f))
+        }
+        compose.onNodeWithTag("registration_cancel_dialog").assertDoesNotExist()
+        assertEquals(RegistrationStatus.CONFIRMED, repo.state.value.registration("event-1", "bob")?.status)
+        scrollClick("cancel_registration")
+        compose.onNodeWithText("Yes, cancel").performClick()
         compose.waitUntil(5_000) { repo.state.value.registration("event-1", "emma")?.status == RegistrationStatus.CONFIRMED }
         click("nav_profile")
         scrollClick("switch_emma")
@@ -161,7 +190,13 @@ class MvpFlowTest {
         compose.onNodeWithText("Waitlisted").performClick()
         scrollClick("event_event-1")
         scrollClick("cancel_registration")
-        compose.onNodeWithText("Yes, cancel registration").performClick()
+        compose.onNodeWithText("Leave the waitlist?").assertIsDisplayed()
+        compose.onNodeWithText("You will lose your current position in the queue.").assertIsDisplayed()
+        captureDialog("02-leave-waitlist")
+        compose.onNodeWithText("Stay on list").performClick()
+        assertEquals(listOf("emma", "finn"), repo.state.value.waitlist("event-1").map { it.userId })
+        scrollClick("cancel_registration")
+        compose.onNodeWithText("Leave waitlist").performClick()
         compose.waitUntil(5_000) { repo.state.value.registration("event-1", "finn")?.status == RegistrationStatus.CANCELLED }
         assertEquals(listOf("emma"), repo.state.value.waitlist("event-1").map { it.userId })
     }

@@ -36,6 +36,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gogether.app.core.ui.EventImage
+import com.gogether.app.core.ui.PageActionButton
+import com.gogether.app.core.ui.SquareActionDialog
 import com.gogether.app.feature.checkin.FeedbackInput
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -170,37 +172,51 @@ internal fun FeedbackEditor(scopeKey: String, summary: ReviewEventSummary, draft
             if (details) {
                 Text("Your choices are saved to this draft.", Modifier.padding(vertical = 12.dp),
                     fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Button(onClick = ::leaveDetails, shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("feedback_details_done")) {
-                    Text("Done", fontWeight = FontWeight.Bold)
+                PageActionButton(onClick = ::leaveDetails,
+                    modifier = Modifier.testTag("feedback_details_done")) {
+                    Text("Done")
                 }
             } else Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(if (draftError.isBlank()) "Draft saved" else "Draft not saved", Modifier.weight(1f).testTag("feedback_draft_status"),
                     fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Button(onClick = submit, enabled = !busy && draftError.isBlank() && FeedbackInput.valid(draft.rating, draft.comment),
-                    shape = RoundedCornerShape(8.dp), modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag(submitTag),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) {
-                    Text(if (busy) "Saving…" else "Submit review", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Box(Modifier.weight(1f)) {
+                    PageActionButton(onClick = submit,
+                        enabled = !busy && draftError.isBlank() && FeedbackInput.valid(draft.rating, draft.comment),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                        modifier = Modifier.testTag(submitTag)) {
+                        Text(if (busy) "Saving…" else "Submit review", fontSize = 14.sp)
+                    }
                 }
             }
         }
     }
-    if (privacy) AlertDialog(onDismissRequest = { privacy = false }, title = { Text("Who can see this?") },
-        text = {
-            Column(Modifier.selectableGroup()) {
+    if (privacy) SquareActionDialog(title = "Who can see this?", onDismiss = { privacy = false },
+        modifier = Modifier.testTag("feedback_visibility_dialog"),
+        actions = {
+            PageActionButton(onClick = { privacy = false }, modifier = Modifier.testTag("feedback_visibility_done")) {
+                Text("Done")
+            }
+        }) {
+            Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 FeedbackVisibility.entries.forEach { option ->
-                    Row(Modifier.fillMaxWidth().selectable(draft.details.visibility == option, enabled = !busy,
+                    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(draft.details.visibility == option, enabled = !busy,
                         role = Role.RadioButton, onClick = { changeDetail { it.copy(visibility = option) } })
                         .testTag("feedback_visibility_${option.name}"), verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(draft.details.visibility == option, null)
-                        Text(if (option == FeedbackVisibility.PUBLIC) "Public review" else "Organizer only", fontSize = 16.sp)
+                        RadioButton(draft.details.visibility == option, null, enabled = !busy,
+                            modifier = Modifier.padding(end = 12.dp),
+                            colors = RadioButtonDefaults.colors(
+                                selectedColor = MaterialTheme.colorScheme.primary,
+                                unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant))
+                        Text(if (option == FeedbackVisibility.PUBLIC) "Public review" else "Organizer only",
+                            fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
-                Text("Anonymous reviews hide your name and avatar. Personal details in text and photos remain visible.",
-                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-        }, confirmButton = { TextButton(onClick = { privacy = false }, modifier = Modifier.testTag("feedback_visibility_done")) { Text("Done") } })
+                Text("Anonymous reviews hide your name and avatar. Personal details in text and photos remain visible.",
+                    Modifier.padding(top = 12.dp), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
 }
 
 private val ReviewDivider = Color(0xFFE6E6E9)

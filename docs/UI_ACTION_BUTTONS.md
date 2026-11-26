@@ -84,10 +84,29 @@ passed: the six phone/tablet widths, compact Join Event isolation, and the
 scan/result/Done navigation flow. See
 `verification/button-gallery-20261126/button-80-device-tests.log`.
 
-## Review editor reference exception (2026-11-26)
+## Review editor and landscape actions (2026-11-26)
 
-The approved two-screen review reference uses a compact right-aligned Submit review
-next to draft status, and a content-width Done on Review details, both with 8 dp
-corners. These E-only editor actions intentionally follow that later screen-specific
-request; the shared 80% capsule action component and other screens are unchanged.
-See REVIEW_EDITOR_UI.md.
+Review details Done uses the shared 80% viewport-width, 52 dp minimum-height
+capsule action, including the standard label and press animation. This supersedes
+the former content-width, 8 dp-corner exception.
+Submit review stays compact and right-aligned beside draft status; it uses the
+same capsule and press styling within its existing half-row allocation, retaining
+its 14 sp bold label so the short action still fits narrow phones.
+In the local organizer's landscape layout, the QR action spans the page below
+both columns so that a narrow QR column does not constrain its 80% width.
+The subsequently approved registration and visibility dialog update is documented
+in [dialog presentation](SQUARE_DIALOGS_UI.md). See also REVIEW_EDITOR_UI.md.
+
+Verification for this follow-up on the working tree based on `a6f7a19`:
+- Emulator-backend debug app and instrumentation APK builds passed.
+- Twenty unchanged checks in ReviewEditorNavigationTest, PageActionButtonLayoutTest,
+  PrototypeScreenTest and PressBounceUiTest passed on the final app build.
+- The added review-action regression passed separately after correcting its
+  center-aligned text measurement: 320/400/840 dp widths, capsule ends, centered
+  80% Done, preserved compact Submit allocation and one-line label, and return
+  without submitting. All 21 targeted checks are now passing.
+- Evidence: `verification/button-dialog-polish-20261126/final-device-tests.log`
+  and `final-button-layout.log` (the latter supersedes the former's single layout
+  assertion failure). Final screenshots are in the same directory's `screenshots`.
+- At that checkpoint, popup concepts were preview images only; the later approved
+  implementation is recorded in SQUARE_DIALOGS_UI.md. Business rules are unchanged.

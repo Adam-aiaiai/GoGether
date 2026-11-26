@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.DpSize
@@ -13,6 +14,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.gogether.app.core.data.*
 import com.gogether.app.core.data.cloud.*
 import com.gogether.app.core.model.*
+import com.gogether.app.core.ui.AppUi
 import com.gogether.app.feature.checkin.cloud.*
 import com.gogether.app.feature.checkin.prototype.*
 import com.gogether.app.ui.theme.GogetherTheme
@@ -87,6 +89,39 @@ class ReviewEditorNavigationTest {
         compose.onNodeWithText("Review details").assertIsDisplayed()
         compose.onNodeWithText("Campus badminton meetup").assertIsDisplayed()
         compose.onNodeWithText("Specific ratings").assertIsDisplayed()
+    }
+
+    @Test fun visibilityDialogKeepsChoicesInDraftWithoutSubmittingAndSupportsLargeText() {
+        launch(withPhoto = true)
+        compose.reviewNode("feedback_visibility_ORGANIZER_ONLY").assertIsSelected()
+        compose.onNodeWithText("Who can see this?").assertIsDisplayed()
+        compose.onNodeWithTag("feedback_visibility_done").assertIsDisplayed()
+        compose.waitForIdle()
+        android.os.SystemClock.sleep(350)
+        val folder = File(context.getExternalFilesDir(null), "square-dialogs").apply { mkdirs() }
+        val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
+        File(folder, "03-review-visibility.png").outputStream().use {
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+        }
+        bitmap.recycle()
+
+        compose.onNodeWithTag("feedback_visibility_PUBLIC").performClick().assertIsSelected()
+        compose.onNodeWithTag("feedback_visibility_done").performClick()
+        compose.onNodeWithTag("feedback_visibility_dialog").assertDoesNotExist()
+        assertEquals(FeedbackVisibility.PUBLIC, drafts.load("bob", id).details.visibility)
+        assertTrue(drafts.load("bob", id).details.anonymous)
+        assertEquals(photoIds, drafts.load("bob", id).details.photos)
+        assertTrue(repository.state.value.feedback.isEmpty())
+
+        compose.runOnIdle { width = 320; scale = 1.5f }
+        compose.reviewNode("feedback_visibility_ORGANIZER_ONLY").performScrollTo().performClick().assertIsSelected()
+        compose.onNodeWithTag("feedback_visibility_done").performScrollTo().assertIsDisplayed().performClick()
+        compose.onNodeWithTag("feedback_visibility_dialog").assertDoesNotExist()
+        assertEquals(FeedbackVisibility.ORGANIZER_ONLY, drafts.load("bob", id).details.visibility)
+        compose.reviewNode("feedback_visibility_ORGANIZER_ONLY").assertIsSelected()
+        Espresso.pressBack()
+        compose.onNodeWithTag("feedback_visibility_dialog").assertDoesNotExist()
+        assertTrue(repository.state.value.feedback.isEmpty())
     }
     @Test fun singleOptionalEntryOpensRatingsAndTagsAndReturnsWithoutSubmitting() {
         launch(withPhoto=true)
@@ -196,6 +231,54 @@ class ReviewEditorNavigationTest {
         compose.reviewNode("feedback_tag_more_equipment").assertIsDisplayed()
         compose.onNodeWithTag("feedback_details_done").performClick()
         compose.reviewNode("feedback_visibility_ORGANIZER_ONLY").assertIsSelected()
+    }
+    @Test fun reviewActionsUseCapsulesAndDetailsDoneKeepsEightyPercentWidth() {
+        launch(withPhoto = true)
+        for (pageWidth in listOf(320, 400, 840)) {
+            compose.runOnIdle { width = pageWidth }
+            val submit = compose.onNodeWithTag("cloud_submit_feedback").assertIsDisplayed()
+            submit.assertWidthIsEqualTo(((pageWidth - 40 - 12) / 2f).dp).assertHeightIsEqualTo(52.dp)
+            val root = compose.onRoot().fetchSemanticsNode().boundsInRoot
+            assertTrue(submit.fetchSemanticsNode().boundsInRoot.center.x > root.center.x)
+            val labelLayouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            compose.onNodeWithText("Submit review").performSemanticsAction(
+                androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult) { it(labelLayouts) }
+            capture("buttons-${pageWidth}-review-main")
+            // Center-aligned line positions include the paragraph offset. Compare the
+            // line's extent with the actual button content area, not that offset.
+            val pixelsPerDp = root.width / pageWidth
+            val availableTextWidth = submit.fetchSemanticsNode().boundsInRoot.width - 24f * pixelsPerDp
+            val availableTextHeight = submit.fetchSemanticsNode().boundsInRoot.height - 16f * pixelsPerDp
+            assertTrue("Submit review at $pageWidth dp: " + labelLayouts.joinToString {
+                "lines=${it.lineCount}, size=${it.size}, right=${it.getLineRight(0)}, bottom=${it.getLineBottom(0)}" },
+                labelLayouts.isNotEmpty() && labelLayouts.all {
+                    it.lineCount == 1 && !it.isLineEllipsized(0) &&
+                        it.getLineRight(0) - it.getLineLeft(0) <= availableTextWidth + 1f &&
+                        it.getLineBottom(0) - it.getLineTop(0) <= availableTextHeight + 1f
+                })
+            assertCapsule(submit)
+
+            compose.onNodeWithTag("feedback_open_details").performClick()
+            val done = compose.onNodeWithTag("feedback_details_done").assertIsDisplayed()
+            done.assertWidthIsEqualTo((pageWidth * .8f).dp).assertHeightIsEqualTo(52.dp)
+            val bounds = done.fetchSemanticsNode().boundsInRoot
+            assertEquals(root.center.x, bounds.center.x, 1f)
+            assertEquals(.8f, bounds.width / root.width, .002f)
+            assertCapsule(done)
+            capture("buttons-${pageWidth}-review-details")
+            done.performClick()
+            compose.onNodeWithText("Write a review").assertIsDisplayed()
+            assertEquals(4, drafts.load("bob", id).rating)
+        }
+    }
+    private fun assertCapsule(button: SemanticsNodeInteraction) {
+        val pixels = button.captureToImage().toPixelMap()
+        val x = (pixels.height * .2f).toInt()
+        val y = (pixels.height * .06f).toInt()
+        // An 8 dp rounded rectangle fills these corners; a semicircular end does not.
+        assertEquals(AppUi.Primary, pixels[pixels.width / 2, y])
+        assertNotEquals(AppUi.Primary, pixels[x, y])
+        assertNotEquals(AppUi.Primary, pixels[pixels.width - 1 - x, y])
     }
     @Test fun eachOverallRatingShowsItsDescriptionAndOptionalNotesCanStayEmpty() {
         launch()

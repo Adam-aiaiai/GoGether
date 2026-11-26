@@ -190,13 +190,33 @@ fun EventDetailScreen(
     }
 
     if (confirmCancel) {
-        ConfirmDialog(
-            "Cancel your registration?",
-            "Your place may go to the first person on the waitlist.",
-            "Yes, cancel registration",
-            { confirmCancel = false },
-            onCancel,
-        )
+        val waitlisted = registration?.status == RegistrationStatus.WAITLISTED
+        SquareActionDialog(
+            title = if (waitlisted) "Leave the waitlist?" else "Cancel your registration?",
+            onDismiss = { confirmCancel = false },
+            modifier = Modifier.testTag("registration_cancel_dialog"),
+            compact = true,
+            actions = {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(Modifier.weight(1f)) {
+                        OutlinedPageActionButton(onClick = { confirmCancel = false },
+                            modifier = Modifier.testTag("dismiss_registration_cancel")) {
+                            Text(if (waitlisted) "Stay on list" else "Keep my place")
+                        }
+                    }
+                    Box(Modifier.weight(1f)) {
+                        PageActionButton(onClick = { confirmCancel = false; onCancel() },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                            modifier = Modifier.testTag("confirm_registration_cancel")) {
+                            Text(if (waitlisted) "Leave waitlist" else "Yes, cancel")
+                        }
+                    }
+                }
+            },
+        ) {
+            Text(if (waitlisted) "You will lose your current position in the queue."
+                else "Your place may go to the first person on the waitlist.")
+        }
     }
 }
 

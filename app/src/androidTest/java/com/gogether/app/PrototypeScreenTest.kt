@@ -129,7 +129,13 @@ class PrototypeScreenTest {
             }
         }
         val before = compose.onNodeWithTag("prototype_qr").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
-        compose.onNodeWithTag("prototype_show").assertIsDisplayed()
+        val action = compose.onNodeWithTag("prototype_show").assertIsDisplayed()
+            .assertWidthIsEqualTo((width * .8f).dp)
+        val actionBounds = action.fetchSemanticsNode().boundsInRoot
+        val pageBounds = compose.onRoot().fetchSemanticsNode().boundsInRoot
+        assertEquals(pageBounds.center.x, actionBounds.center.x, 1f)
+        if (fontScale == 1f) action.assertHeightIsEqualTo(52.dp)
+        if (width > height) assertTrue(actionBounds.top >= before.bottom)
         compose.onNodeWithTag("attendance_checked_tab").assertIsDisplayed()
         compose.onNodeWithTag("attendance_pending_tab").assertIsDisplayed().performClick()
         if (fontScale > 1.3f) {

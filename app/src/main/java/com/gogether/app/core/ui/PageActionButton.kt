@@ -19,14 +19,15 @@ import androidx.compose.ui.unit.sp
 internal val LocalPageActionWidth = staticCompositionLocalOf { 288.dp }
 private enum class PageActionStyle { Filled, Outlined, Tonal }
 
-/** Full-row actions only. Compact actions beside other content keep their existing layout. */
+/** Full-row actions use 80% width; compact slots can constrain this to their existing allocation. */
 @Composable
 fun PageActionButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
     content: @Composable RowScope.() -> Unit,
-) = PageAction(onClick, modifier, enabled, PageActionStyle.Filled, content)
+) = PageAction(onClick, modifier, enabled, PageActionStyle.Filled, content, contentPadding)
 
 /** Only for a full-row Cancel displayed alongside its filled save/confirm action. */
 @Composable
@@ -52,6 +53,7 @@ private fun PageAction(
     enabled: Boolean,
     style: PageActionStyle,
     content: @Composable RowScope.() -> Unit,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
 ) {
     val interactions = remember { MutableInteractionSource() }
     val scale = rememberPressScale(interactions, enabled && style == PageActionStyle.Filled)
@@ -65,22 +67,21 @@ private fun PageAction(
             fontSize = 16.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
         )
         val label: @Composable RowScope.() -> Unit = { ProvideTextStyle(labelStyle) { content() } }
-        val padding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
         when (style) {
             PageActionStyle.Outlined -> OutlinedButton(onClick, buttonModifier, enabled, shape = shape,
                 colors = ButtonDefaults.outlinedButtonColors(
                     contentColor = MaterialTheme.colorScheme.primary,
                     disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = .38f),
-                ), contentPadding = padding, content = label)
+                ), contentPadding = contentPadding, content = label)
             PageActionStyle.Filled -> Button(onClick, buttonModifier, enabled, shape = shape,
                 interactionSource = interactions,
                 elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp, 0.dp, 0.dp, 0.dp),
                 colors = ButtonDefaults.buttonColors(contentColor = Color.White,
                     disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = .12f),
                     disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = .38f),
-                ), contentPadding = padding, content = label)
+                ), contentPadding = contentPadding, content = label)
             PageActionStyle.Tonal -> FilledTonalButton(onClick, buttonModifier, enabled, shape = shape,
-                contentPadding = padding, content = label)
+                contentPadding = contentPadding, content = label)
         }
     }
 }

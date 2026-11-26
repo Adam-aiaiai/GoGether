@@ -49,13 +49,16 @@ internal fun OrganizerCheckInPanel(state: PrototypeUiState, now: Long, back: () 
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(bottom = 8.dp)) {
             val people = if (preview) previewPeople else state.attendees
             if (maxWidth > maxHeight) {
-                Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    OrganizerCode(state, now, show, Modifier.weight(1f).fillMaxHeight())
-                    key(session.id, preview) {
-                        if (preview) PrototypeAttendance(people, Modifier.weight(1f).fillMaxHeight(), searchOpen) { searchOpen = false }
-                        else AttendancePanel(state, session, Modifier.weight(1f).fillMaxHeight(), searchOpen,
-                            { refreshAttendance(session) }, { searchOpen = false })
+                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        OrganizerCode(state, now, show, Modifier.weight(1f).fillMaxHeight(), showAction = false)
+                        key(session.id, preview) {
+                            if (preview) PrototypeAttendance(people, Modifier.weight(1f).fillMaxHeight(), searchOpen) { searchOpen = false }
+                            else AttendancePanel(state, session, Modifier.weight(1f).fillMaxHeight(), searchOpen,
+                                { refreshAttendance(session) }, { searchOpen = false })
+                        }
                     }
+                    OrganizerCodeAction(state, now, show)
                 }
             } else {
                 val codeWeight = if (LocalDensity.current.fontScale > 1.3f) 0.48f else 0.55f
@@ -91,7 +94,8 @@ internal fun OrganizerCheckInPanel(state: PrototypeUiState, now: Long, back: () 
 }
 
 @Composable
-private fun OrganizerCode(state: PrototypeUiState, now: Long, show: () -> Unit, modifier: Modifier) {
+private fun OrganizerCode(state: PrototypeUiState, now: Long, show: () -> Unit, modifier: Modifier,
+    showAction: Boolean = true) {
     val session = requireNotNull(state.session)
     val available = !state.cancelled && !state.checkInClosed && now < session.endAt &&
         now >= session.startAt - PrototypePolicy.HALF_HOUR_MS && now <= session.startAt + PrototypePolicy.HALF_HOUR_MS
@@ -119,9 +123,18 @@ private fun OrganizerCode(state: PrototypeUiState, now: Long, show: () -> Unit, 
         }
         Text(status, Modifier.testTag("prototype_status"), style = MaterialTheme.typography.bodySmall,
             maxLines = 2, overflow = TextOverflow.Ellipsis)
-        PageActionButton(onClick = show, enabled = !state.busy && available,
-            modifier = Modifier.fillMaxWidth().testTag("prototype_show")) {
-            Text(if (code != null) "Refresh code" else "Get location and show code")
-        }
+        if (showAction) OrganizerCodeAction(state, now, show)
+    }
+}
+
+@Composable
+private fun OrganizerCodeAction(state: PrototypeUiState, now: Long, show: () -> Unit) {
+    val session = requireNotNull(state.session)
+    val available = !state.cancelled && !state.checkInClosed && now < session.endAt &&
+        now >= session.startAt - PrototypePolicy.HALF_HOUR_MS && now <= session.startAt + PrototypePolicy.HALF_HOUR_MS
+    val code = state.code?.takeIf { available && now >= it.issuedAt - 5_000 && now < it.expiresAt }
+    PageActionButton(onClick = show, enabled = !state.busy && available,
+        modifier = Modifier.testTag("prototype_show")) {
+        Text(if (code != null) "Refresh code" else "Get location and show code")
     }
 }
