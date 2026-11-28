@@ -1,5 +1,6 @@
 package com.gogether.app.feature.checkin.cloud
 
+import com.gogether.app.core.ui.AppDivider
 import com.gogether.app.core.ui.AppPageHeader
 import com.gogether.app.core.ui.AppUi
 import com.gogether.app.core.ui.PageActionButton
@@ -141,7 +142,7 @@ internal fun CloudParticipantCheckInContent(
                     Text("Checked in at ${checkInDate(checkedInAt, "HH:mm, d MMM yyyy")}",
                         style = MaterialTheme.typography.bodyLarge, modifier = Modifier.testTag("cloud_checkin_receipt"))
                 } else if (hasInformation && !pending && !unreadableAttempt && confirmed && window == CheckInWindowState.OPEN) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .5f))
+                    AppDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .5f))
                     Text("Check-in window  ${checkInDate(CheckInWindow.opensAt(event), "HH:mm")}–${checkInDate(CheckInWindow.closesAt(event).coerceAtMost(event.endAt), "HH:mm")}",
                         style = MaterialTheme.typography.bodyMedium)
                     Text("Be within 200 m of the meeting point. Location is checked when you scan.",

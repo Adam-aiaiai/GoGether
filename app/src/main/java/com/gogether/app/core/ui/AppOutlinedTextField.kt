@@ -1,6 +1,8 @@
 package com.gogether.app.core.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.defaultMinSize
@@ -12,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.Role
@@ -40,6 +43,7 @@ fun AppOutlinedTextField(
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     singleLine: Boolean = false,
     shape: Shape = AppUi.FieldShape,
+    textStyle: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.bodyLarge,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val colors = outlinedFieldColors()
@@ -49,7 +53,7 @@ fun AppOutlinedTextField(
             if (isError) error("Invalid input")
         }.padding(top = 8.dp).defaultMinSize(minHeight = 56.dp),
         enabled = enabled, readOnly = readOnly, singleLine = singleLine,
-        textStyle = MaterialTheme.typography.bodyLarge.copy(color =
+        textStyle = textStyle.copy(color =
             if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)),
         keyboardOptions = keyboardOptions, keyboardActions = keyboardActions,
         visualTransformation = visualTransformation, interactionSource = interaction,
@@ -71,7 +75,7 @@ fun AppOutlinedTextField(
                 visualTransformation = VisualTransformation.None, interactionSource = interaction,
                 label = label, leadingIcon = leadingIcon, trailingIcon = trailingIcon,
                 supportingText = supportingText, isError = isError, colors = colors,
-                container = { OutlinedTextFieldDefaults.Container(enabled, isError, interaction, colors = colors, shape = shape) },
+                container = { OutlinedFieldContainer(enabled, isError, interaction, colors, shape) },
             )
         },
     )
@@ -80,19 +84,44 @@ fun AppOutlinedTextField(
 /** A button styled like an ordinary outlined input. It opens a picker, never the keyboard. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppOutlinedPickerField(label: String, value: String, hint: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun AppOutlinedPickerField(label: String, value: String, hint: String, modifier: Modifier = Modifier,
+    enabled: Boolean = true, textStyle: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.bodyLarge,
+    onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     val colors = outlinedFieldColors()
-    Box(modifier.clickable(interactionSource = interaction, indication = null, role = Role.Button, onClick = onClick)
+    // Draw feedback inside the outlined container, not over its floating label or outer padding.
+    Box(modifier.clickable(enabled = enabled, interactionSource = interaction, indication = null, role = Role.Button, onClick = onClick)
         .padding(top = 8.dp).defaultMinSize(minHeight = 56.dp), propagateMinConstraints = true) {
         OutlinedTextFieldDefaults.DecorationBox(
             value = " ", innerTextField = {
-                Text(value.ifBlank { "Select $hint" }, style = MaterialTheme.typography.bodyLarge,
-                    color = if (value.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
-            }, enabled = true, singleLine = true, visualTransformation = VisualTransformation.None,
+                Text(value.ifBlank { "Select $hint" }, style = textStyle,
+                    color = if (!enabled) MaterialTheme.colorScheme.onSurface.copy(alpha = .38f)
+                        else if (value.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
+            }, enabled = enabled, singleLine = true, visualTransformation = VisualTransformation.None,
             interactionSource = interaction, label = { Text(label) }, colors = colors,
-            container = { OutlinedTextFieldDefaults.Container(true, false, interaction, colors = colors, shape = AppUi.FieldShape) },
+            container = { OutlinedFieldContainer(enabled, false, interaction, colors, AppUi.FieldShape) },
         )
+    }
+}
+
+/** Observe the field's existing presses without intercepting editing, selection or picker clicks. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun OutlinedFieldContainer(
+    enabled: Boolean,
+    isError: Boolean,
+    interaction: InteractionSource,
+    colors: TextFieldColors,
+    shape: Shape,
+) {
+    Box(
+        Modifier.clip(shape).then(
+            if (enabled) Modifier.indication(interaction, ripple(color = MaterialTheme.colorScheme.onSurface))
+            else Modifier
+        ),
+        propagateMinConstraints = true,
+    ) {
+        OutlinedTextFieldDefaults.Container(enabled, isError, interaction, colors = colors, shape = shape)
     }
 }
 

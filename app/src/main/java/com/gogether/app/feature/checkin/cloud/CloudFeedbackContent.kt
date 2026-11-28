@@ -1,6 +1,8 @@
 package com.gogether.app.feature.checkin.cloud
 
 import com.gogether.app.core.ui.PageActionButton
+import com.gogether.app.core.ui.AppPhotoGallery
+import com.gogether.app.core.ui.AppMediaThumbnail
 import com.gogether.app.core.ui.AppPageHeader
 import com.gogether.app.core.ui.Page
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -11,7 +13,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,12 +22,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import com.gogether.app.core.data.cloud.CloudOperations
 import com.gogether.app.core.model.Event
 import com.gogether.app.core.model.EventStatus
-import com.gogether.app.core.ui.InfoCard
-import com.gogether.app.core.ui.displayTime
 import com.gogether.app.feature.checkin.prototype.*
 import com.google.firebase.storage.StorageException
 import com.google.firebase.storage.StorageMetadata
@@ -99,17 +97,24 @@ internal fun CloudFeedbackContent(backend:CloudOperations,event:Event,actor:Stri
             if(loading) LinearProgressIndicator(Modifier.fillMaxWidth())
             if(statusMessage.isNotBlank()) Text(statusMessage,color=MaterialTheme.colorScheme.error)
             if(own!=null) {
-                Text("Your review",style=MaterialTheme.typography.titleLarge,modifier=Modifier.testTag("cloud_feedback_saved"))
-                CloudReviewCard(backend,own,true)
-            } else if(event.status==EventStatus.CANCELLED)Text("This event is cancelled. New reviews are closed.")
-            else if(!ended)Text("Reviews open after the event ends.")
-            else if(!confirmed)Text("Only confirmed participants can review this event.")
+                key(actor, event.id) { CloudReviewCard(backend,own,true,Modifier.testTag("cloud_feedback_saved")) }
+            } else if(event.status==EventStatus.CANCELLED)ReviewNotice("This event is cancelled. New reviews are closed.")
+            else if(!ended)ReviewNotice("Reviews open after the event ends.")
+            else if(!confirmed)ReviewNotice("Only confirmed participants can review this event.")
             else if(viewingReviews) PageActionButton(onClick={viewingReviews=false}){Text("Write a review")}
-            HorizontalDivider()
-            Text("Event reviews",style=MaterialTheme.typography.titleLarge)
-            if(reviews.isEmpty())Text("No reviews are available to you yet.")
-            reviews.filterNot{it["own"]==true && own!=null}.forEach { review ->
-                key(review.string("id")){CloudReviewCard(backend,review,review["own"]==true)}
+            val otherReviews = reviews.filterNot{it["own"]==true && own!=null}
+            if(own != null && otherReviews.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Text("Event reviews",style=MaterialTheme.typography.titleMedium)
+            }
+            if(reviews.isEmpty())ReviewNotice(if(own == null) "No reviews are available to you yet." else "No other reviews yet.")
+            Column(verticalArrangement = Arrangement.spacedBy(50.dp)) {
+                otherReviews.forEach { review ->
+                    key(actor, event.id, review.string("id")){
+                        CloudReviewCard(backend,review,review["own"]==true,
+                            Modifier.testTag("cloud_review_${review.string("id")}"))
+                    }
+                }
             }
         }
     }
@@ -138,47 +143,68 @@ private fun decodeImage(bytes:ByteArray):Bitmap? {
 }
 
 @Composable
-private fun CloudLocalPhoto(file:File) {
-    val bitmap by produceState<Bitmap?>(null,file.path){value=withContext(Dispatchers.IO){runCatching{decodeImage(file.readBytes())}.getOrNull()}}
-    bitmap?.let{PhotoPreview(it,"Selected review photo")}?:Text("Photo unavailable")
+private fun ReviewNotice(text: String) {
+    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable
-private fun CloudReviewCard(backend:CloudOperations,value:Map<*,*>,own:Boolean) {
+private fun CloudReviewCard(backend:CloudOperations,value:Map<*,*>,own:Boolean, modifier: Modifier = Modifier) {
     val detail=details(value.map("details"))
-    val label=if(own)"Your review" else value.string("authorName").ifBlank{if(detail.anonymous)"Anonymous participant" else "Participant"}
-    InfoCard("$label · ${value.number("rating")}/5",value.string("comment").ifBlank{"No written comment"})
-    SavedFeedbackDetails(detail)
-    FeedbackPrivacySummary(detail)
-    Text(displayTime(value.number("createdAt")),style=MaterialTheme.typography.bodySmall)
-    detail.photos.forEach { mediaId -> CloudProtectedPhoto(backend,mediaId) }
+    val label=value.string("authorName").ifBlank{if(own) "You" else "Participant"}
+    SavedReviewItem(label,own,value.number("rating").toInt(),value.string("comment"),
+        value.number("createdAt"),detail,modifier) { CloudReviewPhotos(backend, detail.photos) }
 }
 
+/** Keep protected media scoped to this viewer/review composition; never use a public URL. */
 @Composable
-private fun CloudProtectedPhoto(backend:CloudOperations,mediaId:String) {
-    var failure by remember(backend,mediaId){mutableStateOf<String?>(null)}
-    var retry by remember(backend,mediaId){mutableIntStateOf(0)}
-    val bitmap by produceState<Bitmap?>(null,backend,mediaId,retry){
-        failure=null
-        try {
-            val response=backend.call("mediaRead",mapOf("mediaId" to mediaId))
-            value=withContext(Dispatchers.Default){
-                val encoded=response.string("base64")
-                require(encoded.length<=3_000_000){"Photo is too large."}
-                requireNotNull(decodeImage(Base64.decode(encoded,Base64.DEFAULT))){"Photo could not be decoded."}
-            }
-        }catch(cancelled:CancellationException){throw cancelled}catch(error:Exception){failure=error.message?:"Photo unavailable"}
+private fun CloudReviewPhotos(backend: CloudOperations, mediaIds: List<String>) {
+    var preview by remember(backend, mediaIds) { mutableStateOf<Int?>(null) }
+    val cache = remember(backend, mediaIds) { mutableStateMapOf<String, Bitmap>() }
+    val loadPhoto = remember(backend, mediaIds) {
+        val loader: suspend (String) -> Bitmap? = { id ->
+            cache[id] ?: readProtectedPhoto(backend, id).also { cache[id] = it }
+        }
+        loader
     }
-    bitmap?.let{PhotoPreview(it,"Review photo")}
-        ?: if(failure==null)LinearProgressIndicator(Modifier.fillMaxWidth()) else TextButton(onClick={retry++}){Text("Photo unavailable · Retry")}
+    if (mediaIds.isNotEmpty()) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (index in 0..2) {
+                val id = mediaIds.getOrNull(index)
+                if (id != null) key(id) {
+                    CloudProtectedPhoto(id, loadPhoto, Modifier.weight(1f)) { preview = index }
+                } else Spacer(Modifier.weight(1f))
+            }
+        }
+    }
+    preview?.let { index ->
+        key(backend, mediaIds) { AppPhotoGallery(mediaIds, index, loadPhoto) { preview = null } }
+    }
+}
+
+private suspend fun readProtectedPhoto(backend: CloudOperations, mediaId: String): Bitmap {
+    val response = backend.call("mediaRead", mapOf("mediaId" to mediaId))
+    return withContext(Dispatchers.Default) {
+        val encoded = response.string("base64")
+        require(encoded.length <= 3_000_000) { "Photo is too large." }
+        requireNotNull(decodeImage(Base64.decode(encoded, Base64.DEFAULT))) { "Photo could not be decoded." }
+    }
 }
 
 @Composable
-private fun PhotoPreview(bitmap:Bitmap,description:String) {
-    var expanded by remember(bitmap){mutableStateOf(false)}
-    Image(bitmap.asImageBitmap(),description,Modifier.fillMaxWidth().heightIn(max=220.dp).clickable{expanded=true},contentScale=ContentScale.Fit)
-    if(expanded)Dialog(onDismissRequest={expanded=false}) {
-        Surface {Column(Modifier.padding(12.dp)){Image(bitmap.asImageBitmap(),description,Modifier.fillMaxWidth().heightIn(max=550.dp),contentScale=ContentScale.Fit)
-            TextButton(onClick={expanded=false}){Text("Close photo")}}}
+private fun CloudProtectedPhoto(mediaId: String, loadPhoto: suspend (String) -> Bitmap?,
+    modifier: Modifier = Modifier, preview: () -> Unit) {
+    var failure by remember(mediaId, loadPhoto) { mutableStateOf<String?>(null) }
+    var retry by remember(mediaId, loadPhoto) { mutableIntStateOf(0) }
+    val bitmap by produceState<Bitmap?>(null, mediaId, loadPhoto, retry) {
+        failure = null
+        try { value = loadPhoto(mediaId) }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (error: Exception) { failure = error.message ?: "Photo unavailable" }
+    }
+    AppMediaThumbnail(onPreview = preview, modifier = modifier, previewTag = "cloud_review_photo_$mediaId") {
+        bitmap?.let {
+            Image(it.asImageBitmap(), "Review photo", Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        } ?: if (failure == null) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+        else TextButton(onClick = { retry++ }) { Text("Retry photo", style = MaterialTheme.typography.bodySmall) }
     }
 }

@@ -70,7 +70,7 @@ internal fun RepositoryFeedbackScreen(repository: GogetherRepository, bridge: Re
                         AttendanceRecordScreen(state, session, now, ::goBack, model::refreshAttendance)
                     }
                     else -> Column(Modifier.fillMaxSize().imePadding().then(if (record?.canReview(now) == true) Modifier else Modifier.padding(horizontal = 16.dp))) {
-                        if (record?.canReview(now) != true) AppPageHeader(if (record?.feedback == null) "Event review" else "My review", onBack = back)
+                        if (record?.canReview(now) != true) AppPageHeader(if (record?.feedback == null) "Event review" else "My review", horizontalInset = 16.dp, onBack = back)
                         if (record != null) HistoryDetail(actor, record, now, state.busy, state.message,
                             model::submitFeedback, Modifier.weight(1f), openCheckIn = { back() },
                             openAttendance = { panel = "attendance" }, openReviews = { panel = "reviews" }, back = back,

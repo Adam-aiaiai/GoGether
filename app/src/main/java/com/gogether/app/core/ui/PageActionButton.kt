@@ -1,6 +1,7 @@
 package com.gogether.app.core.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -56,7 +57,8 @@ private fun PageAction(
     contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
 ) {
     val interactions = remember { MutableInteractionSource() }
-    val scale = rememberPressScale(interactions, enabled && style == PageActionStyle.Filled)
+    val action = rememberBouncingAction(interactions, enabled && style == PageActionStyle.Filled, onClick)
+    val scale = action.scale
     // The theme computes this once from the page viewport, before nested padding.
     // A narrower pane or sheet can constrain it without overflowing its bounds.
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -69,11 +71,13 @@ private fun PageAction(
         val label: @Composable RowScope.() -> Unit = { ProvideTextStyle(labelStyle) { content() } }
         when (style) {
             PageActionStyle.Outlined -> OutlinedButton(onClick, buttonModifier, enabled, shape = shape,
+                border = BorderStroke(1.dp, if (enabled) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurface.copy(alpha = .12f)),
                 colors = ButtonDefaults.outlinedButtonColors(
                     contentColor = MaterialTheme.colorScheme.primary,
                     disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = .38f),
                 ), contentPadding = contentPadding, content = label)
-            PageActionStyle.Filled -> Button(onClick, buttonModifier, enabled, shape = shape,
+            PageActionStyle.Filled -> Button(action.click, buttonModifier, enabled, shape = shape,
                 interactionSource = interactions,
                 elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp, 0.dp, 0.dp, 0.dp),
                 colors = ButtonDefaults.buttonColors(contentColor = Color.White,

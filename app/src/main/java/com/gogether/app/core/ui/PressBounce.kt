@@ -10,6 +10,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -71,6 +76,60 @@ internal fun rememberPressScale(source: InteractionSource, enabled: Boolean = tr
         }
     }
     return scale.asState()
+}
+
+internal class BouncingAction(val scale: State<Float>, val click: () -> Unit)
+
+/** Keep a filled action visible through its first rebound before navigating or closing it. */
+@Composable
+internal fun rememberBouncingAction(source: InteractionSource, enabled: Boolean, onClick: () -> Unit): BouncingAction {
+    val scale = remember { Animatable(1f) }
+    val scope = rememberCoroutineScope()
+    val currentClick by rememberUpdatedState(onClick)
+    val currentEnabled by rememberUpdatedState(enabled)
+    var pending by remember { mutableStateOf(false) }
+    var motion by remember { mutableStateOf<Job?>(null) }
+    LaunchedEffect(source, enabled) {
+        motion?.cancel()
+        pending = false
+        scale.snapTo(1f)
+        if (!enabled) return@LaunchedEffect
+        source.interactions.collect { interaction ->
+            if (!pending) when (interaction) {
+                is PressInteraction.Press -> {
+                    motion?.cancel()
+                    motion = launch { scale.animateTo(AppMotion.PressedScale, tween(80, easing = FastOutSlowInEasing)) }
+                }
+                is PressInteraction.Release, is PressInteraction.Cancel -> {
+                    motion?.cancel()
+                    motion = launch { scale.animateTo(1f, AppMotion.rebound()) }
+                }
+            }
+        }
+    }
+    return BouncingAction(scale.asState()) {
+        if (currentEnabled && !pending) {
+            pending = true
+            motion?.cancel()
+            motion = scope.launch {
+                try {
+                    // Also animate keyboard/accessibility clicks and very short taps.
+                    if (scale.value > AppMotion.PressedScale) scale.animateTo(AppMotion.PressedScale, tween(40))
+                    var overshot = false
+                    scale.animateTo(1f, AppMotion.rebound()) {
+                        // Once past 1, stop at the first return to 1 instead of playing the long tail.
+                        if (!overshot && value > 1f) {
+                            overshot = true
+                            updateBounds(lowerBound = 1f)
+                        }
+                    }
+                    scale.updateBounds(lowerBound = null)
+                    scale.snapTo(1f)
+                    if (currentEnabled) currentClick()
+                } finally { scale.updateBounds(lowerBound = null); pending = false }
+            }
+        }
+    }
 }
 
 internal fun pressDepth(scale: Float): Float =

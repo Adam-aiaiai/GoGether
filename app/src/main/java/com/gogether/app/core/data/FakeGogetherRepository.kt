@@ -126,6 +126,19 @@ class FakeGogetherRepository(
         accountBackend?.signOut()
         engine.logout()
     }
+    override suspend fun updateProfile(profile: ProfileUpdate) = mutate {
+        val currentId = actor()
+        if (accountBackend == null) {
+            val (next, updated) = AccountState.edit(engine.snapshot, profile)
+            engine.replaceSnapshot(next)
+            updated
+        } else {
+            val updated = accountBackend.updateProfile(profile.copy(name = AccountRules.name(profile.name)))
+            require(updated.id == currentId) { "The account changed. Sign in again before editing." }
+            engine.replaceSnapshot(AccountState.accept(engine.snapshot, updated))
+            updated
+        }
+    }
     override suspend fun createEvent(draft: EventDraft) = mutate { engine.createEvent(actor(), draft) }
     override suspend fun updateEvent(eventId: String, draft: EventDraft) = mutate {
         engine.updateEvent(actor(), eventId, draft)

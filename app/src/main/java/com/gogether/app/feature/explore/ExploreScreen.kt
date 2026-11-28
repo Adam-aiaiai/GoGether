@@ -1,10 +1,12 @@
 package com.gogether.app.feature.explore
 
+import android.content.DialogInterface
 import com.gogether.app.core.ui.AppOutlinedTextField
 import com.gogether.app.core.ui.AppUi
 import com.gogether.app.core.ui.AppFilterChip
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
@@ -16,11 +18,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gogether.app.core.model.*
 import com.gogether.app.core.ui.*
+import java.time.LocalDate
 
 @Composable
 fun ExploreScreen(
@@ -146,10 +152,9 @@ private fun CategoryPicker(selected: Set<Category>, select: (Category) -> Unit) 
 
 @Composable
 private fun AdvancedFilters(filter: ExploreFilter, onFilter: (ExploreFilter) -> Unit, onClose: () -> Unit) {
-    Surface(color = MaterialTheme.colorScheme.surface,
-        modifier = Modifier.fillMaxWidth().testTag("advanced_filters")) {
+    Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).testTag("advanced_filters")) {
         Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-            HorizontalDivider()
+            AppDivider()
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("Filters", style = MaterialTheme.typography.titleLarge,
@@ -177,14 +182,12 @@ private fun AdvancedFilters(filter: ExploreFilter, onFilter: (ExploreFilter) -> 
                 }
                 if (filter.time == EventTimeFilter.CUSTOM) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        AppOutlinedTextField(filter.customStartDate,
+                        FilterDateField("From", filter.customStartDate,
                             { onFilter(filter.copy(customStartDate = it)) },
-                            label = { Text("From") }, placeholder = { Text("YYYY-MM-DD") },
-                            singleLine = true, modifier = Modifier.weight(1f).testTag("custom_start_date"))
-                        AppOutlinedTextField(filter.customEndDate,
+                            Modifier.weight(1f).testTag("custom_start_date"))
+                        FilterDateField("To", filter.customEndDate,
                             { onFilter(filter.copy(customEndDate = it)) },
-                            label = { Text("To") }, placeholder = { Text("YYYY-MM-DD") },
-                            singleLine = true, modifier = Modifier.weight(1f).testTag("custom_end_date"))
+                            Modifier.weight(1f).testTag("custom_end_date"))
                     }
                 }
             }
@@ -223,7 +226,36 @@ private fun AdvancedFilters(filter: ExploreFilter, onFilter: (ExploreFilter) -> 
                     }
                 }
             }
-            HorizontalDivider()
+            AppDivider()
+        }
+    }
+}
+
+@Composable
+private fun FilterDateField(label: String, value: String, onDateChange: (String) -> Unit, modifier: Modifier) {
+    val context = LocalContext.current
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    var showing by remember { mutableStateOf(false) }
+    val updateDate by rememberUpdatedState(onDateChange)
+    AppOutlinedPickerField(label, value, "date", modifier) {
+        focus.clearFocus()
+        keyboard?.hide()
+        showing = true
+    }
+    if (showing) DisposableEffect(context) {
+        val initial = runCatching { LocalDate.parse(value) }.getOrElse { LocalDate.now() }
+        val dialog = AppDatePickerDialog(context, { _, year, month, day ->
+            updateDate(LocalDate.of(year, month + 1, day).toString())
+        }, initial.year, initial.monthValue - 1, initial.dayOfMonth)
+        dialog.setTitle("$label date")
+        // Keep the existing ability to filter with only one end of the range set.
+        if (value.isNotBlank()) dialog.setButton(DialogInterface.BUTTON_NEUTRAL, "Clear") { _, _ -> updateDate("") }
+        dialog.setOnDismissListener { showing = false }
+        dialog.show()
+        onDispose {
+            dialog.setOnDismissListener(null)
+            dialog.dismiss()
         }
     }
 }
@@ -236,7 +268,7 @@ private fun QuickFilterChip(label: String, selected: Boolean, tag: String, onCli
 @Composable
 private fun FilterSection(title: String, choiceHint: String, content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        HorizontalDivider(Modifier.padding(bottom = 12.dp))
+        AppDivider(Modifier.padding(bottom = 12.dp))
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)

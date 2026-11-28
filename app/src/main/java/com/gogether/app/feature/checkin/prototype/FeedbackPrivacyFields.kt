@@ -1,5 +1,6 @@
 package com.gogether.app.feature.checkin.prototype
 
+import com.gogether.app.core.ui.AppDivider
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -16,7 +17,7 @@ import androidx.compose.ui.unit.dp
 internal fun FeedbackPrivacyFields(anonymous: Boolean, visibility: FeedbackVisibility, busy: Boolean,
     changeAnonymous: (Boolean) -> Unit, changeVisibility: (FeedbackVisibility) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.testTag("feedback_privacy")) {
-        HorizontalDivider()
+        AppDivider()
         Row(Modifier.fillMaxWidth().toggleable(anonymous, enabled = !busy, role = Role.Checkbox, onValueChange = changeAnonymous)
             .testTag("feedback_anonymous"), verticalAlignment = Alignment.CenterVertically) {
             Checkbox(checked = anonymous, onCheckedChange = null, enabled = !busy)

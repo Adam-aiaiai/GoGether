@@ -13,6 +13,8 @@ interface GogetherRepository {
     suspend fun signIn(email: String, password: String): Result<Unit>
     suspend fun signUp(email: String, password: String, name: String, interests: Set<Category>): Result<User>
     suspend fun updateProfile(name: String, interests: Set<Category>): Result<User>
+    suspend fun updateProfile(profile: ProfileUpdate): Result<User> =
+        Result.failure(UnsupportedOperationException("This account service does not support profile photos yet."))
     suspend fun login(userId: String): Result<Unit>
     suspend fun register(name: String, interests: Set<Category>): Result<User>
     suspend fun logout(): Result<Unit>

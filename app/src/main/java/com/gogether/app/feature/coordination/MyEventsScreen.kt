@@ -24,7 +24,7 @@ fun MyEventsScreen(state: AppSnapshot, now: Long, openInbox: () -> Unit = {},
             Text("Notifications · ${state.notifications.count { it.userId == state.currentUserId && !it.isRead }} unread")
         }
         @Suppress("DEPRECATION")
-        ScrollableTabRow(selectedTabIndex = tab.ordinal, edgePadding = 0.dp) {
+        AppScrollableTabRow(selectedTabIndex = tab.ordinal) {
             PersonalEventTab.entries.forEach { option ->
                 Tab(selected = option == tab, onClick = { selected = option.name },
                     text = { Text(option.label) }, modifier = Modifier.testTag("personal_tab_${option.name}"))

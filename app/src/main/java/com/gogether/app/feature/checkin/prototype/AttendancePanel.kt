@@ -1,5 +1,6 @@
 package com.gogether.app.feature.checkin.prototype
 
+import com.gogether.app.core.ui.AppDivider
 import com.gogether.app.core.ui.AppPageHeader
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
@@ -84,7 +85,7 @@ internal fun AttendanceRecordScreen(state: PrototypeUiState, session: PrototypeS
     var search by rememberSaveable(session.id) { mutableStateOf(false) }
     BackHandler { back() }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp).testTag("attendance_record_screen")) {
-        AppPageHeader("Attendance record", onBack = back, actions = {
+        AppPageHeader("Attendance record", horizontalInset = 16.dp, onBack = back, actions = {
             IconButton(onClick = { search = true }, enabled = state.attendance.session == session && state.attendance.loaded,
                 modifier = Modifier.testTag("attendance_search_open")) { Icon(Icons.Default.Search, "Find participants") }
         })
@@ -92,7 +93,7 @@ internal fun AttendanceRecordScreen(state: PrototypeUiState, session: PrototypeS
         Text(attendanceTime(session.startAt), style = MaterialTheme.typography.bodySmall)
         Text(if (state.history.find { it.session == session }?.cancelled == true) "Event cancelled. Attendance records are kept."
             else if (now >= session.endAt) "Event ended" else "This event has not ended yet", style = MaterialTheme.typography.bodySmall)
-        HorizontalDivider(Modifier.padding(vertical = 8.dp))
+        AppDivider(Modifier.padding(vertical = 8.dp), horizontalInset = 16.dp)
         key(session) {
             AttendancePanel(state, session, Modifier.weight(1f).padding(bottom = 8.dp), search,
                 refresh = { refresh(session) }, dismissSearch = { search = false })

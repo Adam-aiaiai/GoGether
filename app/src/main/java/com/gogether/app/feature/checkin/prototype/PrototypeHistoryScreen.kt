@@ -35,7 +35,7 @@ fun PrototypeHistoryScreen(actor: String, records: List<PrototypeHistoryEntry>, 
             selected.feedback != null -> "My review"
             selected.canReview(now) -> "Event review"
             else -> "Event records"
-        }, onBack = { if (selectedId != null) selectedId = null else back() })
+        }, horizontalInset = 16.dp, onBack = { if (selectedId != null) selectedId = null else back() })
         if (selected != null) {
             key(actor, selected.session.id) {
                 HistoryDetail(actor, selected, now, busy, message, submit, Modifier.weight(1f), openCheckIn, openAttendance, openReviews,

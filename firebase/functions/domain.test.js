@@ -117,3 +117,18 @@ test('optional review comments accept empty and bounded text and keep existing v
  assert.equal(visibleReview(review,'alice','alice',[]).details.positiveComment,'Friendly teammates.');
  assert.equal(visibleReview(review,'bob','alice',[]).details.improvementComment,'More warm-up time.');
 });
+test('profile details preserve existing photos for legacy updates and honor gender privacy',()=>{
+ const path='profiles/alice/12345678-1234-1234-1234-123456789012';
+ const saved=D.profile({name:'Alice',interests:['SPORTS'],avatarUri:path,coverUri:path,gender:'NON_BINARY',showGender:false,signature:' See you outdoors! '},'alice','a@example.test',now);
+ assert.equal(saved.signature,'See you outdoors!');
+ const renamed=D.profile({name:'Alice Park',interests:['OUTDOOR']},'alice','a@example.test',now,saved);
+ assert.equal(renamed.avatarUri,path);assert.equal(renamed.gender,'NON_BINARY');
+ assert.equal(D.publicProfile(renamed,'bob').gender,'UNDISCLOSED');assert.equal(D.publicProfile(renamed,'bob').email,null);
+ assert.equal(D.publicProfile(renamed,'alice').gender,'NON_BINARY');
+ assert.equal(D.publicProfile({...renamed,showGender:true},'bob').gender,'NON_BINARY');
+ assert.equal(D.profileDetails({gender:'UNDISCLOSED',showGender:true},'alice').showGender,false);
+});
+test('profile details reject foreign uploads external URLs invalid gender and oversized signature',()=>{
+ for(const input of [{avatarUri:'profiles/bob/12345678-1234-1234-1234-123456789012'},{coverUri:'https://example.test/image.jpg'},
+ {avatarUri:'file:///local.jpg'},{gender:'UNKNOWN'},{showGender:'false'},{signature:'a'.repeat(101)}])assert.throws(()=>D.profileDetails(input,'alice'));
+});

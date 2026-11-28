@@ -1,44 +1,126 @@
 package com.gogether.app.feature.coordination
 
-import com.gogether.app.core.ui.AppFilterChip
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.ui.res.painterResource
+import com.gogether.app.R
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.gogether.app.core.model.*
 import com.gogether.app.core.ui.*
+import com.gogether.app.feature.profile.ProfileAvatar
+import kotlinx.coroutines.launch
+
+internal fun Notification.isInteraction() = type == NotificationType.QUESTION_ASKED || type == NotificationType.QUESTION_ANSWERED
 
 @Composable
 fun InboxContent(state: AppSnapshot, busy: Boolean, read: (String) -> Unit,
-                 readAll: () -> Unit, openEvent: (String) -> Unit, explore: () -> Unit = {},
-                 openQuestion: ((String, String) -> Unit)? = null) {
-    var unreadOnly by rememberSaveable(state.currentUserId) { mutableStateOf(false) }
+    readAll: () -> Unit, openEvent: (String) -> Unit, explore: () -> Unit = {},
+    openQuestion: ((String, String) -> Unit)? = null, back: (() -> Unit)? = null) {
     val all = state.notifications.filter { it.userId == state.currentUserId }.sortedByDescending { it.createdAt }
-    val notifications = all.filter { !unreadOnly || !it.isRead }
-    Text("Inbox · ${all.count { !it.isRead }} unread", style = MaterialTheme.typography.titleLarge)
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        AppFilterChip(!unreadOnly, { unreadOnly = false }, label = { Text("All") }, modifier = Modifier.testTag("inbox_all"))
-        AppFilterChip(unreadOnly, { unreadOnly = true }, label = { Text("Unread") }, modifier = Modifier.testTag("inbox_unread"))
-    }
-    TextButton(enabled = !busy && all.any { !it.isRead }, onClick = readAll, modifier = Modifier.testTag("read_all")) {
-        Text(if (busy) "Updating…" else "Mark all as read")
-    }
-    if (notifications.isEmpty()) {
-        InfoCard(if (unreadOnly) "You're all caught up" else "No notifications yet", "Activity updates and waitlist promotions appear here.")
-        TextButton(onClick = explore) { Text("Explore activities") }
-    }
-    notifications.forEach { notification ->
-        MessageCard(if (notification.isRead) "Read" else "New", notification.content, displayTime(notification.createdAt),
-            Modifier.testTag("notification_${notification.id}"))
-        TextButton(onClick = {
-            if (notification.questionId != null && openQuestion != null) openQuestion(notification.eventId, notification.questionId)
-            else openEvent(notification.eventId)
-        }, modifier = Modifier.testTag("notification_open_${notification.id}")) {
-            Text(if (notification.questionId != null && openQuestion != null) "View question" else "View event")
+    val pager = rememberPagerState(pageCount = { 2 })
+    val scope = rememberCoroutineScope()
+    Column(Modifier.fillMaxSize()) {
+        AppPageHeader("Notifications", onBack = back, actions = {
+            IconButton(readAll, enabled = !busy && all.any { !it.isRead }, modifier = Modifier.testTag("read_all")) {
+                Icon(painterResource(R.drawable.ic_mark_all_read), "Mark all as read", Modifier.size(25.dp))
+            }
+        })
+        Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+            listOf("Interactions", "Activity updates").forEachIndexed { index, title ->
+                val active = pager.currentPage == index
+                Column(Modifier.semantics { selected = active }.clickable(role = Role.Tab) { scope.launch { pager.animateScrollToPage(index) } }
+                    .testTag(if (index == 0) "inbox_interactions" else "inbox_activity").fillMaxHeight(),
+                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(title, fontSize = if (active) 16.sp else 14.sp,
+                            fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+                            color = if (active) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (all.any { !it.isRead && it.isInteraction() == (index == 0) }) {
+                            Spacer(Modifier.width(5.dp)); Box(Modifier.size(5.dp).background(Color(0xFFEF534B), CircleShape))
+                        }
+                    }
+                    Spacer(Modifier.height(7.dp))
+                    Box(Modifier.size(25.dp, 4.dp).background(if (active) AppUi.Primary else Color.Transparent, CircleShape))
+                }
+            }
         }
-        if (!notification.isRead) TextButton(enabled = !busy, onClick = { read(notification.id) }, modifier = Modifier.testTag("notification_read_${notification.id}")) { Text("Mark as read") }
+        HorizontalPager(pager, Modifier.weight(1f).testTag("inbox_pager"), verticalAlignment = Alignment.Top) { page ->
+            val notices = all.filter { it.isInteraction() == (page == 0) }
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (notices.isEmpty()) item {
+                    Column(Modifier.fillMaxWidth().padding(top = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(if (page == 0) "No interactions yet" else "No activity updates yet", fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold)
+                        Text(if (page == 0) "Questions and replies will appear here." else "Changes to your activities will appear here.",
+                            Modifier.padding(top = 8.dp), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        TextButton(explore) { Text("Explore activities", fontSize = 12.sp) }
+                    }
+                }
+                items(notices, key = { it.id }) { notification ->
+                    NotificationRow(notification, state, !busy) {
+                        if (!notification.isRead) read(notification.id)
+                        if (notification.questionId != null && openQuestion != null) openQuestion(notification.eventId, notification.questionId)
+                        else openEvent(notification.eventId)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NotificationRow(notice: Notification, state: AppSnapshot, enabled: Boolean, open: () -> Unit) {
+    val question = state.questions.find { it.id == notice.questionId }
+    val authorId = if (notice.type == NotificationType.QUESTION_ASKED) question?.authorId else question?.answeredBy
+    val author = state.users.find { it.id == authorId }
+    val title = if (notice.isInteraction()) author?.displayName ?: "Activity conversation" else when (notice.type) {
+        NotificationType.PROMOTED -> "Your place is confirmed"
+        NotificationType.EVENT_CANCELLED -> "Activity cancelled"
+        NotificationType.ANNOUNCEMENT -> "Organizer announcement"
+        NotificationType.MEETING_UPDATED -> "Meeting point updated"
+        NotificationType.EVENT_UPDATED -> "Activity updated"
+        else -> "Activity update"
+    }
+    Row(Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = open)
+        .testTag("notification_open_${notice.id}").padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Box(Modifier.width(7.dp).padding(top = 7.dp), contentAlignment = Alignment.TopCenter) {
+            if (!notice.isRead) Box(Modifier.size(6.dp).background(Color(0xFFEF534B), CircleShape).testTag("unread_${notice.id}"))
+        }
+        if (notice.isInteraction() && author != null) ProfileAvatar(author.copy(showGender = false), size = 38.dp)
+        Column(Modifier.weight(1f).testTag("notification_${notice.id}"), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(title, Modifier.weight(1f), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.width(8.dp))
+                Text(java.time.Instant.ofEpochMilli(notice.createdAt).atZone(java.time.ZoneId.systemDefault())
+                    .format(java.time.format.DateTimeFormatter.ofPattern("d MMM · HH:mm", java.util.Locale.ENGLISH)),
+                    fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(notice.content, fontSize = 12.sp, lineHeight = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            state.event(notice.eventId)?.let { Text(it.title, fontSize = 11.sp, maxLines = 1,
+                overflow = TextOverflow.Ellipsis, color = AppUi.OnSoftAccent) }
+        }
     }
 }

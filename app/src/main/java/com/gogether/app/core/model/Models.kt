@@ -11,6 +11,10 @@ enum class ExperienceRequirement(val label: String) {
     NONE("No experience needed"), BASIC("Basic familiarity"), EXPERIENCED("Experienced participants")
 }
 enum class UserStatus { DEMO, ACCOUNT }
+enum class Gender(val label: String, val symbol: String) {
+    UNDISCLOSED("Prefer not to say", ""), WOMAN("Woman", "♀"), MAN("Man", "♂"), NON_BINARY("Non-binary", "⚧")
+}
+const val DefaultSignature = "Good moments start with getting together."
 enum class CheckInStatus { DEMO_RECORDED, QR_RECORDED }
 enum class NotificationType { PROMOTED, EVENT_CANCELLED, ANNOUNCEMENT, MEETING_UPDATED, EVENT_UPDATED, QUESTION_ASKED, QUESTION_ANSWERED }
 enum class FeedbackStatus { SUBMITTED }
@@ -19,7 +23,16 @@ data class User(
     val id: String, val displayName: String, val interests: Set<Category>, val createdAt: Long,
     val status: UserStatus = UserStatus.DEMO,
     val email: String? = null,
+    val avatarUri: String = "",
+    val coverUri: String = "",
+    val gender: Gender = Gender.UNDISCLOSED,
+    val showGender: Boolean = false,
+    val signature: String = "",
 )
+
+data class ProfileUpdate(val name: String, val interests: Set<Category>, val avatarUri: String = "",
+    val coverUri: String = "", val gender: Gender = Gender.UNDISCLOSED,
+    val showGender: Boolean = false, val signature: String = "")
 data class Event(
     val id: String, val organizerId: String, val title: String, val category: Category,
     val description: String, val startAt: Long, val endAt: Long, val location: String,

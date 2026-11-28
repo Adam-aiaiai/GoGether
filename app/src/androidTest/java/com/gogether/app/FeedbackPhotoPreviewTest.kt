@@ -33,10 +33,11 @@ class FeedbackPhotoPreviewTest {
     private var activity by mutableStateOf(session)
     private var photos by mutableStateOf<List<String>>(emptyList())
 
-    private fun launch(count: Int = 3) {
+    private fun launch(count: Int = 3, dimensions: List<Pair<Int, Int>> = emptyList()) {
         runBlocking {
             repeat(count) { index ->
-                val bitmap = Bitmap.createBitmap(400, 300, Bitmap.Config.ARGB_8888)
+                val (width, height) = dimensions.getOrNull(index) ?: (400 to 300)
+                val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
                 bitmap.eraseColor(android.graphics.Color.rgb(50 + index * 60, 100, 160))
                 val bytes = ByteArrayOutputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it); it.toByteArray() }
                 bitmap.recycle()
@@ -73,13 +74,13 @@ class FeedbackPhotoPreviewTest {
         }
         compose.onNodeWithTag("photo_pager").performTouchInput { swipeLeft() }
         compose.onNodeWithTag("photo_page_count").assertTextEquals("3 / 3")
-        compose.onNodeWithText("Next").assertIsNotEnabled()
+        compose.onNodeWithTag("photo_next").assertIsNotEnabled()
         compose.onNodeWithTag("photo_pager").performTouchInput { swipeRight() }
         compose.onNodeWithTag("photo_page_count").assertTextEquals("2 / 3")
-        compose.onNodeWithText("Previous").performClick()
+        compose.onNodeWithTag("photo_previous").performClick()
         compose.onNodeWithTag("photo_page_count").assertTextEquals("1 / 3")
-        compose.onNodeWithText("Previous").assertIsNotEnabled()
-        compose.onNodeWithContentDescription("Back").performClick()
+        compose.onNodeWithTag("photo_previous").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Close photo").performClick()
         compose.onNodeWithTag("feedback_photo_preview").assertDoesNotExist()
     }
 
@@ -102,8 +103,8 @@ class FeedbackPhotoPreviewTest {
     @Test fun singlePhotoHasNoNextPage() {
         launch(1); open()
         compose.onNodeWithTag("photo_page_count").assertTextEquals("1 / 1")
-        compose.onNodeWithText("Previous").assertIsNotEnabled()
-        compose.onNodeWithText("Next").assertIsNotEnabled()
+        compose.onNodeWithTag("photo_previous").assertDoesNotExist()
+        compose.onNodeWithTag("photo_next").assertDoesNotExist()
         compose.onNodeWithTag("photo_pager").performTouchInput { swipeLeft() }
         compose.onNodeWithTag("photo_page_count").assertTextEquals("1 / 1")
     }
@@ -115,10 +116,42 @@ class FeedbackPhotoPreviewTest {
                 Offset(center.x - 130, center.y), Offset(center.x + 130, center.y))
         }
         assertTrue(scale(ids[0]) > 100)
-        compose.onNodeWithText("Next").performClick()
+        compose.onNodeWithTag("photo_next").performClick()
         compose.onNodeWithTag("photo_page_count").assertTextEquals("2 / 3")
-        compose.onNodeWithText("Previous").performClick()
+        compose.onNodeWithTag("photo_previous").performClick()
         assertEquals(100, scale(ids[0]))
+    }
+
+    @Test fun controlsStayOutsideLandscapeAndPortraitPhotos() {
+        launch(dimensions = listOf(400 to 300, 300 to 500, 600 to 180)); open()
+        fun verify(ratio: Float) {
+            compose.waitUntil(10000) {
+                val bounds = compose.onNodeWithTag("photo_pager").fetchSemanticsNode().boundsInRoot
+                kotlin.math.abs(bounds.width / bounds.height - ratio) < .02f
+            }
+            val photo = compose.onNodeWithTag("photo_pager").fetchSemanticsNode().boundsInRoot
+            val previous = compose.onNodeWithTag("photo_previous").fetchSemanticsNode().boundsInRoot
+            val next = compose.onNodeWithTag("photo_next").fetchSemanticsNode().boundsInRoot
+            val close = compose.onNodeWithTag("photo_preview_close").fetchSemanticsNode().boundsInRoot
+            val count = compose.onNodeWithTag("photo_page_count").fetchSemanticsNode().boundsInRoot
+            assertTrue("Left arrow stays outside the photo", previous.right <= photo.left + 1f)
+            assertTrue("Right arrow stays outside the photo", next.left >= photo.right - 1f)
+            assertEquals(photo.center.y, previous.center.y, 1f)
+            assertEquals(photo.center.y, next.center.y, 1f)
+            assertTrue("Close follows the upper-right corner", close.center.x > photo.right && close.center.y < photo.top)
+            assertTrue("Count stays below the photo", count.top >= photo.bottom)
+            compose.onNodeWithContentDescription("Close photo").assertIsDisplayed()
+        }
+        verify(4f / 3f)
+        compose.onNodeWithTag("photo_next").performClick(); verify(3f / 5f)
+        compose.onNodeWithTag("photo_next").performClick(); verify(10f / 3f)
+    }
+
+    @Test fun systemBackClosesTheOverlay() {
+        launch(1); open()
+        androidx.test.espresso.Espresso.pressBack()
+        compose.onNodeWithTag("feedback_photo_preview").assertDoesNotExist()
+        compose.onNodeWithTag("feedback_photo_0").assertExists()
     }
 
     @Test fun changingAccountActivityOrPhotoListClosesPreviewAndCannotReadDraft() {

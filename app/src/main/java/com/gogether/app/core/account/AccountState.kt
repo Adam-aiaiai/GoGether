@@ -4,6 +4,14 @@ import com.gogether.app.core.model.*
 
 /** Pure A-owned reducers; activity and registration records keep their stable user IDs. */
 object AccountState {
+    fun edit(snapshot: AppSnapshot, profile: ProfileUpdate): Pair<AppSnapshot, User> {
+        require(profile.signature.trim().length <= 100) { "Use a signature of up to 100 characters." }
+        val (renamed, user) = edit(snapshot, profile.name, profile.interests)
+        val updated = user.copy(avatarUri = profile.avatarUri, coverUri = profile.coverUri,
+            gender = profile.gender, showGender = profile.showGender && profile.gender != Gender.UNDISCLOSED,
+            signature = profile.signature.trim())
+        return renamed.copy(users = renamed.users.map { if (it.id == updated.id) updated else it }) to updated
+    }
     fun edit(snapshot: AppSnapshot, name: String, interests: Set<Category>): Pair<AppSnapshot, User> {
         val current = requireNotNull(snapshot.currentUser) { "Sign in before editing your profile." }
         val cleanName = AccountRules.name(name)

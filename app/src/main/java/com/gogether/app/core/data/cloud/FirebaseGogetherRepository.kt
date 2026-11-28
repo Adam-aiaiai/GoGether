@@ -335,6 +335,18 @@ class FirebaseGogetherRepository(context: Context, private val services: Firebas
     }
     override suspend fun updateProfile(name: String, interests: Set<Category>) = mutation("updateProfile",
         mapOf("name" to name, "interests" to interests.map { it.name })) { CloudDto.user(CloudDto.objectValue(it["user"])) }
+    override suspend fun updateProfile(profile: ProfileUpdate): Result<User> = attempt {
+        val uid = actor(); val epoch = generation
+        require(profile.signature.trim().length <= 100) { "Use a signature of up to 100 characters." }
+        val avatar = sharedImage(profile.avatarUri, "profiles")
+        val cover = sharedImage(profile.coverUri, "profiles")
+        verify(uid, epoch)
+        mutation("updateProfile", mapOf("name" to profile.name, "interests" to profile.interests.map { it.name },
+            "avatarUri" to avatar, "coverUri" to cover, "gender" to profile.gender.name,
+            "showGender" to profile.showGender, "signature" to profile.signature.trim())) {
+            CloudDto.user(CloudDto.objectValue(it["user"]))
+        }.getOrThrow()
+    }
     override suspend fun logout(): Result<Unit> = attempt {
         accountMutex.withLock {
             val uid = auth.currentUser?.uid
@@ -345,9 +357,12 @@ class FirebaseGogetherRepository(context: Context, private val services: Firebas
     override suspend fun login(userId: String): Result<Unit> = Result.failure(IllegalStateException("Use email and password to sign in."))
     override suspend fun register(name: String, interests: Set<Category>): Result<User> = Result.failure(IllegalStateException("Use account registration."))
     private suspend fun sharedDraft(draft: EventDraft): EventDraft {
-        if (!draft.imageUri.startsWith("content://") && !draft.imageUri.startsWith("file://")) return draft
+        return draft.copy(imageUri = sharedImage(draft.imageUri, "covers"))
+    }
+    private suspend fun sharedImage(imageUri: String, folder: String): String {
+        if (!imageUri.startsWith("content://") && !imageUri.startsWith("file://")) return imageUri
         val uid = actor(); val epoch = generation
-        val uri = Uri.parse(draft.imageUri)
+        val uri = Uri.parse(imageUri)
         val type = context.contentResolver.getType(uri) ?: "image/jpeg"
         require(type in setOf("image/jpeg", "image/png", "image/webp")) { "Choose a JPEG, PNG or WebP cover." }
         val bytes = withContext(Dispatchers.IO) {
@@ -359,8 +374,8 @@ class FirebaseGogetherRepository(context: Context, private val services: Firebas
             } ?: error("Could not open the selected cover.")
         }
         val contentHash = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-        val key = "cover:$uid:$contentHash"
-        val path = preferences.getString(key, null) ?: "covers/$uid/${UUID.randomUUID()}".also {
+        val key = "${if (folder == "covers") "cover" else folder}:$uid:$contentHash"
+        val path = preferences.getString(key, null) ?: "$folder/$uid/${UUID.randomUUID()}".also {
             check(preferences.edit().putString(key, it).commit()) { "Could not save upload progress." }
         }
         verify(uid, epoch)
@@ -372,7 +387,7 @@ class FirebaseGogetherRepository(context: Context, private val services: Firebas
             .setCustomMetadata("sha256", contentHash).build()).await()
         else require(previous.getCustomMetadata("sha256") == contentHash) { "The cover upload changed. Choose the image again." }
         verify(uid, epoch)
-        return draft.copy(imageUri = path)
+        return path
     }
     override suspend fun createEvent(draft: EventDraft): Result<Event> = attempt {
         mutation("createEvent", mapOf("draft" to CloudDto.draft(sharedDraft(draft)))) { CloudDto.event(CloudDto.objectValue(it["event"])) }.getOrThrow()

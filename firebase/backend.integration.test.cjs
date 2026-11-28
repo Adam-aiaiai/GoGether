@@ -245,3 +245,23 @@ test('request resolution is authenticated-owner scoped and retains original comm
   assert.equal((await alice.call('resolveRequest',{requestIdToResolve:requestId})).status,'UNKNOWN');
   assert.equal((await bob.call('resolveRequest',{requestIdToResolve:randomUUID()})).status,'UNKNOWN');
 });
+
+test('profile images upload with owner checks, survive account reload and respect hidden gender',async()=>{
+ const path='profiles/'+alice.uid+'/'+randomUUID();
+ await uploadBytes(ref(alice.storage,path),png,{contentType:'image/png'});
+ const saved=(await alice.call('updateProfile',{name:'Alice with photos',interests:['SPORTS','READING'],
+   avatarUri:path,coverUri:path,signature:'See you outdoors!',gender:'NON_BINARY',showGender:false})).user;
+ assert.equal(saved.avatarUri,path);assert.equal(saved.gender,'NON_BINARY');
+ const own=(await snap(alice)).users.find(u=>u.id===alice.uid);
+ assert.equal(own.signature,'See you outdoors!');assert.equal(own.coverUri,path);assert.equal(own.gender,'NON_BINARY');
+ const publicUser=(await snap(bob)).users.find(u=>u.id===alice.uid);
+ assert.equal(publicUser.gender,'UNDISCLOSED');assert.equal(publicUser.showGender,false);assert.equal(publicUser.email,null);
+ assert.deepEqual(Buffer.from(await getBytes(ref(bob.storage,path))),png);
+ await expectCode(bob.call('updateProfile',{name:'Bob',interests:[],avatarUri:path}),'invalid-argument');
+ await assert.rejects(uploadBytes(ref(bob.storage,'profiles/'+alice.uid+'/'+randomUUID()),png,{contentType:'image/png'}));
+ await expectCode(alice.call('updateProfile',{name:'Alice',interests:[],avatarUri:'profiles/'+alice.uid+'/'+randomUUID()}),'not-found');
+ await alice.call('updateProfile',{name:'Alice with photos',interests:['SPORTS'],gender:'NON_BINARY',showGender:true});
+ const visible=(await snap(bob)).users.find(u=>u.id===alice.uid);
+ assert.equal(visible.gender,'NON_BINARY');assert.equal(visible.avatarUri,path);
+ await alice.call('updateProfile',{name:'Alice with photos',interests:[],avatarUri:'',coverUri:'',signature:'',gender:'UNDISCLOSED',showGender:false});
+});

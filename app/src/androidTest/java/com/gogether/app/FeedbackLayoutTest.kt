@@ -82,7 +82,8 @@ class FeedbackLayoutTest {
             assertEquals(FeedbackDetails(5, 3, 4, listOf("welcoming", "more_guidance")), record.feedback!!.details)
             assertEquals(2, submissions)
         }
-        compose.onNodeWithTag("history_detail").performScrollToNode(hasText("Experience ratings"))
+        compose.onNodeWithTag("history_detail").performScrollToNode(hasTestTag("saved_review_dimensions"))
+        compose.onNodeWithTag("saved_review_dimensions").assertTextEquals("Organization 5 · Venue 3 · Atmosphere 4")
         capture("feedback-full-saved.png")
     }
 
@@ -104,7 +105,8 @@ class FeedbackLayoutTest {
         capture("feedback-redesign-filled.png")
         compose.reviewNode("feedback_submit").performClick()
         compose.onNodeWithText("My review").assertIsDisplayed()
-        compose.onNodeWithTag("feedback_saved").assertTextEquals("My review 4 / 5")
+        compose.onNodeWithTag("feedback_saved").assertExists()
+        compose.onNodeWithContentDescription("4 out of 5 stars").assertExists()
         compose.onNodeWithText("The directions were clear, and I had a great time with everyone.").assertExists()
         compose.reviewNode("feedback_submit").assertDoesNotExist()
         assertEquals(1, submissions)

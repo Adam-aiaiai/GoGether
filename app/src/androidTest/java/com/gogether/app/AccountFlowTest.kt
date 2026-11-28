@@ -36,8 +36,15 @@ class AccountFlowTest {
         compose.setContent { GogetherTheme { GogetherApp(repo) } }
     }
     private fun awaitSnackbar() = compose.awaitAccountSnackbar()
-    private fun click(tag: String) { awaitSnackbar(); compose.onNodeWithTag(tag).performScrollTo().performClick() }
-    private fun nav(tag: String) { awaitSnackbar(); compose.onNodeWithTag(tag).performClick() }
+    private fun click(tag: String) {
+        if (tag.startsWith("switch_") || tag == "logout") compose.onNodeWithTag("profile_account_menu").performClick()
+        awaitSnackbar()
+        runCatching { compose.onNodeWithTag(tag).performScrollTo() }
+        compose.onNodeWithTag(tag).performClick()
+    }
+    private fun nav(tag: String) {        awaitSnackbar()
+        compose.onNodeWithTag(tag).performClick()
+    }
 
     private fun capture(name: String) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
@@ -55,7 +62,7 @@ class AccountFlowTest {
         capture("edit-profile")
         click("save_profile")
         compose.waitUntil(5_000) { repo.state.value.currentUser?.displayName == "Alice Campus" }
-        compose.onNodeWithText("Hey, Alice Campus").assertExists()
+        compose.onNodeWithText("Alice Campus").assertExists()
         awaitSnackbar()
         capture("profile")
         assertTrue(Category.STUDY in repo.state.value.currentUser!!.interests)
@@ -97,7 +104,7 @@ class AccountFlowTest {
         compose.onAllNodesWithText("Log out").onLast().performClick()
         compose.waitUntil(5_000) { repo.state.value.currentUserId == null }
         compose.onNodeWithTag("login_bob").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Hey, Bob").assertDoesNotExist()
+        compose.onNodeWithText("Bob").assertDoesNotExist()
     }
 }
 

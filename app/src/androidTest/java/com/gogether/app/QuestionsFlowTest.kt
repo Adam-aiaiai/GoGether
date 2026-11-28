@@ -37,14 +37,14 @@ class QuestionsFlowTest {
     private fun tap(tag: String) {
         settle()
         val node = compose.onNodeWithTag(tag)
-        if (!tag.startsWith("nav_")) node.performScrollTo()
+        if (!tag.startsWith("nav_")) runCatching { node.performScrollTo() }
         node.performClick()
     }
     private fun text(tag: String, value: String) {
         compose.onNodeWithTag(tag).performScrollTo().performTextReplacement(value)
         closeSoftKeyboard()
     }
-    private fun switch(user: String) { tap("nav_profile"); tap("switch_$user") }
+    private fun switch(user: String) { tap("nav_profile"); tap("profile_account_menu"); tap("switch_$user") }
     private fun inbox() { tap("nav_my-events"); tap("open_inbox") }
 
     @Test fun prospectiveUserAsksOrganizerAnswersAndNotificationOpensTheQuestion() {
@@ -64,13 +64,13 @@ class QuestionsFlowTest {
         compose.waitUntil(5_000) { repo.state.value.questions.single().answer != null }
         switch("finn"); inbox()
         val answerNotice = repo.state.value.notifications.single { it.type == NotificationType.QUESTION_ANSWERED }
-        tap("notification_read_${answerNotice.id}"); tap("notification_open_${answerNotice.id}")
+        tap("notification_open_${answerNotice.id}")
         compose.onNodeWithTag("answer_${q.id}").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Yes, spare rackets are available.").assertIsDisplayed()
         compose.onNodeWithTag("reply_${q.id}").assertDoesNotExist()
         capture("question-answer")
         assertTrue(repo.state.value.notifications.single { it.id == answerNotice.id }.isRead)
-        assertFalse(repo.state.value.notifications.single { it.id == questionNotice.id }.isRead)
+        assertTrue(repo.state.value.notifications.single { it.id == questionNotice.id }.isRead)
     }
 
     @Test fun ordinaryEventEditorNotifiesParticipantsAndInboxOpensUpdatedDetails() {
@@ -80,7 +80,7 @@ class QuestionsFlowTest {
         text("edit_location", "North gym entrance"); tap("save_event")
         compose.waitUntil(5_000) { repo.state.value.event("event-1")?.location == "North gym entrance" }
         assertEquals(5, repo.state.value.notifications.count { it.type == NotificationType.EVENT_UPDATED })
-        switch("bob"); inbox()
+        switch("bob"); inbox(); tap("inbox_activity")
         val notice = repo.state.value.notifications.single { it.userId == "bob" }
         compose.onNodeWithText("North gym entrance", substring = true).performScrollTo().assertIsDisplayed()
         capture("activity-change-notice")

@@ -3,8 +3,6 @@ package com.gogether.app.feature.coordination
 import com.gogether.app.core.ui.AppOutlinedTextField
 import com.gogether.app.core.ui.AppCommentField
 import com.gogether.app.core.ui.PageActionButton
-import android.app.DatePickerDialog
-import android.app.TimePickerDialog
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -49,8 +47,10 @@ fun MeetingEditor(event: Event, now: Long, busy: Boolean, save: (MeetingUpdate, 
         }) { Text("Edit meeting information") }
     } else {
         Text("Meeting time · ${ZoneId.systemDefault()}")
-        PageActionButton(enabled = !busy, onClick = { dateDialog = true }, modifier = Modifier.testTag("meeting_date")) { Text("Date: $date") }
-        PageActionButton(enabled = !busy, onClick = { timeDialog = true }, modifier = Modifier.testTag("meeting_time")) { Text("Time: $time") }
+        AppOutlinedPickerField("Meeting date", date, "date", Modifier.fillMaxWidth().testTag("meeting_date"),
+            enabled = !busy, onClick = { dateDialog = true })
+        AppOutlinedPickerField("Meeting time", time, "time", Modifier.fillMaxWidth().testTag("meeting_time"),
+            enabled = !busy, onClick = { timeDialog = true })
         if (submitted && timeError != null) Text(timeError, color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("meeting_time_error"))
         AppOutlinedTextField(location, { location = it }, label = { Text("Meeting location") }, enabled = !busy,
             isError = submitted && locationError != null,
@@ -64,11 +64,11 @@ fun MeetingEditor(event: Event, now: Long, busy: Boolean, save: (MeetingUpdate, 
             if (parsed != null && timeError == null && locationError == null && notesError == null)
                 save(MeetingUpdate(parsed, location, notes)) { editing = false }
         }) { Text(if (busy) "Saving…" else "Save meeting information") }
-        TextButton(enabled = !busy, onClick = { editing = false }) { Text("Cancel editing") }
+        OutlinedPageActionButton(enabled = !busy, onClick = { editing = false }) { Text("Cancel editing") }
     }
     if (dateDialog) DisposableEffect(Unit) {
         val initial = LocalDate.parse(date)
-        val dialog = DatePickerDialog(context, { _, y, m, d ->
+        val dialog = AppDatePickerDialog(context, { _, y, m, d ->
             date = LocalDate.of(y, m + 1, d).toString(); dateDialog = false
         }, initial.year, initial.monthValue - 1, initial.dayOfMonth)
         dialog.setOnDismissListener { dateDialog = false }; dialog.show()
@@ -76,7 +76,7 @@ fun MeetingEditor(event: Event, now: Long, busy: Boolean, save: (MeetingUpdate, 
     }
     if (timeDialog) DisposableEffect(Unit) {
         val initial = LocalTime.parse(time)
-        val dialog = TimePickerDialog(context, { _, h, m ->
+        val dialog = AppTimePickerDialog(context, { _, h, m ->
             time = LocalTime.of(h, m).format(DateTimeFormatter.ofPattern("HH:mm")); timeDialog = false
         }, initial.hour, initial.minute, true)
         dialog.setOnDismissListener { timeDialog = false }; dialog.show()

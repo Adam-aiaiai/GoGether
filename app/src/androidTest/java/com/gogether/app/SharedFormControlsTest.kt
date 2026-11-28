@@ -68,7 +68,7 @@ class SharedFormControlsTest {
             capture("02-event-cover-fields")
             compose.onNodeWithTag("create_cover_preview").performClick()
             compose.onNodeWithTag("event_cover_preview").assertIsDisplayed()
-            compose.onNodeWithText("Close").performClick()
+            compose.onNodeWithTag("photo_preview_close").performClick()
             selected = null
             compose.onNodeWithTag("create_choose_image").performClick()
             assertEquals(Uri.fromFile(file).toString(), retained!!.imageUri)

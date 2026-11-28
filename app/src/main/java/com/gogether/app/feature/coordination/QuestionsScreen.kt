@@ -69,7 +69,8 @@ fun QuestionsScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
                             modifier = Modifier.testTag("send_answer_${question.id}")) {
                             Text(if (busy) "Saving…" else "Save answer")
                         }
-                        TextButton(onClick = { editingId = null; answerDraft = "" }, enabled = !busy) { Text("Cancel reply") }
+                        OutlinedPageActionButton(
+                            onClick = { editingId = null; answerDraft = "" }, enabled = !busy) { Text("Cancel reply") }
                     } else TextButton(onClick = { editingId = question.id; answerDraft = question.answer.orEmpty() }, enabled = !busy,
                         modifier = Modifier.testTag("reply_${question.id}")) { Text(if (question.answer == null) "Reply" else "Edit answer") }
                 }

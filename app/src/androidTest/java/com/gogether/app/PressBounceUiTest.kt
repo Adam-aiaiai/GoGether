@@ -115,19 +115,20 @@ class PressBounceUiTest {
         compose.mainClock.advanceTimeBy(1800)
         assertEquals(1f, width("action_label") / resting, .001f)
         assertEquals(1, clicks)
+        // A burst during the pending rebound is one action, not three submissions.
         repeat(3) {
             action.performTouchInput { click() }
             compose.mainClock.advanceTimeBy(48)
         }
         compose.mainClock.advanceTimeBy(1800)
         assertEquals(1f, width("action_label") / resting, .001f)
-        assertEquals(4, clicks)
+        assertEquals(2, clicks)
         action.performTouchInput { down(center) }
         compose.mainClock.advanceTimeBy(160)
         action.performTouchInput { cancel() }
         compose.mainClock.advanceTimeBy(1800)
         assertEquals(1f, width("action_label") / resting, .001f)
-        assertEquals(4, clicks)
+        assertEquals(2, clicks)
         // Becoming disabled during a press restores normal geometry immediately.
         action.performTouchInput { down(center) }
         compose.mainClock.advanceTimeBy(160)
@@ -137,11 +138,11 @@ class PressBounceUiTest {
         compose.mainClock.advanceTimeBy(1800)
         action.assertIsNotEnabled()
         assertEquals(1f, width("action_label") / resting, .001f)
-        assertEquals(4, clicks)
+        assertEquals(2, clicks)
         action.performTouchInput { click() }
         compose.mainClock.advanceTimeBy(200)
         assertEquals(1f, width("action_label") / resting, .001f)
-        assertEquals(4, clicks)
+        assertEquals(2, clicks)
     }
 
     @Test fun navigationUsesWhiteBackgroundSelectedSizeAndPressFeedback() {

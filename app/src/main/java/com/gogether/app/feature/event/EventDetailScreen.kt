@@ -74,10 +74,10 @@ fun EventDetailScreen(
 
         DetailFact("▣", detailDate(event.startAt),
             "${detailClock(event.startAt)} – ${detailClock(event.endAt)}")
-        HorizontalDivider()
+        AppDivider()
         DetailFact("⌖", event.location, event.city)
         if (!organizer && !active) MeetingMapButton("${event.city} ${event.location}")
-        HorizontalDivider()
+        AppDivider()
         ParticipantsCard(event, state)
         DetailFact("♙", "$confirmed of ${event.capacity} spots taken",
             if (state.waitlist(event.id).isEmpty()) "$remaining spots remaining"
@@ -122,7 +122,7 @@ fun EventDetailScreen(
             Text("Questions & answers (${state.questions.count { it.eventId == event.id }})")
         }
 
-        HorizontalDivider()
+        AppDivider()
         Text("Registration closes ${displayTime(event.registrationDeadline)}",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -158,10 +158,26 @@ fun EventDetailScreen(
     }
 
     if (confirmConflict && canJoin) {
-        AlertDialog(
-            onDismissRequest = { confirmConflict = false },
-            title = { Text("Schedule conflict") },
-            text = {
+        SquareActionDialog(
+            onDismiss = { confirmConflict = false },
+            title = "Schedule conflict",
+            compact = true,
+            actions = {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(Modifier.weight(1f)) {
+                        OutlinedPageActionButton(onClick = { confirmConflict = false },
+                            modifier = Modifier.testTag("dismiss_conflicting_join")) { Text("Go back") }
+                    }
+                    Box(Modifier.weight(1f)) {
+                        PageActionButton(onClick = { confirmConflict = false; onJoin() }, enabled = !busy,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                            modifier = Modifier.testTag("confirm_conflicting_join")) {
+                            Text(if (remaining == 0) "Join waitlist anyway" else "Join anyway")
+                        }
+                    }
+                }
+            },
+            content = {
                 Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("This event overlaps with your other activities. You can still join if you choose.")
@@ -175,16 +191,6 @@ fun EventDetailScreen(
                     }
                     if (remaining == 0) Text("This event is full. Continuing will add you to its waitlist.")
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = { confirmConflict = false; onJoin() }, enabled = !busy,
-                    modifier = Modifier.testTag("confirm_conflicting_join")) {
-                    Text(if (remaining == 0) "Join waitlist anyway" else "Join anyway")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmConflict = false },
-                    modifier = Modifier.testTag("dismiss_conflicting_join")) { Text("Go back") }
             },
         )
     }

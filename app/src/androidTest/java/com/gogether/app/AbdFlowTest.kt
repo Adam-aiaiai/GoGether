@@ -40,9 +40,11 @@ class AbdFlowTest {
         compose.waitForIdle()
     }
     private fun click(tag: String) {
+        if (tag.startsWith("switch_") || tag == "logout") compose.onNodeWithTag("profile_account_menu").performClick()
+
         closeSoftKeyboard(); settle()
         val node = compose.onNodeWithTag(tag)
-        if (!tag.startsWith("nav_")) node.performScrollTo()
+        if (!tag.startsWith("nav_")) runCatching { node.performScrollTo() }
         node.performClick()
     }
     private fun text(tag: String, value: String) = compose.onNodeWithTag(tag).performScrollTo().performTextReplacement(value)
@@ -120,8 +122,8 @@ class AbdFlowTest {
         compose.onAllNodesWithText("Bring your student card").assertCountEquals(1)
         compose.onNodeWithText("Earlier AB announcement").performScrollTo().assertIsDisplayed()
         capture("announcements")
-        click("nav_my-events"); click("open_inbox"); click("inbox_unread")
-        compose.onNodeWithText("Earlier AB announcement").assertDoesNotExist()
+        click("nav_my-events"); click("open_inbox"); click("inbox_activity")
+        compose.onNodeWithText("Earlier AB announcement").assertExists()
         compose.onNodeWithText("Bring your student card").assertExists()
         capture("inbox")
         click("nav_profile"); click("switch_finn"); click("event_event-1")
@@ -129,7 +131,7 @@ class AbdFlowTest {
         compose.onNodeWithText("Bring your student card").assertDoesNotExist()
         compose.onNodeWithText("Earlier AB announcement").assertDoesNotExist()
         click("nav_my-events"); click("open_inbox")
-        compose.onNodeWithText("Inbox · 0 unread").assertExists()
+        compose.onNodeWithTag("read_all").assertIsNotEnabled()
         compose.onNodeWithText("Bring your student card").assertDoesNotExist()
     }
 }

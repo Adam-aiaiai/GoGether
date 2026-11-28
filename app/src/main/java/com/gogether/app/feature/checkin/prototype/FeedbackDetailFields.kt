@@ -1,6 +1,8 @@
 package com.gogether.app.feature.checkin.prototype
 
 import com.gogether.app.core.ui.AppFilterChip
+import com.gogether.app.core.ui.AppUi
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -46,31 +48,35 @@ internal fun FeedbackTags(improvement: Boolean, selected: List<String>, busy: Bo
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun SavedFeedbackDetails(details: FeedbackDetails) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        val dimensions = listOf("Organization" to details.organization, "Venue" to details.venue, "Atmosphere" to details.atmosphere)
-        if (dimensions.any { it.second > 0 }) {
-            Text("Experience ratings", style = MaterialTheme.typography.titleMedium)
-            dimensions.filter { it.second > 0 }.forEach { (label, score) ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(label, style = MaterialTheme.typography.bodyMedium)
-                    Text("$score / 5", color = MaterialTheme.colorScheme.primary)
-                }
-            }
-        }
+    val dimensions = listOf("Organization" to details.organization, "Venue" to details.venue,
+        "Atmosphere" to details.atmosphere).filter { it.second > 0 }
+    if (dimensions.isEmpty() && details.tags.isEmpty() && details.positiveComment.isBlank() &&
+        details.improvementComment.isBlank()) return
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         listOf(false, true).forEach { improvement ->
             val selected = feedbackTags.filter { it.improvement == improvement && it.id in details.tags }
             val note = if (improvement) details.improvementComment else details.positiveComment
             if (selected.isNotEmpty() || note.isNotBlank()) {
-                Text(if (improvement) "What could improve" else "What went well", style = MaterialTheme.typography.titleSmall)
-                if (selected.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    selected.forEach { tag ->
-                        Surface(shape = CheckInStyle.shape, color = MaterialTheme.colorScheme.primaryContainer) {
-                            Text(tag.label, Modifier.padding(horizontal = 12.dp, vertical = 8.dp), style = MaterialTheme.typography.bodyMedium)
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (improvement || note.isNotBlank()) Text(if (improvement) "What could improve" else "What went well",
+                        style = MaterialTheme.typography.titleSmall)
+                    if (selected.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        selected.forEach { tag ->
+                            Surface(shape = CircleShape,
+                                color = if (improvement) MaterialTheme.colorScheme.surfaceContainerLow else AppUi.SelectedTag) {
+                                Text(tag.label, Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                            }
                         }
                     }
+                    if (note.isNotBlank()) Text(note, style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                if (note.isNotBlank()) Text(note, style = MaterialTheme.typography.bodyMedium)
             }
+            if (!improvement && dimensions.isNotEmpty()) Text(
+                dimensions.joinToString(" · ") { (label, score) -> "$label $score" },
+                Modifier.testTag("saved_review_dimensions"), style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

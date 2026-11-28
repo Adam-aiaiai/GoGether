@@ -60,7 +60,7 @@ function createService(db,bucket,clock=Date.now){
    const [users,events,registrations,announcements,questions,notifications,checkIns,feedback]=await Promise.all([...names.map(n=>all(n,tx)),...['notifications','checkIns','feedback'].map(n=>all(n,tx,n==='checkIns'?collection(n):collection(n).where('userId','==',uid)))]);
    const mine=registrations.filter(r=>r.userId===uid);const memberships=new Set(mine.filter(D.active).map(r=>r.eventId));const organized=new Set(events.filter(e=>e.organizerId===uid).map(e=>e.id));
    const roster=registrations.filter(r=>r.userId===uid||D.active(r)).map(r=>({id:r.id,eventId:r.eventId,userId:r.userId,status:r.status,joinedAt:r.joinedAt,updatedAt:r.updatedAt,queueOrder:r.queueOrder}));
-   return {serverNow:now,snapshot:{users:users.map(u=>({id:u.id,displayName:u.displayName,interests:u.interests??[],createdAt:u.createdAt,status:'ACCOUNT',email:u.id===uid?(u.email??null):null})),currentUserId:users.some(u=>u.id===uid)?uid:null,events:events.map(D.eventFields),registrations:roster,announcements:announcements.filter(a=>memberships.has(a.eventId)||organized.has(a.eventId)),questions,notifications,checkIns:checkIns.filter(c=>c.userId===uid||organized.has(c.eventId)),feedback:feedback.map(f=>({id:f.id,eventId:f.eventId,userId:uid,rating:f.rating,comment:'',createdAt:f.createdAt,status:'SUBMITTED'})),sessionRestoring:false,sessionError:null}};
+   return {serverNow:now,snapshot:{users:users.map(u=>D.publicProfile(u,uid)),currentUserId:users.some(u=>u.id===uid)?uid:null,events:events.map(D.eventFields),registrations:roster,announcements:announcements.filter(a=>memberships.has(a.eventId)||organized.has(a.eventId)),questions,notifications,checkIns:checkIns.filter(c=>c.userId===uid||organized.has(c.eventId)),feedback:feedback.map(f=>({id:f.id,eventId:f.eventId,userId:uid,rating:f.rating,comment:'',createdAt:f.createdAt,status:'SUBMITTED'})),sessionRestoring:false,sessionError:null}};
   },{readOnly:true});
   if(action==='mediaRead'){
    const mediaId=D.id(data.mediaId,'media ID');const m=(await collection('media').doc(mediaId).get()).data();D.requireThat(m,'Image not found','not-found');const [fr,er]=await Promise.all([collection('feedback').doc(m.reviewId).get(),collection('events').doc(m.eventId).get()]);const f=fr.data(),e=er.data();D.requireThat(f&&e&&(f.details.visibility==='PUBLIC'||uid===f.userId||uid===e.organizerId),'You cannot view this image','permission-denied');const meta=await fileMetadata(m.path);const [bytes]=await bucket.file(m.path).download();return {base64:bytes.toString('base64'),contentType:meta.contentType};
@@ -93,6 +93,7 @@ function createService(db,bucket,clock=Date.now){
   const saved=await replay(); if(saved)return finish(saved.result);
   const generatedId=D.randomUUID(),codeRaw=`GOGETHER-CLOUD-1|${randomBytes(32).toString('base64url')}`;
   const sealedPhotos=new Map();
+  if(['ensureProfile','updateProfile'].includes(action)){const details=D.profileDetails(data,uid);await Promise.all([details.avatarUri,details.coverUri].filter(Boolean).map(fileMetadata));}
   if(['createEvent','updateEvent'].includes(action)&&data.draft?.imageUri){D.draft(data.draft,clock(),uid,action==='updateEvent');await fileMetadata(data.draft.imageUri);}
   if(action==='submitFeedback'){const details=D.feedbackDetails(data.details,uid);await Promise.all(details.photos.map(async path=>sealedPhotos.set(path,await sealReview(path,uid))));}
   const run=()=>db.runTransaction(async tx=>{
@@ -102,7 +103,7 @@ function createService(db,bucket,clock=Date.now){
    const put=(name,key,value)=>writes.set(`${name}/${key}`,value);
    const notify=(userId,eventId,type,content,extra={})=>{const nid=`${opId}_${notificationCount++}`;put('notifications',nid,{id:nid,userId,eventId,type,content,createdAt:now,isRead:false,announcementId:null,questionId:null,...extra});};
    if(action==='ensureProfile'||action==='updateProfile'){
-    if(action==='ensureProfile'&&own)result={user:own};else {D.requireThat(action==='ensureProfile'||own,'Create your profile first','failed-precondition');const user=D.profile(data,uid,request.auth.token?.email,own?.createdAt??now);put('users',uid,user);result={user};}
+    if(action==='ensureProfile'&&own)result={user:own};else {D.requireThat(action==='ensureProfile'||own,'Create your profile first','failed-precondition');const user=D.profile(data,uid,request.auth.token?.email,own?.createdAt??now,own);put('users',uid,user);result={user};}
    }else{
     D.requireThat(own,'Create your profile first','failed-precondition');
     if(action==='markRead'||action==='markAllRead'){

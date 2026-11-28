@@ -13,6 +13,11 @@ service firebase.storage {
    allow create: if signedIn() && request.auth.uid == uid && imageId.matches('[a-f0-9-]{36}') && image();
    allow update, delete: if false;
   }
+  match /profiles/{uid}/{imageId} {
+   allow read: if signedIn();
+   allow create: if signedIn() && request.auth.uid == uid && imageId.matches('[a-f0-9-]{36}') && image();
+   allow update, delete: if false;
+  }
   match /{allPaths=**} { allow read,write: if false; }
  }
 }

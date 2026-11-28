@@ -1,5 +1,6 @@
 package com.gogether.app.feature.checkin.prototype
 
+import com.gogether.app.core.ui.AppDivider
 import com.gogether.app.core.ui.AppOutlinedTextField
 import com.gogether.app.core.ui.AppUi
 import androidx.compose.foundation.background
@@ -74,7 +75,7 @@ internal fun ParticipantSearchSheet(people: List<PrototypeAttendee>, dismiss: ()
                         if (expandedPerson == person.userId) Text(attendanceDetails(person),
                             Modifier.fillMaxWidth().padding(start = 60.dp, bottom = 12.dp).testTag("attendance_detail"),
                             style = MaterialTheme.typography.bodySmall)
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        AppDivider(horizontalInset = 16.dp, color = MaterialTheme.colorScheme.outlineVariant)
                     }
                 }
             }

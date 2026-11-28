@@ -1,5 +1,8 @@
 package com.gogether.app.feature.checkin.prototype
 
+import com.gogether.app.core.ui.AppDivider
+import com.gogether.app.core.ui.AppUi
+import com.gogether.app.core.ui.pageHeaderBackground
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -69,12 +72,14 @@ internal fun FeedbackEditor(scopeKey: String, summary: ReviewEventSummary, draft
     BackHandler(enabled = details || privacy) { if (privacy) privacy = false else leaveDetails() }
 
     Column(modifier.fillMaxSize().imePadding().background(Color.White).testTag("feedback_editor")) {
-        Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().height(AppUi.PageHeaderHeight).pageHeaderBackground()
+            .padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { if (details) leaveDetails() else back() }) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
             }
             Text(if (details) "Review details" else "Write a review", Modifier.weight(1f),
-                fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                fontSize = 22.sp, fontWeight = FontWeight.Bold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
             Box {
                 IconButton(onClick = { menu = true }, modifier = Modifier.testTag("feedback_more")) {
                     Icon(Icons.Default.MoreVert, "More review options")
@@ -101,11 +106,11 @@ internal fun FeedbackEditor(scopeKey: String, summary: ReviewEventSummary, draft
                         Column(Modifier.testTag("feedback_ratings_section")) {
                             SectionLabel("Specific ratings", "Optional")
                             FeedbackDimension("Organization", "organization", draft.details.organization, busy) { score -> changeDetail { it.copy(organization = score) } }
-                            HorizontalDivider(color = ReviewDivider)
+                            AppDivider(color = ReviewDivider)
                             FeedbackDimension("Venue", "venue", draft.details.venue, busy) { score -> changeDetail { it.copy(venue = score) } }
-                            HorizontalDivider(color = ReviewDivider)
+                            AppDivider(color = ReviewDivider)
                             FeedbackDimension("Atmosphere", "atmosphere", draft.details.atmosphere, busy) { score -> changeDetail { it.copy(atmosphere = score) } }
-                            HorizontalDivider(color = ReviewDivider)
+                            AppDivider(color = ReviewDivider)
                         }
                     }
                     item(key = "positive") {
@@ -118,7 +123,7 @@ internal fun FeedbackEditor(scopeKey: String, summary: ReviewEventSummary, draft
                                 placeholder = { Text("Anything else you enjoyed? (Optional)") },
                                 minLines = 2, maxLines = 4, maxLength = 500,
                                 modifier = Modifier.fillMaxWidth().testTag("feedback_positive_comment"))
-                            HorizontalDivider(color = ReviewDivider)
+                            AppDivider(color = ReviewDivider)
                         }
                     }
                     item(key = "improvement") {
@@ -152,7 +157,7 @@ internal fun FeedbackEditor(scopeKey: String, summary: ReviewEventSummary, draft
                     }
                     item(key = "photos") { photos() }
                     item(key = "privacy") {
-                        HorizontalDivider(color = ReviewDivider)
+                        AppDivider(color = ReviewDivider)
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Text("Post anonymously", Modifier.weight(1f), fontSize = 16.sp)
                             Switch(draft.details.anonymous, { value -> changeDetail { it.copy(anonymous = value) } }, enabled = !busy,
@@ -165,7 +170,7 @@ internal fun FeedbackEditor(scopeKey: String, summary: ReviewEventSummary, draft
             }
         }
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp)) {
-            HorizontalDivider(color = ReviewDivider)
+            AppDivider(color = ReviewDivider)
             if (message.isNotBlank()) Text(message, Modifier.padding(top = 6.dp).testTag("feedback_message"),
                 color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
             if (draftError.isNotBlank()) TextButton(onClick = retryDraft, enabled = !busy) { Text("Draft not saved · Retry") }
@@ -235,7 +240,6 @@ private fun ReviewSummary(summary: ReviewEventSummary) {
                     fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        HorizontalDivider(color = ReviewDivider)
     }
 }
 

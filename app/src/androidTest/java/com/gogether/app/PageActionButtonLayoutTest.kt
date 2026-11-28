@@ -41,7 +41,7 @@ class PageActionButtonLayoutTest {
                 GogetherTheme {
                     key(width, height, screen) {
                         when (screen) {
-                            1 -> EditProfileScreen(alice, false, { _, _ -> }, {})
+                            1 -> EditProfileScreen(alice, false, {}, {})
                             2 -> MyEventsScreen(data.copy(currentUserId = "alice"), now, openEvent = {})
                             else -> CloudCheckInResultContent(event, "Bob", "Alice", now, {})
                         }
@@ -61,19 +61,12 @@ class PageActionButtonLayoutTest {
             if (pageWidth == 360 || pageWidth == 840) capture("${pageWidth}-done")
 
             compose.runOnIdle { screen = 1 }
-            val save = compose.onNodeWithTag("save_profile").performScrollTo()
+            val save = compose.onNodeWithTag("save_profile")
             save.assertIsNotEnabled()
-            assertReferenceSizeAndCenter(save, pageWidth)
-            assertEquals(doneBounds.width, save.fetchSemanticsNode().boundsInRoot.width, 1f)
-            val cancel = compose.onNodeWithText("Cancel").performScrollTo()
-            assertReferenceSizeAndCenter(cancel, pageWidth)
-            assertEquals(doneBounds.width, cancel.fetchSemanticsNode().boundsInRoot.width, 1f)
-            if (pageWidth == 360 || pageWidth == 840) capture("${pageWidth}-profile-disabled-outline")
-
+            assertTrue(save.fetchSemanticsNode().boundsInRoot.width < doneBounds.width)
+            compose.onNodeWithText("Cancel").assertDoesNotExist()
             compose.onNodeWithTag("interest_STUDY").performScrollTo().performClick()
-            save.performScrollTo().assertIsEnabled()
-            assertReferenceSizeAndCenter(save, pageWidth)
-            if (pageWidth == 360 || pageWidth == 840) capture("${pageWidth}-profile-filled-outline")
+            save.assertIsEnabled()
 
             compose.runOnIdle { screen = 2 }
             val inbox = compose.onNodeWithTag("open_inbox").performScrollTo()

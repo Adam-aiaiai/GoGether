@@ -38,7 +38,7 @@ fun AuthScreen(state: AppSnapshot, busy: Boolean, login: (String) -> Unit, regis
         SectionTitle("Find your people.\nMake it happen.", "Small plans. Good company. A little more offline.")
         InfoCard("Demo profiles", storageDescription)
         Text("Email accounts will be available when the team account service is connected.", style = MaterialTheme.typography.bodySmall)
-        TabRow(selectedTabIndex = if (registering) 1 else 0) {
+        AppTabRow(selectedTabIndex = if (registering) 1 else 0) {
             Tab(selected = !registering, onClick = { registering = false }, text = { Text("Demo login") })
             Tab(selected = registering, onClick = { registering = true }, text = { Text("Demo register") })
         }
@@ -88,7 +88,7 @@ private fun AccountSignInScreen(state: AppSnapshot, busy: Boolean, signIn: (Stri
             InfoCard("Account connection", it)
             TextButton(onClick = retryRestore, enabled = !busy) { Text("Retry connection") }
         }
-        TabRow(if (registering) 1 else 0) {
+        AppTabRow(if (registering) 1 else 0) {
             Tab(!registering, { registering = false; password = ""; confirmation = "" }, text = { Text("Sign in") })
             Tab(registering, { registering = true; password = ""; confirmation = "" }, text = { Text("Create account") })
         }

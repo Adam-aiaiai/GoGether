@@ -72,7 +72,7 @@ internal fun OrganizerMeetingSheet(event: Event, meetingReady: Boolean, busy: Bo
         }
         if (mapError) Text("No maps app is installed. Use the meeting address shown above.", color = MaterialTheme.colorScheme.error)
         if (canUpdate) {
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            AppDivider(color = MaterialTheme.colorScheme.outlineVariant)
             MeetingField("Check-in location", "Use your current GPS position as the check-in point.")
         }
     }

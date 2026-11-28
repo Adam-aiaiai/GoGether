@@ -45,8 +45,10 @@ class AccountEventIntegrationTest {
     }
 
     private fun click(tag: String) {
+        if (tag.startsWith("switch_") || tag == "logout") compose.onNodeWithTag("profile_account_menu").performClick()
+
         settle()
-        compose.onNodeWithTag(tag).performScrollTo().performClick()
+        runCatching { compose.onNodeWithTag(tag).performScrollTo() }; compose.onNodeWithTag(tag).performClick()
     }
 
     private fun nav(tag: String) {

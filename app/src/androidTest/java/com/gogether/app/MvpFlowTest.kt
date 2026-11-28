@@ -43,8 +43,17 @@ class MvpFlowTest {
         }
         compose.waitForIdle()
     }
-    private fun click(tag: String) { awaitSnackbar(); compose.onNodeWithTag(tag).performClick() }
-    private fun scrollClick(tag: String) { awaitSnackbar(); compose.onNodeWithTag(tag).performScrollTo().performClick() }
+    private fun click(tag: String) {
+        if (tag.startsWith("switch_") || tag == "logout") compose.onNodeWithTag("profile_account_menu").performClick()
+        awaitSnackbar()
+        compose.onNodeWithTag(tag).performClick()
+    }
+    private fun scrollClick(tag: String) {
+        if (tag.startsWith("switch_") || tag == "logout") compose.onNodeWithTag("profile_account_menu").performClick()
+        awaitSnackbar()
+        runCatching { compose.onNodeWithTag(tag).performScrollTo() }
+        compose.onNodeWithTag(tag).performClick()
+    }
     private fun text(tag: String, value: String) = compose.onNodeWithTag(tag).performScrollTo().performTextReplacement(value)
 
     private fun captureDialog(name: String) {
@@ -84,7 +93,7 @@ class MvpFlowTest {
     @Test fun exploreBottomNavigationReturnsFromProfile() {
         scrollClick("login_alice")
         click("nav_profile")
-        compose.onNodeWithText("Hey, Alice").assertExists()
+        compose.onNodeWithText("Alice").assertExists()
         click("nav_explore")
         compose.onNodeWithText("Find your next plan.").assertExists()
         compose.onNodeWithTag("search").assertExists()
@@ -274,10 +283,10 @@ class MvpFlowTest {
             repo.postAnnouncement("event-1","Second notice").getOrThrow(); repo.login("bob").getOrThrow()
         }
         click("nav_my-events"); compose.onNodeWithText("Notifications · 2 unread").assertExists()
-        scrollClick("open_inbox"); scrollClick("inbox_unread"); scrollClick("read_all")
+        scrollClick("open_inbox"); scrollClick("inbox_activity"); scrollClick("read_all")
         compose.waitUntil(10_000) { repo.state.value.notifications.filter { it.userId=="bob" }.all { it.isRead } }
-        awaitSnackbar(); compose.onNodeWithText("You're all caught up").performScrollTo().assertIsDisplayed()
-        scrollClick("inbox_all"); compose.onNodeWithText("Second notice").performScrollTo().assertIsDisplayed()
+        awaitSnackbar(); compose.onNodeWithTag("read_all").assertIsNotEnabled()
+        scrollClick("inbox_activity"); compose.onNodeWithText("Second notice").performScrollTo().assertIsDisplayed()
         assertTrue(repo.state.value.notifications.filter { it.userId=="emma" }.none { it.isRead })
     }
 

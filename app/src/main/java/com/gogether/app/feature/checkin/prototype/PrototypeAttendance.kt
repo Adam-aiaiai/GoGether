@@ -1,5 +1,7 @@
 package com.gogether.app.feature.checkin.prototype
 
+import com.gogether.app.core.ui.AppDivider
+import com.gogether.app.core.ui.AppTabRow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.activity.compose.BackHandler
@@ -48,7 +50,7 @@ fun PrototypeAttendance(attendees: List<PrototypeAttendee>, modifier: Modifier =
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (header != null) header() else Text("${attendees.size} participants, ${checked.size} checked in", style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.testTag("attendance_summary"))
-        TabRow(selectedTabIndex = selected) {
+        AppTabRow(selectedTabIndex = selected, horizontalInset = 16.dp) {
             val largeText = LocalDensity.current.fontScale > 1.3f
             listOf("Checked in" to checked.size, "Pending" to pending.size).forEachIndexed { index, (label, count) ->
                 Tab(selected = selected == index, onClick = { selected = index; selectedPerson = null },
@@ -66,7 +68,7 @@ fun PrototypeAttendance(attendees: List<PrototypeAttendee>, modifier: Modifier =
                     Text(detail.name, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
                     IconButton(onClick = { selectedPerson = null }) { Icon(Icons.Default.Close, "Hide check-in details") }
                 }
-                HorizontalDivider()
+                AppDivider(horizontalInset = 16.dp)
                 Text(attendanceDetails(detail), Modifier.padding(vertical = 12.dp).testTag("attendance_detail"),
                     style = MaterialTheme.typography.bodyMedium)
             }

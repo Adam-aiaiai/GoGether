@@ -21,7 +21,9 @@ object SnapshotJson {
         "version" to 3, "currentUserId" to s.currentUserId,
         "users" to list(s.users) { u -> obj("id" to u.id, "name" to u.displayName,
             "interests" to JSONArray(u.interests.map { it.name }), "createdAt" to u.createdAt,
-            "status" to u.status.name, "email" to u.email) },
+            "status" to u.status.name, "email" to u.email, "avatarUri" to u.avatarUri,
+            "coverUri" to u.coverUri, "gender" to u.gender.name, "showGender" to u.showGender,
+            "signature" to u.signature) },
         "events" to list(s.events) { e -> obj("id" to e.id, "organizerId" to e.organizerId,
             "title" to e.title, "category" to e.category.name, "description" to e.description,
             "startAt" to e.startAt, "endAt" to e.endAt, "location" to e.location, "city" to e.city,
@@ -56,7 +58,10 @@ object SnapshotJson {
             val interests = u.getJSONArray("interests")
             User(u.getString("id"), u.getString("name"), (0 until interests.length()).map {
                 Category.valueOf(interests.getString(it))
-            }.toSet(), u.getLong("createdAt"), UserStatus.valueOf(u.getString("status")), u.nullable("email"))
+            }.toSet(), u.getLong("createdAt"), UserStatus.valueOf(u.getString("status")), u.nullable("email"),
+                u.text("avatarUri"), u.text("coverUri"),
+                Gender.entries.find { it.name == u.text("gender") } ?: Gender.UNDISCLOSED,
+                u.optBoolean("showGender", false), u.text("signature"))
         }
         return AppSnapshot(users = users,
             currentUserId = root.nullable("currentUserId")?.takeIf { id -> users.any { it.id == id } },

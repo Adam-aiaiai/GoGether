@@ -94,7 +94,7 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
     val route = entry?.destination?.route ?: "explore"
     var selectedRoot by rememberSaveable { mutableStateOf("explore") }
     LaunchedEffect(route) { if (route in AppTopLevelRoutes) selectedRoot = route }
-    val subpage = route.contains("{eventId}") || route == "edit-profile" || route == "notifications"
+    val subpage = route.contains("{eventId}") || route == "edit-profile" || route == "notifications" || route == "profile-history"
     val scope = rememberCoroutineScope()
     listOf(eventsVm, registration, coordination, profile).forEach { vm ->
         LaunchedEffect(vm) {
@@ -121,9 +121,9 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
                     }
                 }
             }
-            if (subpage && !route.startsWith("check-in")) {
+            if (subpage && !route.startsWith("check-in") && route !in setOf("edit-profile", "notifications")) {
                 AppPageHeader(title = when {
-                    route == "edit-profile" -> "Edit profile"
+                    route == "profile-history" -> "Activity history"
                     route == "notifications" -> "Notifications"
                     route.startsWith("questions") -> "Questions & answers"
                     route.startsWith("manage") -> "Event management"
@@ -162,15 +162,16 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
             composable("my-events") { MyEventsScreen(state, now, { nav.navigate("notifications") },
                 { nav.popBackStack("explore", false) }, { nav.navigate("create") }) { nav.navigate("event/$it") } }
             composable("notifications") {
-                Page { InboxContent(state, coordinationBusy, coordination::read, coordination::readAll,
+                InboxContent(state, coordinationBusy, coordination::read, coordination::readAll,
                     { nav.navigate("event/$it") }, { nav.popBackStack("explore", false) },
-                    { eventId, questionId -> nav.navigate("questions/$eventId?questionId=$questionId") }) }
+                    { eventId, questionId -> nav.navigate("questions/$eventId?questionId=$questionId") }, back = { nav.popBackStack() })
             }
             composable("profile") {
-                ProfileScreen(state, now, authBusy || coordinationBusy, repository.accountMode, repository.storageDescription,
-                    { nav.navigate("edit-profile") }, auth::login, auth::logout, coordination::read,
-                    coordination::readAll, { nav.popBackStack("explore", false) }, { nav.navigate("event/$it") },
-                    { eventId, questionId -> nav.navigate("questions/$eventId?questionId=$questionId") })
+                ProfileScreen(state, now, authBusy, repository.accountMode, repository.storageDescription,
+                    { nav.navigate("edit-profile") }, auth::login, auth::logout, { nav.navigate("event/$it") }, { nav.navigate("profile-history") })
+            }
+            composable("profile-history") {
+                ProfileHistoryScreen(state, now) { nav.navigate("event/$it") }
             }
             composable("edit-profile") {
                 state.currentUser?.let { user -> EditProfileScreen(user, profileBusy, profile::save, { nav.popBackStack() }) }

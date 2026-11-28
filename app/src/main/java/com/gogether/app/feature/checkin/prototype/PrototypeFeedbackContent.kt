@@ -1,5 +1,6 @@
 package com.gogether.app.feature.checkin.prototype
 
+import com.gogether.app.core.ui.AppDivider
 import com.gogether.app.core.ui.AppUi
 import com.gogether.app.core.ui.PageActionButton
 import androidx.compose.foundation.background
@@ -32,14 +33,6 @@ import java.util.Date
 import java.util.Locale
 
 private fun reviewTime(time: Long) = SimpleDateFormat("MMM d, HH:mm", Locale.ENGLISH).format(Date(time))
-private fun ratingLabel(rating: Int) = when (rating) {
-    1 -> "Poor"
-    2 -> "Not great"
-    3 -> "Okay"
-    4 -> "Good"
-    5 -> "Excellent"
-    else -> "Tap a star to rate this event"
-}
 
 /** A compact activity summary and scrollable form, with the submit action above the keyboard. */
 @Composable
@@ -126,37 +119,14 @@ internal fun HistoryDetail(actor: String, entry: PrototypeHistoryEntry, now: Lon
             if (activity?.organizerId == actor) item {
                 PageActionButton(onClick = { openAttendance(entry.session) }, modifier = Modifier.testTag("history_open_attendance")) { Text("View attendance") }
             }
-            item { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
+            item { AppDivider(horizontalInset = 16.dp, color = MaterialTheme.colorScheme.outlineVariant) }
             when {
                 entry.feedback != null -> {
                     item {
-                        Text("My review ${entry.feedback.rating} / 5", Modifier.testTag("feedback_saved"),
-                            style = MaterialTheme.typography.titleMedium)
-                        Row(Modifier.padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            (1..5).forEach { score ->
-                                Icon(Icons.Default.Star,
-                                    null, Modifier.size(28.dp), tint = if (score <= entry.feedback.rating)
-                                        MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
-                            }
+                        SavedReviewItem("You", true, entry.feedback.rating, entry.feedback.comment,
+                            entry.feedback.createdAt, entry.feedback.details, Modifier.testTag("feedback_saved")) {
+                            FeedbackPhotoStrip(entry.feedback.details.photos, actor, entry.session.id, showHeader = false)
                         }
-                        Text(ratingLabel(entry.feedback.rating), color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.bodyMedium)
-                    }
-                    item {
-                        SavedFeedbackDetails(entry.feedback.details)
-                        Spacer(Modifier.height(12.dp))
-                        FeedbackPrivacySummary(entry.feedback.details)
-                    }
-                    if (entry.feedback.details.photos.isNotEmpty()) item {
-                        FeedbackPhotoStrip(entry.feedback.details.photos, actor, entry.session.id)
-                    }
-                    item {
-                        Text("Your experience", style = MaterialTheme.typography.titleSmall)
-                        Spacer(Modifier.height(8.dp))
-                        Text(entry.feedback.comment.ifBlank { "No comment" }, style = MaterialTheme.typography.bodyLarge)
-                        Spacer(Modifier.height(16.dp))
-                        Text("Submitted ${reviewTime(entry.feedback.createdAt)}", style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 entry.cancelled -> item { Text("This event is cancelled. You cannot review it.") }

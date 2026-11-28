@@ -123,6 +123,6 @@ private fun AttendanceRow(person: CloudAttendancePerson) {
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.widthIn(max = 104.dp))
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        AppDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }

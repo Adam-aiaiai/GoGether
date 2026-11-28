@@ -1,11 +1,11 @@
 package com.gogether.app.feature.checkin.cloud
 
+import com.gogether.app.core.ui.AppDivider
 import com.gogether.app.core.ui.AppPageHeader
 import com.gogether.app.core.ui.AppUi
 import com.gogether.app.core.ui.PageActionButton
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -39,13 +39,12 @@ internal fun CloudCheckInResultContent(
     onDone: () -> Unit,
 ) {
     BackHandler(onBack = onDone)
-    val dark = isSystemInDarkTheme()
-    val background = if (dark) MaterialTheme.colorScheme.surface else Color.White
-    val primaryText = if (dark) MaterialTheme.colorScheme.onSurface else Color(0xFF26272B)
-    val secondaryText = if (dark) MaterialTheme.colorScheme.onSurfaceVariant else Color(0xFF70737A)
-    val success = if (dark) Color(0xFF76D99A) else Color(0xFF14853D)
-    val panelTop = if (dark) MaterialTheme.colorScheme.surface else AppUi.AccentFadeStart
-    val panelBottom = if (dark) MaterialTheme.colorScheme.surfaceContainer else AppUi.SoftAccent
+    val background = Color.White
+    val primaryText = Color(0xFF26272B)
+    val secondaryText = Color(0xFF70737A)
+    val success = Color(0xFF14853D)
+    val panelTop = AppUi.AccentFadeStart
+    val panelBottom = AppUi.SoftAccent
 
     Surface(color = background, contentColor = primaryText, modifier = Modifier.fillMaxSize().testTag("cloud_checkin_result")) {
         Column {
@@ -75,7 +74,8 @@ internal fun CloudCheckInResultContent(
                     val captionHeight = with(LocalDensity.current) { MaterialTheme.typography.bodyMedium.lineHeight.toDp() }
                     Spacer(Modifier.height(captionHeight + 36.dp))
 
-                    Surface(shape = AppUi.CardShape, color = background, contentColor = primaryText) {
+                    // Paint the card without clipping the page-wide separator.
+                    Box(Modifier.background(background, AppUi.CardShape)) {
                         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                                 // Category stays visible if the event has no cover or its cover is unavailable.
@@ -92,7 +92,7 @@ internal fun CloudCheckInResultContent(
                             }
                             ResultFact("Activity", checkInDate(event.startAt, "EEE, d MMM") + "  " +
                                 checkInDate(event.startAt, "HH:mm") + "–" + checkInDate(event.endAt, "HH:mm"), secondaryText)
-                            HorizontalDivider(color = secondaryText.copy(alpha = .12f))
+                            AppDivider(horizontalInset = 36.dp, color = secondaryText.copy(alpha = .12f))
                             ResultFact("Checked in", checkInDate(checkedInAt, "d MMM yyyy, HH:mm"), secondaryText,
                                 Modifier.testTag("cloud_checkin_receipt"))
                             ResultFact("Meet at", checkInDate(event.meetingAt ?: event.startAt, "HH:mm") + "  " +

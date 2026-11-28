@@ -1,5 +1,6 @@
 package com.gogether.app.feature.checkin.prototype
 
+import com.gogether.app.core.ui.AppDivider
 import com.gogether.app.core.ui.AppPageHeader
 import com.gogether.app.core.ui.PageActionButton
 import android.content.ActivityNotFoundException
@@ -72,7 +73,7 @@ internal fun ParticipantCheckInPanel(actor: String, state: PrototypeUiState, now
         else -> "Ready to check in"
     }
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp).testTag("participant_panel")) {
-        AppPageHeader("My event", onBack = back, actions = {
+        AppPageHeader("My event", horizontalInset = 20.dp, onBack = back, actions = {
             TextButton(onClick = history, modifier = Modifier.testTag("open_history")) { Text("Records") }
         })
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
@@ -91,7 +92,7 @@ internal fun ParticipantCheckInPanel(actor: String, state: PrototypeUiState, now
                     Text("Organizer", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .5f))
+            AppDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .5f))
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 EventInfoRow("Time", if (session == null) "Scan to see event times" else
                     "${eventTime(session.startAt, "MMM d, HH:mm")}–${eventTime(session.endAt, "HH:mm")}")

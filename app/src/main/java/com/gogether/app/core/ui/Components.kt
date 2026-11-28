@@ -81,7 +81,7 @@ fun EventImage(imageUri: String, contentDescription: String, modifier: Modifier 
         value = null
         value = withContext(Dispatchers.IO) {
             try {
-                if (imageUri.startsWith("covers/") || imageUri.startsWith("gs://")) {
+                if (imageUri.startsWith("covers/") || imageUri.startsWith("profiles/") || imageUri.startsWith("gs://")) {
                     val storage = requireNotNull(cloud) { "Sign in to load this image." }.storage
                     val ref = if (imageUri.startsWith("gs://")) storage.getReferenceFromUrl(imageUri) else storage.reference.child(imageUri)
                     val bytes = ref.getBytes(2L * 1024 * 1024).await()
@@ -166,7 +166,18 @@ fun EventCard(event: Event, state: AppSnapshot, onClick: () -> Unit, now: Long =
 
 @Composable
 fun ConfirmDialog(title: String, description: String, action: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
-    AlertDialog(onDismissRequest = onDismiss, title = { Text(title) }, text = { Text(description) },
-        confirmButton = { TextButton(onClick = { onDismiss(); onConfirm() }) { Text(action) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Keep it") } })
+    SquareActionDialog(title = title, onDismiss = onDismiss, compact = true,
+        actions = {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(Modifier.weight(1f)) {
+                    OutlinedPageActionButton(onClick = onDismiss) { Text("Keep it") }
+                }
+                Box(Modifier.weight(1f)) {
+                    PageActionButton(onClick = { onDismiss(); onConfirm() },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
+                        Text(action)
+                    }
+                }
+            }
+        }) { Text(description) }
 }

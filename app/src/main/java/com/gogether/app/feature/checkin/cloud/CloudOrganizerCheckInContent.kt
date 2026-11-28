@@ -142,9 +142,9 @@ internal fun CloudOrganizerCheckInContent(
                         }
                     }
                 }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                AppDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 AttendancePreview(people, rosterLoaded, rosterLoading, rosterError, onAttendance)
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                AppDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 OrganizerDetailRow("Meeting point", "${event.city} · ${event.meetingLocation ?: event.location}",
                     Modifier.testTag("cloud_meeting_details"), Icons.Default.LocationOn) { sheet = "meeting" }
                 OrganizerDetailRow("Check-in rules", null, Modifier.testTag("cloud_checkin_rules"), Icons.Default.Info) { sheet = "rules" }

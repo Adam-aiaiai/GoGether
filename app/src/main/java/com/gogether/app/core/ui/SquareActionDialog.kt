@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
-/** Used only by registration cancellation, waitlist exit and review visibility. */
+/** Shared by compact confirmations and review visibility. */
 @Composable
 fun SquareActionDialog(
     title: String,

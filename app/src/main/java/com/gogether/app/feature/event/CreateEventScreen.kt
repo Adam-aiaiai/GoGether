@@ -5,9 +5,6 @@ import com.gogether.app.core.ui.AppCommentField
 import com.gogether.app.core.ui.AppUi
 import com.gogether.app.core.ui.AppFilterChip
 import com.gogether.app.core.ui.PageActionButton
-import android.app.DatePickerDialog
-import android.app.TimePickerDialog
-import com.gogether.app.R
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
@@ -18,8 +15,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -153,17 +149,14 @@ private fun EventFormScreen(
             modifier = Modifier.testTag("${prefix}_choose_image")) { Text("Change cover") }
         Text("Optional · One photo · 16:9 recommended", style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (coverPreview && imageUri.isNotBlank()) Dialog(onDismissRequest = { coverPreview = false }) {
-            Surface(shape = AppUi.CardShape, color = Color.White, modifier = Modifier.testTag("event_cover_preview")) {
-                Column {
-                    EventImage(imageUri, title.ifBlank { "Event cover" }, Modifier.fillMaxWidth().aspectRatio(1f),
-                        shape = RoundedCornerShape(8.dp), contentScale = androidx.compose.ui.layout.ContentScale.Fit)
-                    TextButton(onClick = { coverPreview = false }, modifier = Modifier.align(Alignment.End)) { Text("Close") }
-                }
-            }
+        if (coverPreview && imageUri.isNotBlank()) AppPhotoPreviewDialog(
+            onDismiss = { coverPreview = false }, modifier = Modifier.testTag("event_cover_preview"),
+        ) { imageModifier ->
+            EventImage(imageUri, title.ifBlank { "Event cover" }, imageModifier,
+                shape = RectangleShape, contentScale = androidx.compose.ui.layout.ContentScale.Fit)
         }
 
-        HorizontalDivider()
+        AppDivider()
         FormSectionHeader("01", "Basics")
         FormField("Event title", title, { title = it }, "${prefix}_title",
             placeholder = "e.g. Friday Badminton Session")
@@ -178,7 +171,7 @@ private fun EventFormScreen(
         FormField("Description", description, { description = it }, "${prefix}_description",
             multiline = true, placeholder = "Tell others what this event is about...")
 
-        HorizontalDivider()
+        AppDivider()
         FormSectionHeader("02", "Date & Location")
         DateSelectionField("Start date", startDate, { startDate = it }, "${prefix}_date")
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -208,7 +201,7 @@ private fun EventFormScreen(
         if (mode == FormMode.REUSE && initial?.meetingLocation != null) {
             InfoCard("Meeting point", "${initial.meetingLocation}\nThe meeting time defaults to this new event's start time. You can adjust it in Manage event.")
         }
-        HorizontalDivider()
+        AppDivider()
         FormSectionHeader("03", "Participation")
         AppOutlinedTextField(capacity, { capacity = it }, label = { Text("Maximum participants") },
             placeholder = { Text("e.g. 6") },
@@ -335,7 +328,7 @@ private fun DateSelectionField(
     val context = LocalContext.current
     SelectionField(label, value, "YYYY-MM-DD", tag, modifier) {
         val initial = runCatching { LocalDate.parse(value) }.getOrElse { LocalDate.now() }
-        DatePickerDialog(context, R.style.Theme_Gogether_Picker, { _, year, month, day ->
+        AppDatePickerDialog(context, { _, year, month, day ->
             change(LocalDate.of(year, month + 1, day).format(DateTimeFormatter.ISO_LOCAL_DATE))
         }, initial.year, initial.monthValue - 1, initial.dayOfMonth).show()
     }
@@ -352,7 +345,7 @@ private fun TimeSelectionField(
     val context = LocalContext.current
     SelectionField(label, value, "HH:mm", tag, modifier) {
         val initial = runCatching { LocalTime.parse(value) }.getOrElse { LocalTime.of(18, 0) }
-        TimePickerDialog(context, R.style.Theme_Gogether_Picker, { _, hour, minute ->
+        AppTimePickerDialog(context, { _, hour, minute ->
             change(String.format(Locale.ROOT, "%02d:%02d", hour, minute))
         }, initial.hour, initial.minute, true).show()
     }
@@ -367,7 +360,7 @@ private fun SelectionField(
     modifier: Modifier,
     onClick: () -> Unit,
 ) {
-    AppOutlinedPickerField(label, value, hint, modifier.testTag(tag), onClick)
+    AppOutlinedPickerField(label, value, hint, modifier.testTag(tag), onClick = onClick)
 }
 
 private fun ExperienceRequirement.formLabel(): String = when (this) {

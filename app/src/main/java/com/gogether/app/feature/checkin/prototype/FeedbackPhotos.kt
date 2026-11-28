@@ -87,10 +87,11 @@ internal fun rememberFeedbackPhotoActions(actor: String, sessionId: String, phot
 
 @Composable
 internal fun FeedbackPhotoStrip(photos: List<String>, viewer: String, sessionId: String, busy: Boolean = false,
-    add: (() -> Unit)? = null, remove: ((String) -> Unit)? = null, compact: Boolean = false, addTag: String = "feedback_add_photo") {
+    add: (() -> Unit)? = null, remove: ((String) -> Unit)? = null, compact: Boolean = false,
+    addTag: String = "feedback_add_photo", showHeader: Boolean = true) {
     var preview by remember(viewer, sessionId, photos.toList()) { mutableStateOf<String?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        if (showHeader) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(if (compact) "Photos" else if (add != null) "Event photos (optional)" else "Event photos", style = MaterialTheme.typography.titleMedium)
             Text("${photos.size} / 3", style = MaterialTheme.typography.bodySmall)
         }

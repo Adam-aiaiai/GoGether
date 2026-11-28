@@ -39,7 +39,7 @@ internal fun OrganizerCheckInPanel(state: PrototypeUiState, now: Long, back: () 
         }
     }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp).testTag("organizer_panel")) {
-        AppPageHeader(LocalCheckInActivities.current.infoOrNull(session)?.title ?: "Event check-in", onBack = back, actions = {
+        AppPageHeader(LocalCheckInActivities.current.infoOrNull(session)?.title ?: "Event check-in", horizontalInset = 16.dp, onBack = back, actions = {
             IconButton(onClick = { searchOpen = true }, enabled = preview ||
                 (state.attendance.session == session && state.attendance.loaded), modifier = Modifier.testTag("attendance_search_open")) {
                 Icon(Icons.Default.Search, contentDescription = "Find participants")

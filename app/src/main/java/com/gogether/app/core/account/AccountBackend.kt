@@ -13,6 +13,8 @@ interface AccountBackend {
     suspend fun signIn(email: String, password: String): User
     suspend fun signUp(email: String, password: String, name: String, interests: Set<Category>): User
     suspend fun updateProfile(name: String, interests: Set<Category>): User
+    suspend fun updateProfile(profile: com.gogether.app.core.model.ProfileUpdate): User =
+        throw UnsupportedOperationException("This account service does not support profile photos yet.")
     suspend fun signOut()
 }
 

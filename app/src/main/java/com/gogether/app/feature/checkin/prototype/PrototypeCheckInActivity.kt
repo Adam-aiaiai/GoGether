@@ -240,11 +240,11 @@ fun PrototypeScreen(actor: String, state: PrototypeUiState, now: Long, back: () 
         }
     }
     state.candidate?.let { fix ->
-        AlertDialog(shape = CheckInStyle.shape, onDismissRequest = dismissMeeting, title = { Text("Confirm meeting point?") },
-            text = { Text("Create a new event at your current location. The meeting point stays fixed; participants must scan the new event code.\n" +
-                "Estimated location accuracy: ${fix.accuracyMeters.toInt()} m.") },
-            confirmButton = { TextButton(shape = CheckInStyle.shape, onClick = confirmMeeting, enabled = !state.busy) { Text("Confirm meeting point") } },
-            dismissButton = { TextButton(shape = CheckInStyle.shape, onClick = dismissMeeting) { Text("Cancel") } })
+        CheckInActionDialog(title = "Confirm meeting point?",
+            description = "Create a new event at your current location. The meeting point stays fixed; participants must scan the new event code.\n" +
+                "Estimated location accuracy: ${fix.accuracyMeters.toInt()} m.",
+            action = "Confirm meeting point", onDismiss = dismissMeeting, onConfirm = confirmMeeting,
+            confirmEnabled = !state.busy)
     }
     if (confirmNew) CheckInConfirmDialog("Create another event?", "This creates a new event and meeting point. Existing check-in records are kept.",
         "Retry location", { confirmNew = false }, { confirmNew = false; locate() })

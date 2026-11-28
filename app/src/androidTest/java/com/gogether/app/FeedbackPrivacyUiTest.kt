@@ -105,7 +105,7 @@ class FeedbackPrivacyUiTest {
             capture("feedback-photos.png")
             compose.onNodeWithTag("feedback_photo_0").performClick()
             compose.onNodeWithTag("feedback_photo_preview").assertIsDisplayed()
-            compose.onAllNodesWithContentDescription("Back").onLast().performClick()
+            compose.onNodeWithTag("photo_preview_close").performClick()
             compose.onNodeWithTag("feedback_photo_preview").assertDoesNotExist()
             find("feedback_remove_photo_1").performScrollTo().assertIsDisplayed().performClick()
             find("feedback_add_photo").assertExists()
@@ -130,7 +130,8 @@ class FeedbackPrivacyUiTest {
             assertEquals(FeedbackVisibility.ORGANIZER_ONLY, saved.details.visibility)
             assertTrue(backend.reviews("carol", session).isEmpty())
             assertEquals("Anonymous participant", backend.reviews("alice", session).single().authorName)
-            find("feedback_privacy_saved").assertTextEquals("Anonymous review  |  Organizer only")
+            find("feedback_privacy_saved").assertTextEquals("Organizer only")
+            compose.onNodeWithText("Anonymous participant (you)").assertExists()
             capture("feedback-private-saved.png")
         } finally { cleanup() }
     }

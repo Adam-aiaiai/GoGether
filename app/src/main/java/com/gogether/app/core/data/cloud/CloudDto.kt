@@ -19,7 +19,10 @@ object CloudDto {
     }
     fun user(v: Map<String, Any?>) = User(v.text("id"), v.text("displayName"),
         (v["interests"] as? List<*>)?.map { Category.valueOf(it as String) }?.toSet() ?: emptySet(),
-        v.number("createdAt"), UserStatus.ACCOUNT, v.optionalText("email"))
+        v.number("createdAt"), UserStatus.ACCOUNT, v.optionalText("email"),
+        v.text("avatarUri", ""), v.text("coverUri", ""),
+        Gender.entries.find { it.name == v.optionalText("gender") } ?: Gender.UNDISCLOSED,
+        v.flag("showGender"), v.text("signature", ""))
     fun event(v: Map<String, Any?>) = Event(v.text("id"), v.text("organizerId"), v.text("title"),
         Category.valueOf(v.text("category")), v.text("description"), v.number("startAt"), v.number("endAt"),
         v.text("location"), v.text("city"), v.number("capacity").toInt(), v.number("registrationDeadline"),

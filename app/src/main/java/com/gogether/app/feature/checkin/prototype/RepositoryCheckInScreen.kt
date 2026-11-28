@@ -96,13 +96,13 @@ fun RepositoryCheckInScreen(repository: GogetherRepository, eventId: String, now
             }
             if (message.isNotBlank()) Text(message)
         }
-        candidate?.let { fix -> AlertDialog(shape = CheckInStyle.shape, onDismissRequest = { candidate = null },
-            title = { Text("Confirm meeting point") }, text = { Text("${event.title}\n${event.city} ${event.meetingLocation ?: event.location}\nUse your current location as the fixed meeting point. Check-in requires being within 200 m. Event times and registrations will stay the same.") },
-            confirmButton = { TextButton(onClick = {
+        candidate?.let { fix -> CheckInActionDialog(title = "Confirm meeting point",
+            description = "${event.title}\n${event.city} ${event.meetingLocation ?: event.location}\nUse your current location as the fixed meeting point. Check-in requires being within 200 m. Event times and registrations will stay the same.",
+            action = "Confirm", onDismiss = { candidate = null }, onConfirm = {
                 runCatching { bridge.prepare(actor, eventId, fix) }.onSuccess { revision++ }
                     .onFailure { message = it.message ?: "Could not save. Please try again." }
                 candidate = null
-            }) { Text("Confirm") } }, dismissButton = { TextButton(onClick = { candidate = null }) { Text("Cancel") } }) }
+            }) }
         return
     }
     val model: PrototypeViewModel = viewModel(key = "ce:$actor:$session", factory = RepositoryViewModel.factory {
