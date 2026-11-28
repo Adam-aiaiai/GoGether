@@ -14,7 +14,11 @@ import org.junit.Test
 
 class CoordinationFailureUiTest {
     @get:Rule val compose = createComposeRule()
-    private fun tap(tag:String) { val node = compose.onNodeWithTag(tag); if (!tag.startsWith("nav_")) node.performScrollTo(); node.performClick() }
+    private fun tap(tag:String) {
+        val node = compose.onNodeWithTag(tag)
+        if (!tag.startsWith("nav_")) runCatching { node.performScrollTo() }
+        node.performClick()
+    }
     @Test fun failedAnnouncementPreservesDraftAndBlocksDuplicateSubmissions() {
         val initial=DemoData.create().copy(currentUserId="alice")
         val base=FakeGogetherRepository(initial)
@@ -40,7 +44,7 @@ class CoordinationFailureUiTest {
             Notification("missing","bob","deleted-event",NotificationType.ANNOUNCEMENT,"Old event update",System.currentTimeMillis())))
         val repo=FakeGogetherRepository(initial)
         compose.setContent { GogetherTheme { GogetherApp(repo) } }
-        tap("nav_my-events"); tap("open_inbox"); tap("notification_open_missing")
+        tap("nav_my-events"); tap("open_inbox"); tap("inbox_activity"); tap("notification_open_missing")
         compose.onNodeWithText("Event not found").assertExists()
         tap("missing_event_explore"); compose.onNodeWithTag("search").assertExists()
     }

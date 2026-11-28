@@ -91,17 +91,3 @@ fun AppPageHeader(title: String, onBack: (() -> Unit)? = null, backModifier: Mod
         ),
     )
 }
-
-/** Author, message and timestamp retain distinct emphasis in every message list. */
-@Composable
-fun MessageCard(author: String, message: String, timestamp: String, modifier: Modifier = Modifier) {
-    Surface(modifier.fillMaxWidth(), shape = AppUi.CardShape,
-        color = MaterialTheme.colorScheme.surfaceContainerLow) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(author, style = MaterialTheme.typography.titleSmall)
-            Text(message, style = MaterialTheme.typography.bodyLarge)
-            Text(timestamp, style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}

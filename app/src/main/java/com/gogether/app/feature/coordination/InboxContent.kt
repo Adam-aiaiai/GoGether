@@ -8,7 +8,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
 import androidx.compose.ui.res.painterResource
 import com.gogether.app.R
 import androidx.compose.material3.*
@@ -17,9 +16,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -46,21 +42,10 @@ fun InboxContent(state: AppSnapshot, busy: Boolean, read: (String) -> Unit,
         })
         Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
             listOf("Interactions", "Activity updates").forEachIndexed { index, title ->
-                val active = pager.currentPage == index
-                Column(Modifier.semantics { selected = active }.clickable(role = Role.Tab) { scope.launch { pager.animateScrollToPage(index) } }
-                    .testTag(if (index == 0) "inbox_interactions" else "inbox_activity").fillMaxHeight(),
-                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(title, fontSize = if (active) 16.sp else 14.sp,
-                            fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
-                            color = if (active) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
-                        if (all.any { !it.isRead && it.isInteraction() == (index == 0) }) {
-                            Spacer(Modifier.width(5.dp)); Box(Modifier.size(5.dp).background(Color(0xFFEF534B), CircleShape))
-                        }
-                    }
-                    Spacer(Modifier.height(7.dp))
-                    Box(Modifier.size(25.dp, 4.dp).background(if (active) AppUi.Primary else Color.Transparent, CircleShape))
-                }
+                AppTextTab(title, pager.currentPage == index,
+                    onClick = { scope.launch { pager.animateScrollToPage(index) } },
+                    modifier = Modifier.testTag(if (index == 0) "inbox_interactions" else "inbox_activity"),
+                    unread = all.any { !it.isRead && it.isInteraction() == (index == 0) })
             }
         }
         HorizontalPager(pager, Modifier.weight(1f).testTag("inbox_pager"), verticalAlignment = Alignment.Top) { page ->
