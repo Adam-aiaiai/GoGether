@@ -3,7 +3,6 @@ package com.gogether.app.core.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -33,20 +32,19 @@ fun AppCommentField(
     isError: Boolean = false,
     minLines: Int = 2,
     maxLines: Int = Int.MAX_VALUE,
-    maxLength: Int? = null,
+    maxLength: Int = 100,
+    textStyle: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.bodyMedium,
 ) {
     val shape = RoundedCornerShape(8.dp)
     val interaction = remember { MutableInteractionSource() }
-    val focused by interaction.collectIsFocusedAsState()
-    val error = isError || (maxLength != null && value.length > maxLength)
+    val error = isError || value.length > maxLength
     val outline = when {
         error -> MaterialTheme.colorScheme.error
-        focused -> MaterialTheme.colorScheme.primary
         else -> Color(0xFFBFC1C6)
     }
     val textColor = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 1f else .55f)
-    BasicTextField(value, onValueChange, modifier.semantics { if (error) error("Invalid input") }, enabled,
-        textStyle = MaterialTheme.typography.bodyMedium.copy(color = textColor),
+    BasicTextField(value, { onValueChange(it.take(maxLength)) }, modifier.semantics { if (error) error("Invalid input") }, enabled,
+        textStyle = textStyle.copy(color = textColor),
         minLines = minLines, maxLines = maxLines,
         interactionSource = interaction,
         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary), decorationBox = { field ->
@@ -60,13 +58,13 @@ fun AppCommentField(
                         Box(Modifier.weight(1f)) {
                             if (value.isEmpty() && placeholder != null) {
                                 CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurfaceVariant) {
-                                    ProvideTextStyle(MaterialTheme.typography.bodyMedium) { placeholder() }
+                                    ProvideTextStyle(textStyle) { placeholder() }
                                 }
                             }
                             field()
                         }
                     }
-                    if (maxLength != null) Text("${value.length}/$maxLength",
+                    Text("${value.length}/$maxLength",
                         Modifier.fillMaxWidth().padding(top = 4.dp), textAlign = TextAlign.End,
                         style = MaterialTheme.typography.bodySmall,
                         color = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)

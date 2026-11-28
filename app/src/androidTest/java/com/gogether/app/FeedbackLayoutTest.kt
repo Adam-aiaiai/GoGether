@@ -119,9 +119,10 @@ class FeedbackLayoutTest {
         compose.onNodeWithTag("history_detail").performScrollToNode(hasTestTag("feedback_rating_5"))
         compose.onNodeWithTag("feedback_rating_5").assertIsDisplayed().performClick()
         compose.onNodeWithTag("history_detail").performScrollToNode(hasTestTag("feedback_comment"))
-        compose.onNodeWithTag("feedback_comment").performScrollTo().performClick().performTextInput("a".repeat(501))
-        compose.reviewNode("feedback_submit").assertIsDisplayed().assertIsNotEnabled()
-        compose.onNodeWithTag("feedback_comment").performTextReplacement("a".repeat(500))
+        compose.onNodeWithTag("feedback_comment").performScrollTo().performClick().performTextInput("a".repeat(101))
+        compose.onNodeWithTag("feedback_comment").assert(hasText("a".repeat(100)))
+        compose.onNodeWithText("100/100").assertExists()
+        compose.onNodeWithTag("feedback_comment").performTextReplacement("a".repeat(100))
         Espresso.closeSoftKeyboard()
         compose.reviewNode("feedback_submit").assertIsDisplayed().assertIsEnabled()
         compose.runOnIdle { busy = true }

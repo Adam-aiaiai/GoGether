@@ -49,6 +49,7 @@ internal fun ProfilePhoto(source: String, description: String, modifier: Modifie
     val context = LocalContext.current
     var preview by remember(source) { mutableStateOf(false) }
     val bitmap by produceState<android.graphics.Bitmap?>(null, source) {
+        value = null
         value = try { loadProfilePhoto(context, source) }
         catch (cancel: CancellationException) { throw cancel }
         catch (_: Exception) { null }
@@ -62,6 +63,16 @@ internal fun ProfilePhoto(source: String, description: String, modifier: Modifie
         val loader: suspend (String) -> android.graphics.Bitmap? = remember(context) { { path -> loadProfilePhoto(context, path) } }
         // The shared gallery centers the full image and positions × outside its top-right corner.
         AppPhotoGallery(listOf(source), 0, loader, { preview = false })
+    }
+}
+
+/** Compact account identity used in reviews and attendance; missing photos keep initials. */
+@Composable
+internal fun ParticipantAvatar(name: String, avatarUri: String, modifier: Modifier = Modifier) {
+    if (avatarUri.isNotBlank()) {
+        ProfilePhoto(avatarUri, "$name's avatar", modifier.clip(CircleShape), fallback = name.take(1).uppercase())
+    } else Surface(modifier, shape = CircleShape, color = AppUi.SoftAccent, contentColor = AppUi.OnSoftAccent) {
+        Box(contentAlignment = Alignment.Center) { Text(name.take(1).uppercase(), style = MaterialTheme.typography.titleMedium) }
     }
 }
 

@@ -35,7 +35,7 @@ fun MeetingEditor(event: Event, now: Long, busy: Boolean, save: (MeetingUpdate, 
         else -> null
     }
     val locationError = if (location.trim().length !in 3..150) "Use 3–150 characters for the location." else null
-    val notesError = if (notes.length > 1000) "Use up to 1,000 characters." else null
+    val notesError = if (notes.length > 100) "Use up to 100 characters." else null
     InfoCard("Meeting point", "${displayTime(event.meetingAt ?: event.startAt)}\n${event.meetingLocation ?: event.location}\n${event.meetingNotes}")
     if (!editing) {
         PageActionButton(enabled = !busy && event.status == EventStatus.OPEN && now < event.endAt,
@@ -58,7 +58,7 @@ fun MeetingEditor(event: Event, now: Long, busy: Boolean, save: (MeetingUpdate, 
             modifier = Modifier.fillMaxWidth().testTag("meeting_location"))
         AppCommentField(notes, { notes = it }, label = { Text("Meeting notes") }, enabled = !busy,
             isError = submitted && notesError != null,
-            supportingText = { Text(notesError ?: "${notes.length}/1000") }, modifier = Modifier.fillMaxWidth().testTag("meeting_notes"))
+            supportingText = notesError?.let { { Text(it) } }, modifier = Modifier.fillMaxWidth().testTag("meeting_notes"))
         PageActionButton(enabled = !busy, modifier = Modifier.testTag("save_meeting"), onClick = {
             submitted = true
             if (parsed != null && timeError == null && locationError == null && notesError == null)

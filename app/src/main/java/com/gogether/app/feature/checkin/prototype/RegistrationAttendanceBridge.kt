@@ -60,7 +60,7 @@ class RegistrationAttendanceBridge(
         val event = event(activityId) ?: return emptyList()
         val state = snapshot()
         return state.confirmed(event.id).sortedBy { it.queueOrder }.map {
-            PrototypeAttendee(it.userId, state.userName(it.userId))
+            PrototypeAttendee(it.userId, state.userName(it.userId), avatarUri = avatarUri(it.userId))
         }
     }
     override fun activity(session: PrototypeSession): CheckInActivityInfo {
@@ -75,6 +75,7 @@ class RegistrationAttendanceBridge(
     private fun info(event: Event, session: PrototypeSession) = CheckInActivityInfo(session, event.organizerId, event.title,
         meetingName(event), event.description, event.id, snapshot().userName(event.organizerId))
     override fun isCatalogActivity(session: PrototypeSession) = runCatching { activity(session) }.isSuccess
+    override fun avatarUri(userId: String) = snapshot().users.find { it.id == userId }?.avatarUri.orEmpty()
 
     /** B currently supplies a text address. Only this event's organizer may fix its GPS point.
      * We keep B's ID, owner and times; this never invents a new ten-minute Demo activity.
@@ -105,7 +106,7 @@ class RegistrationAttendanceBridge(
     }
     private val local = LocalPrototypeBackend(liveStore, now, elapsedNow, this, this,
         completed = { event(it.id)?.status == EventStatus.COMPLETED },
-        userName = { id -> snapshot().users.find { it.id == id }?.displayName ?: "Participant" })
+        userName = { id -> snapshot().users.find { it.id == id }?.displayName ?: "Participant" }, userAvatar = ::avatarUri)
 
     /** Local trusted boundary only. No network synchronization or signed tokens are claimed. */
     val backend: PrototypeCheckInBackend = object : PrototypeCheckInBackend by local {
@@ -153,7 +154,7 @@ class RegistrationAttendanceBridge(
             val event = requireNotNull(event(session.id))
             // Preserve actual attendance even if C later removes a confirmed registration.
             val checked = snapshot().users.mapNotNull { user ->
-                receipt(event, user.id)?.let { PrototypeAttendee(user.id, user.displayName, it.checkedInAt) }
+                receipt(event, user.id)?.let { PrototypeAttendee(user.id, user.displayName, it.checkedInAt, user.avatarUri) }
             }
             return (participants(session.id).map { person ->
                 person.copy(checkedInAt = receipt(event, person.userId)?.checkedInAt)
@@ -174,7 +175,7 @@ class RegistrationAttendanceBridge(
             val savedUsers = store.feedbackForSession(session.id).map { it.userId }.toSet()
             val older = snapshot().feedback.filter { it.eventId == info.sourceEventId && it.userId !in savedUsers }
                 .mapNotNull { old -> PrototypeFeedback(session.id, old.userId, old.rating, old.comment, old.createdAt)
-                    .visibleTo(actor, info.organizerId, snapshot().users.find { it.id == old.userId }?.displayName ?: "Participant") }
+                    .visibleTo(actor, info.organizerId, snapshot().users.find { it.id == old.userId }?.displayName ?: "Participant", avatarUri(old.userId)) }
             return (current + older).sortedByDescending { it.createdAt }
         }
         override fun cancel(actor: String, session: PrototypeSession) {

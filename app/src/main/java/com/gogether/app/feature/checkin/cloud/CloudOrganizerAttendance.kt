@@ -21,25 +21,30 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gogether.app.core.model.Event
 import com.gogether.app.core.ui.*
+import com.gogether.app.feature.profile.ParticipantAvatar
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-internal data class CloudAttendancePerson(val userId: String, val name: String, val checkedInAt: Long) {
+internal data class CloudAttendancePerson(val userId: String, val name: String, val checkedInAt: Long, val avatarUri: String = "") {
     val checkedIn get() = checkedInAt > 0
 }
 
 internal fun attendancePeople(rows: List<Map<*, *>>) = rows.map {
-    CloudAttendancePerson(it.string("userId"), it.string("name").ifBlank { "Participant" }, it.number("checkedInAt"))
+    CloudAttendancePerson(it.string("userId"), it.string("name").ifBlank { "Participant" }, it.number("checkedInAt"), it.string("avatarUri"))
 }
 
 internal fun attendanceTime(time: Long, pattern: String = "HH:mm"): String =
     Instant.ofEpochMilli(time).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH))
 
-/** Account profiles currently expose names, not photo URLs. Never invent participant photographs. */
+/** Use the current profile image returned by the organizer-only attendance endpoint. */
 @Composable
 internal fun AttendanceAvatar(person: CloudAttendancePerson, modifier: Modifier = Modifier) {
+    if (person.avatarUri.isNotBlank()) {
+        ParticipantAvatar(person.name, person.avatarUri, modifier)
+        return
+    }
     val initials = remember(person.name) {
         person.name.trim().split(Regex("\\s+")).take(2).joinToString("") { it.take(1).uppercase(Locale.ENGLISH) }
     }

@@ -111,7 +111,7 @@ fun EventDetailScreen(
 
         Text("Hosted by", style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold)
-        HostRow(state.userName(event.organizerId))
+        HostRow(state.userName(event.organizerId), state.users.find { it.id == event.organizerId }?.avatarUri.orEmpty())
 
         if (organizer || active) {
             InfoCard("Meeting point", "${displayTime(event.meetingAt ?: event.startAt)}\n${event.meetingLocation ?: event.location}\n${event.meetingNotes}")
@@ -268,14 +268,10 @@ private fun DetailTile(label: String, value: String, modifier: Modifier) {
 }
 
 @Composable
-private fun HostRow(name: String) {
+private fun HostRow(name: String, avatarUri: String) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(44.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
-            contentAlignment = Alignment.Center) {
-            Text(name.take(1).uppercase(), fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer)
-        }
+        com.gogether.app.feature.profile.ParticipantAvatar(name, avatarUri, Modifier.size(44.dp))
         Column {
             Text(name, fontWeight = FontWeight.SemiBold)
             Text("Event organizer", style = MaterialTheme.typography.bodySmall,

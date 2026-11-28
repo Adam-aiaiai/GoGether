@@ -86,7 +86,8 @@ internal fun ParticipantCheckInPanel(actor: String, state: PrototypeUiState, now
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                PersonInitial(activity?.organizerName ?: "?", 36)
+                com.gogether.app.feature.profile.ParticipantAvatar(activity?.organizerName ?: "?",
+                    activity?.let { LocalCheckInActivities.current.avatarUri(it.organizerId) }.orEmpty(), Modifier.size(36.dp))
                 Column {
                     Text(activity?.let { "Hosted by ${it.organizerName}" } ?: "Scan to see the organizer", style = MaterialTheme.typography.titleSmall)
                     Text("Organizer", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -105,7 +106,7 @@ internal fun ParticipantCheckInPanel(actor: String, state: PrototypeUiState, now
                 }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("People", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    participants.take(3).forEach { PersonInitial(it.name, 26) }
+                    participants.take(3).forEach { com.gogether.app.feature.profile.ParticipantAvatar(it.name, it.avatarUri, Modifier.size(26.dp)) }
                     Text("${participants.size} registered", style = MaterialTheme.typography.bodySmall)
                 }
             }
@@ -212,12 +213,5 @@ private fun EventInfoRow(label: String, value: String) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-    }
-}
-
-@Composable
-private fun PersonInitial(name: String, size: Int) {
-    Box(Modifier.size(size.dp).background(MaterialTheme.colorScheme.secondaryContainer, CircleShape), contentAlignment = Alignment.Center) {
-        Text(name.take(1), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
     }
 }

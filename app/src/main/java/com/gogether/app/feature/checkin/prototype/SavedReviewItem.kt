@@ -16,6 +16,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.gogether.app.core.ui.AppUi
+import com.gogether.app.feature.profile.ParticipantAvatar
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -25,7 +26,7 @@ import java.util.Locale
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun SavedReviewItem(authorName: String, own: Boolean, rating: Int, comment: String,
-    createdAt: Long, details: FeedbackDetails, modifier: Modifier = Modifier,
+    createdAt: Long, details: FeedbackDetails, modifier: Modifier = Modifier, avatarUri: String = "",
     photos: @Composable () -> Unit = {}) {
     val name = if (details.anonymous) "Anonymous participant" else authorName.ifBlank { "Participant" }
     val displayName = name + if (own && name != "You") " (you)" else ""
@@ -35,7 +36,8 @@ internal fun SavedReviewItem(authorName: String, own: Boolean, rating: Int, comm
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.Top) {
-            Surface(Modifier.size(40.dp), shape = CircleShape,
+            if (!details.anonymous) ParticipantAvatar(name, avatarUri, Modifier.size(40.dp))
+            else Surface(Modifier.size(40.dp), shape = CircleShape,
                 color = if (details.anonymous) AppUi.Primary else AppUi.SoftAccent) {
                 Box(contentAlignment = Alignment.Center) {
                     if (details.anonymous) Icon(Icons.Default.Person, null, Modifier.size(30.dp),

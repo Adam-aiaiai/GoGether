@@ -119,9 +119,9 @@ internal fun FeedbackEditor(scopeKey: String, summary: ReviewEventSummary, draft
                                 changeDetail { it.copy(tags = if (id in it.tags) it.tags - id else it.tags + id) }
                             }
                             AppCommentField(draft.details.positiveComment,
-                                { value -> changeDetail { it.copy(positiveComment = value.take(500)) } }, enabled = !busy,
+                                { value -> changeDetail { it.copy(positiveComment = value) } }, enabled = !busy,
                                 placeholder = { Text("Anything else you enjoyed? (Optional)") },
-                                minLines = 2, maxLines = 4, maxLength = 500,
+                                minLines = 2, maxLines = 4,
                                 modifier = Modifier.fillMaxWidth().testTag("feedback_positive_comment"))
                             AppDivider(color = ReviewDivider)
                         }
@@ -132,9 +132,9 @@ internal fun FeedbackEditor(scopeKey: String, summary: ReviewEventSummary, draft
                                 changeDetail { it.copy(tags = if (id in it.tags) it.tags - id else it.tags + id) }
                             }
                             AppCommentField(draft.details.improvementComment,
-                                { value -> changeDetail { it.copy(improvementComment = value.take(500)) } }, enabled = !busy,
+                                { value -> changeDetail { it.copy(improvementComment = value) } }, enabled = !busy,
                                 placeholder = { Text("How could it be better? (Optional)") },
-                                minLines = 2, maxLines = 4, maxLength = 500,
+                                minLines = 2, maxLines = 4,
                                 modifier = Modifier.fillMaxWidth().testTag("feedback_improvement_comment"))
                         }
                     }
@@ -152,7 +152,7 @@ internal fun FeedbackEditor(scopeKey: String, summary: ReviewEventSummary, draft
                         SectionLabel("Your experience")
                         AppCommentField(draft.comment, { update(draft.copy(comment = it)) }, enabled = !busy,
                             placeholder = { Text("What did you enjoy? What could be better?") },
-                            minLines = 2, maxLines = 5, maxLength = 500,
+                            minLines = 2, maxLines = 5,
                             modifier = Modifier.fillMaxWidth().testTag(commentTag))
                     }
                     item(key = "photos") { photos() }
@@ -187,7 +187,8 @@ internal fun FeedbackEditor(scopeKey: String, summary: ReviewEventSummary, draft
                     fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Box(Modifier.weight(1f)) {
                     PageActionButton(onClick = submit,
-                        enabled = !busy && draftError.isBlank() && FeedbackInput.valid(draft.rating, draft.comment),
+                        enabled = !busy && draftError.isBlank() && FeedbackInput.valid(draft.rating, draft.comment) &&
+                            runCatching { draft.details.requireValid() }.isSuccess,
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                         modifier = Modifier.testTag(submitTag)) {
                         Text(if (busy) "Saving…" else "Submit review", fontSize = 14.sp)

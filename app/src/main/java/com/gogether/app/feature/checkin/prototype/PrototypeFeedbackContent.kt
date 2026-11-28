@@ -124,7 +124,8 @@ internal fun HistoryDetail(actor: String, entry: PrototypeHistoryEntry, now: Lon
                 entry.feedback != null -> {
                     item {
                         SavedReviewItem("You", true, entry.feedback.rating, entry.feedback.comment,
-                            entry.feedback.createdAt, entry.feedback.details, Modifier.testTag("feedback_saved")) {
+                            entry.feedback.createdAt, entry.feedback.details, Modifier.testTag("feedback_saved"),
+                            avatarUri = LocalCheckInActivities.current.avatarUri(actor)) {
                             FeedbackPhotoStrip(entry.feedback.details.photos, actor, entry.session.id, showHeader = false)
                         }
                     }

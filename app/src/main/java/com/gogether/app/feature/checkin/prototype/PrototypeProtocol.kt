@@ -109,7 +109,7 @@ internal fun feedbackHasEnded(session: PrototypeSession, now: Long, completed: B
     completed || now >= session.endAt
 
 /** Confirmed registrations only; replace these profiles with A/C data when integrating. */
-data class PrototypeAttendee(val userId: String, val name: String, val checkedInAt: Long? = null)
+data class PrototypeAttendee(val userId: String, val name: String, val checkedInAt: Long? = null, val avatarUri: String = "")
 
 internal val prototypeParticipants = listOf(
     PrototypeAttendee("alice", "Alice"), PrototypeAttendee("bob", "Bob"),
@@ -164,6 +164,7 @@ class LocalPrototypeBackend(private val store: PrototypeStore,
     private val activities: CheckInActivitySource = LegacyCheckInActivities,
     private val completed: (PrototypeSession) -> Boolean = { false },
     private val userName: (String) -> String = { id -> prototypeParticipants.find { it.userId == id }?.name ?: "Participant" },
+    private val userAvatar: (String) -> String = { "" },
 ) : PrototypeCheckInBackend {
     private val scopedRegistrations = if (registrations === MockCheckInRegistrations) StoredMockCheckInRegistrations(store) else registrations
     override fun hostedSession() = store.hostedSession
@@ -214,7 +215,7 @@ class LocalPrototypeBackend(private val store: PrototypeStore,
     override fun reviews(actor: String, session: PrototypeSession): List<VisibleFeedback> {
         require(actor.isNotBlank() && session in store.sessions(actor)) { "Open the event record for your current account to review." }
         val organizer = activityInfo(session).organizerId
-        return store.feedbackForSession(session.id).mapNotNull { it.visibleTo(actor, organizer, userName(it.userId)) }.sortedByDescending { it.createdAt }
+        return store.feedbackForSession(session.id).mapNotNull { it.visibleTo(actor, organizer, userName(it.userId), userAvatar(it.userId)) }.sortedByDescending { it.createdAt }
     }
 
     @Synchronized override fun submitFeedback(actor: String, sessionId: String, rating: Int, comment: String,
@@ -226,8 +227,8 @@ class LocalPrototypeBackend(private val store: PrototypeStore,
         val time = now()
         require(feedbackHasEnded(session, time, completed(session))) { "You can review after the event ends." }
         require(rating in 1..5) { "Choose a rating from 1 to 5." }
-        require(comment.length <= 500) { "Comments must be 500 characters or less." }
-        details.requireValid()
+        require(comment.length <= 100) { "Comments must be 100 characters or less." }
+        details.requireValid(maxTextLength = 100)
         val feedback = PrototypeFeedback(sessionId, actor, rating, comment.trim(), time,
             details.copy(tags = details.tags.toList(), photos = details.photos.toList()))
         store.saveFeedback(feedback)

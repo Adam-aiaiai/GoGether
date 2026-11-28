@@ -67,10 +67,10 @@ fun ManagementScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
         if (event.status == EventStatus.OPEN && now < event.endAt) {
             InfoCard("Automatic check-in", "Confirmed participants can check in during the window without a manual switch. Cancelling the event also stops check-in.")
             AppCommentField(announcement, { announcement = it }, label = { Text("Organizer announcement") },
-                enabled = !busy, isError = announcement.length > 500,
-                maxLength = 500, supportingText = { Text("Sent to participant inboxes") }, minLines = 3,
+                enabled = !busy, isError = announcement.length > 100,
+                supportingText = { Text("Sent to participant inboxes") }, minLines = 3,
                 modifier = Modifier.fillMaxWidth().testTag("announcement_input"))
-            PageActionButton(onClick = { announce(announcement) { announcement = "" } }, enabled = !busy && announcement.trim().length in 1..500,
+            PageActionButton(onClick = { announce(announcement) { announcement = "" } }, enabled = !busy && announcement.trim().length in 1..100,
                 modifier = Modifier.fillMaxWidth().testTag("post_announcement")) { Text(if (busy) "Publishing…" else "Post announcement") }
             if (now < event.startAt) PageActionButton(onClick = { confirmation = true }, enabled = !busy,
                 modifier = Modifier.fillMaxWidth().testTag("cancel_event")) { Text("Cancel event") }

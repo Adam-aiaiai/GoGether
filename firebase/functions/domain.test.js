@@ -109,8 +109,8 @@ test('optional review comments accept empty and bounded text and keep existing v
  const detail=D.feedbackDetails({positiveComment:'Friendly teammates.',improvementComment:'More warm-up time.',anonymous:true,visibility:'ORGANIZER_ONLY'},'bob');
  assert.equal(detail.positiveComment,'Friendly teammates.');assert.equal(detail.improvementComment,'More warm-up time.');
  for(const key of ['positiveComment','improvementComment']) {
-  assert.equal(D.feedbackDetails({[key]:'x'.repeat(500)},'bob')[key].length,500);
-  for(const value of ['x'.repeat(501),42,[],{}])assert.throws(()=>D.feedbackDetails({[key]:value},'bob'));
+  assert.equal(D.feedbackDetails({[key]:'x'.repeat(100)},'bob')[key].length,100);
+  for(const value of ['x'.repeat(101),42,[],{}])assert.throws(()=>D.feedbackDetails({[key]:value},'bob'));
  }
  const review={id:'event_bob',publicId:'opaque',userId:'bob',details:detail};
  assert.equal(visibleReview(review,'carol','alice',[]),null);
@@ -131,4 +131,12 @@ test('profile details preserve existing photos for legacy updates and honor gend
 test('profile details reject foreign uploads external URLs invalid gender and oversized signature',()=>{
  for(const input of [{avatarUri:'profiles/bob/12345678-1234-1234-1234-123456789012'},{coverUri:'https://example.test/image.jpg'},
  {avatarUri:'file:///local.jpg'},{gender:'UNKNOWN'},{showGender:'false'},{signature:'a'.repeat(101)}])assert.throws(()=>D.profileDetails(input,'alice'));
+});
+
+
+test('all free-form event fields enforce the shared 100 character limit',()=>{
+ for(const key of ['description','notes','requiredItems','spareEquipment','meetingNotes']) {
+  assert.equal(D.draft({...draft,[key]:'字'.repeat(100)},now,'alice')[key].length,100);
+  assert.throws(()=>D.draft({...draft,[key]:'字'.repeat(101)},now,'alice'));
+ }
 });

@@ -88,13 +88,7 @@ fun PrototypeAttendance(attendees: List<PrototypeAttendee>, modifier: Modifier =
                         .clickable(onClickLabel = "Show check-in details") { selectedPerson = person.userId }
                         .semantics(mergeDescendants = true) { contentDescription = "${person.name}, $title" },
                         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        val checked = person.checkedInAt != null
-                        Box(Modifier.size(48.dp).background(
-                            if (checked) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
-                            CircleShape), contentAlignment = Alignment.Center) {
-                            Text(person.name.take(1).uppercase(), style = MaterialTheme.typography.titleLarge,
-                                color = if (checked) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
+                        com.gogether.app.feature.profile.ParticipantAvatar(person.name, person.avatarUri, Modifier.size(48.dp))
                         Text(person.name, Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodySmall,
                             textAlign = TextAlign.Center, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }

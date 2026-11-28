@@ -6,6 +6,14 @@ import org.junit.Test
 import java.util.UUID
 
 class FeedbackPrivacyTest {
+    @Test fun anonymousReviewsNeverExposeUploadedAvatarEvenToTheirAuthor() {
+        val review = PrototypeFeedback("activity", "bob", 4, "Good", 1L, FeedbackDetails(anonymous = true))
+        listOf("alice", "bob", "carol").forEach { viewer ->
+            assertEquals("", review.visibleTo(viewer, "alice", "Bob", "profiles/bob/private-image")!!.avatarUri)
+        }
+        assertEquals("profiles/bob/photo", review.copy(details = FeedbackDetails())
+            .visibleTo("carol", "alice", "Bob", "profiles/bob/photo")!!.avatarUri)
+    }
     private val session = PrototypeSession(UUID.randomUUID().toString(), MeetingPoint(31.27, 120.74), 1_000, 2_000)
     private val store = MemoryPrototypeStore().apply { listOf("alice", "bob", "carol").forEach { rememberSession(it, session) } }
     private fun backend() = LocalPrototypeBackend(store, { 2_000 }, { 0 })

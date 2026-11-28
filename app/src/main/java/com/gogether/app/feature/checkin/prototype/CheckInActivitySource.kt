@@ -11,6 +11,7 @@ data class CheckInActivityInfo(val session: PrototypeSession, val organizerId: S
 interface CheckInActivitySource {
     fun activity(session: PrototypeSession): CheckInActivityInfo
     fun isCatalogActivity(session: PrototypeSession): Boolean = false
+    fun avatarUri(userId: String): String = ""
 }
 
 /** Compatibility adapter for previously created offline Alice activities, not a production authority. */

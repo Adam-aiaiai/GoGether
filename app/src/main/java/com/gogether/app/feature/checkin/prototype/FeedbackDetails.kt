@@ -12,8 +12,8 @@ data class FeedbackDetails(
     val positiveComment: String = "",
     val improvementComment: String = "",
 ) {
-    fun requireValid() {
-        require(positiveComment.length <= 500 && improvementComment.length <= 500) { "Keep each optional comment within 500 characters." }
+    fun requireValid(maxTextLength: Int = 100) {
+        require(positiveComment.length <= maxTextLength && improvementComment.length <= maxTextLength) { "Keep each optional comment within $maxTextLength characters." }
         require(listOf(organization, venue, atmosphere).all { it in 0..5 }) { "Rate each category from 1 to 5, or leave it blank." }
         require(tags.size == tags.distinct().size && tags.all { id -> feedbackTags.any { it.id == id } }) { "Invalid review tags. Choose again." }
         require(photos.size <= 3 && photos.distinct().size == photos.size && photos.all { photoIdPattern.matches(it) }) {
@@ -27,13 +27,15 @@ internal val photoIdPattern = Regex("[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9
 
 /** A read DTO intentionally contains no author ID or avatar when anonymous. */
 data class VisibleFeedback(val authorName: String, val anonymous: Boolean, val own: Boolean,
-    val rating: Int, val comment: String, val createdAt: Long, val details: FeedbackDetails)
+    val rating: Int, val comment: String, val createdAt: Long, val details: FeedbackDetails, val avatarUri: String = "")
 
 fun PrototypeFeedback.visibleTo(viewer: String, organizer: String,
-    authorName: String = prototypeParticipants.find { it.userId == userId }?.name ?: "Participant"): VisibleFeedback? {
+    authorName: String = prototypeParticipants.find { it.userId == userId }?.name ?: "Participant",
+    avatarUri: String = ""): VisibleFeedback? {
     if (viewer.isBlank() || (details.visibility == FeedbackVisibility.ORGANIZER_ONLY && viewer != userId && viewer != organizer)) return null
     val name = if (details.anonymous) "Anonymous participant" else authorName
-    return VisibleFeedback(name, details.anonymous, viewer == userId, rating, comment, createdAt, details)
+    return VisibleFeedback(name, details.anonymous, viewer == userId, rating, comment, createdAt, details,
+        if (details.anonymous) "" else avatarUri)
 }
 
 data class FeedbackTag(val id: String, val label: String, val improvement: Boolean = false)

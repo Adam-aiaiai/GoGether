@@ -7,7 +7,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
@@ -16,8 +15,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
@@ -121,19 +118,11 @@ fun EditProfileScreen(user: User, busy: Boolean, save: (ProfileUpdate) -> Unit, 
                     }
                 }
                 Text("Signature", fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                BasicTextField(signature, { signature = it.take(100) }, enabled = enabled,
+                AppCommentField(signature, { signature = it }, enabled = enabled,
                     textStyle = TextStyle(fontSize = 13.sp, lineHeight = 17.sp, color = MaterialTheme.colorScheme.onSurface),
-                    cursorBrush = SolidColor(AppUi.Primary), maxLines = 2,
-                    modifier = Modifier.fillMaxWidth().clip(AppUi.FieldShape).background(ProfileGray).testTag("profile_signature"),
-                    decorationBox = { input -> Column(Modifier.padding(12.dp)) {
-                        Box(Modifier.fillMaxWidth().heightIn(min = 34.dp)) {
-                            if (signature.isEmpty()) Text(DefaultSignature, fontSize = 12.sp, lineHeight = 17.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            input()
-                        }
-                        Text("${signature.length}/100", Modifier.align(Alignment.End), fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    } })
+                    minLines = 2, maxLines = 2,
+                    placeholder = { Text(DefaultSignature) },
+                    modifier = Modifier.fillMaxWidth().testTag("profile_signature"))
                 Text("Your interests", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 Category.entries.chunked(3).forEach { row ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {

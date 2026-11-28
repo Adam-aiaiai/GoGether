@@ -186,7 +186,7 @@ class RegistrationEngine(
     fun postAnnouncement(actor: String, eventId: String, content: String) {
         val event = requireOrganizer(actor, eventId)
         require(event.status == EventStatus.OPEN && now() < event.endAt) { "This event is closed." }
-        require(content.trim().length in 1..500) { "Write an announcement of 1–500 characters." }
+        require(content.trim().length in 1..100) { "Write an announcement of 1–100 characters." }
         val recipients = snapshot.registrations.filter { it.eventId == eventId && it.status in ACTIVE }.map { it.userId }.distinct()
         val time = now()
         val announcement = Announcement(newId(), eventId, actor, content.trim(), time)
@@ -204,7 +204,7 @@ class RegistrationEngine(
         require(event.statusAt(time) == EventStatus.OPEN) { "Questions are closed for this event." }
         require(actor != event.organizerId) { "Use an announcement to share information as the organizer." }
         val text = content.trim()
-        require(text.length in 1..500) { "Write a question of 1–500 characters." }
+        require(text.length in 1..100) { "Write a question of 1–100 characters." }
         require(snapshot.questions.none { it.eventId == eventId && it.authorId == actor && it.content == text }) {
             "You have already posted this question. Check the questions below."
         }
@@ -220,7 +220,7 @@ class RegistrationEngine(
         val time = now()
         require(event.statusAt(time) == EventStatus.OPEN) { "Replies are closed for this event." }
         val text = content.trim()
-        require(text.length in 1..1000) { "Write an answer of 1–1,000 characters." }
+        require(text.length in 1..100) { "Write an answer of 1–100 characters." }
         if (question.answer == text) return
         val answered = question.copy(answer = text, answeredBy = actor, answeredAt = time)
         snapshot = snapshot.copy(questions = snapshot.questions.map { if (it.id == questionId) answered else it },
@@ -236,7 +236,7 @@ class RegistrationEngine(
         require(event.status == EventStatus.OPEN && time < event.endAt) { "This event is closed." }
         require(update.meetingAt > time && update.meetingAt <= event.endAt) { "Choose a future meeting time before the event ends." }
         require(update.location.trim().length in 3..150) { "Meeting location must contain 3–150 characters." }
-        require(update.notes.length <= 1000) { "Use up to 1,000 characters for meeting notes." }
+        require(update.notes.length <= 100) { "Use up to 100 characters for meeting notes." }
         snapshot = snapshot.copy(events = snapshot.events.map {
             if (it.id == eventId) it.copy(meetingAt = update.meetingAt, meetingLocation = update.location.trim(),
                 meetingNotes = update.notes.trim(), updatedAt = time) else it
@@ -270,7 +270,7 @@ class RegistrationEngine(
         require(event.status == EventStatus.COMPLETED ||
             (event.status == EventStatus.OPEN && now() >= event.endAt)) { "Feedback opens after the event ends." }
         require(snapshot.registration(eventId, actor)?.status == RegistrationStatus.CONFIRMED) { "Join this event to leave feedback." }
-        require(rating in 1..5 && comment.length <= 500) { "Choose 1–5 stars and use up to 500 characters." }
+        require(rating in 1..5 && comment.length <= 100) { "Choose 1–5 stars and use up to 100 characters." }
         require(snapshot.feedback.none { it.eventId == eventId && it.userId == actor }) { "Feedback has already been submitted." }
         val feedback = Feedback(newId(), eventId, actor, rating, comment.trim(), now())
         snapshot = snapshot.copy(feedback = snapshot.feedback + feedback)
@@ -290,7 +290,7 @@ class RegistrationEngine(
         val ACTIVE = setOf(RegistrationStatus.CONFIRMED, RegistrationStatus.WAITLISTED)
         fun validateDraft(draft: EventDraft, now: Long, allowClosedDeadline: Boolean = false) {
             require(draft.title.trim().length in 3..80) { "Title must contain 3–80 characters." }
-            require(draft.description.trim().length in 10..2000) { "Description must contain 10–2000 characters." }
+            require(draft.description.trim().length in 10..100) { "Description must contain 10–100 characters." }
             require(draft.location.trim().length in 3..150) { "Meeting location must contain 3–150 characters." }
             require(draft.city.trim().length in 2..60) { "City must contain 2–60 characters." }
             require(draft.capacity in 2..50) { "Capacity must be 2–50, including the organizer." }
@@ -303,15 +303,15 @@ class RegistrationEngine(
                 draft.registrationDeadline <= draft.startAt) {
                 "Registration deadline must be no later than the start${if (allowClosedDeadline) "." else " and must be in the future."}"
             }
-            require(draft.notes.length <= 1000) { "Additional notes must be at most 1,000 characters." }
-            require(draft.requiredItems.length <= 500) { "Items to bring must be at most 500 characters." }
-            require(draft.spareEquipment.length <= 500) { "Spare equipment must be at most 500 characters." }
+            require(draft.notes.length <= 100) { "Additional notes must be at most 100 characters." }
+            require(draft.requiredItems.length <= 100) { "Items to bring must be at most 100 characters." }
+            require(draft.spareEquipment.length <= 100) { "Spare equipment must be at most 100 characters." }
             require(draft.imageUri.length <= 2_000) { "Event image reference is too long." }
             require(draft.meetingAt == null || draft.meetingAt <= draft.endAt) {
                 "Meeting time is after the new end time. Adjust the meeting time before saving."
             }
             require(draft.meetingLocation == null || draft.meetingLocation.trim().length in 3..150) { "Meeting location must contain 3–150 characters." }
-            require(draft.meetingNotes.length <= 1000) { "Use up to 1,000 characters for meeting notes." }
+            require(draft.meetingNotes.length <= 100) { "Use up to 100 characters for meeting notes." }
         }
     }
 }

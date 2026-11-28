@@ -32,14 +32,14 @@ class FeedbackDraftStore(private val context: Context) {
             value.optBoolean("anonymous"), if (value.optString("visibility", "PUBLIC") == "PUBLIC")
                 FeedbackVisibility.PUBLIC else FeedbackVisibility.ORGANIZER_ONLY, strings("photos"),
             value.optString("positiveComment"), value.optString("improvementComment")))
-            .also { require(it.rating in 0..5); it.details.requireValid() }
+            .also { require(it.rating in 0..5); it.details.requireValid(maxTextLength = 500) }
     }
 
     /** Commit before acknowledging or deleting photos; no delayed writer can resurrect a submitted draft. */
     fun save(actor: String, sessionId: String, draft: FeedbackDraft) = synchronized(FeedbackStorageLock.monitor) {
         if (PreferencesPrototypeStore(context).feedback(sessionId, actor) != null) return@synchronized
         require(draft.rating in 0..5)
-        draft.details.requireValid()
+        draft.details.requireValid(maxTextLength = 500)
         require(draft.details.photos.all { FeedbackPhotoStore(context).isOwned(it, actor, sessionId) }) {
             "This photo is no longer available. Remove it and choose it again."
         }

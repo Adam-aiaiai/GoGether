@@ -51,14 +51,14 @@ class RegistrationEngineTest {
     }
     @Test fun invalidCreationFieldsAreRejectedAtomically() {
         val invalid = listOf(draft.copy(title = "  "), draft.copy(title = "x".repeat(81)),
-            draft.copy(description = "short"), draft.copy(description = "x".repeat(2001)),
+            draft.copy(description = "short"), draft.copy(description = "x".repeat(101)),
             draft.copy(location = " "), draft.copy(city = ""), draft.copy(capacity = 1),
             draft.copy(capacity = 51), draft.copy(startAt = time),
             draft.copy(endAt = draft.startAt),
             draft.copy(endAt = draft.startAt + 24 * 60 * 60 * 1000L + 1),
             draft.copy(registrationDeadline = time), draft.copy(registrationDeadline = draft.startAt + 1),
-            draft.copy(notes = "x".repeat(1001)), draft.copy(requiredItems = "x".repeat(501)),
-            draft.copy(spareEquipment = "x".repeat(501)), draft.copy(imageUri = "x".repeat(2001)))
+            draft.copy(notes = "x".repeat(101)), draft.copy(requiredItems = "x".repeat(101)),
+            draft.copy(spareEquipment = "x".repeat(101)), draft.copy(imageUri = "x".repeat(2001)))
         invalid.forEach { invalidDraft -> failure { engine.createEvent("u1", invalidDraft) } }
     }
     @Test fun creationAcceptsDeadlineAtStart() {
@@ -221,7 +221,7 @@ class RegistrationEngineTest {
         time = event.endAt
         failure { engine.submitFeedback("u3", event.id, 5, "") }
         failure { engine.submitFeedback("u2", event.id, 6, "") }
-        failure { engine.submitFeedback("u2", event.id, 5, "x".repeat(501)) }
+        failure { engine.submitFeedback("u2", event.id, 5, "x".repeat(101)) }
         engine.submitFeedback("u2", event.id, 4, "Enjoyed it")
         failure { engine.submitFeedback("u2", event.id, 5, "Again") }
     }

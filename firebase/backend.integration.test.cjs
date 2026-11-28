@@ -265,3 +265,52 @@ test('profile images upload with owner checks, survive account reload and respec
  assert.equal(visible.gender,'NON_BINARY');assert.equal(visible.avatarUri,path);
  await alice.call('updateProfile',{name:'Alice with photos',interests:[],avatarUri:'',coverUri:'',signature:'',gender:'UNDISCLOSED',showGender:false});
 });
+
+test('current profile avatars reach reviews and attendance while anonymous reviews redact them',async()=>{
+ const first='profiles/'+bob.uid+'/'+randomUUID(),second='profiles/'+bob.uid+'/'+randomUUID();
+ await uploadBytes(ref(bob.storage,first),png,{contentType:'image/png'});
+ await uploadBytes(ref(bob.storage,second),png,{contentType:'image/png'});
+ await bob.call('updateProfile',{name:'Bob',interests:[],avatarUri:first});
+ const named=await event(),anon=await event();
+ for(const e of [named,anon]){
+  await bob.call('join',{eventId:e.id});
+  await db.doc('events/'+e.id).update({startAt:Date.now()-7200000,endAt:Date.now()-1000});
+  await bob.call('submitFeedback',{eventId:e.id,rating:4,comment:'Friendly group',details:{anonymous:e.id===anon.id,visibility:'PUBLIC',photos:[],tags:[],organization:4,venue:4,atmosphere:4}});
+ }
+ async function verify(path){
+  const roster=(await alice.call('attendance',{eventId:named.id})).attendees;
+  assert.equal(roster.find(p=>p.userId===bob.uid).avatarUri,path);
+  for(const viewer of [alice,bob,finn]){
+   assert.equal((await viewer.call('reviews',{eventId:named.id})).reviews[0].avatarUri,path);
+   const hidden=(await viewer.call('reviews',{eventId:anon.id})).reviews[0];
+   assert.equal(hidden.avatarUri,'');assert.equal(hidden.authorName,'Anonymous participant');
+   assert.ok(!JSON.stringify(hidden).includes(bob.uid));
+  }
+  assert.equal((await bob.call('eventInfo',{eventId:named.id})).ownFeedback.avatarUri,path);
+  assert.equal((await bob.call('eventInfo',{eventId:anon.id})).ownFeedback.avatarUri,'');
+ }
+ await verify(first);
+ await bob.call('updateProfile',{name:'Bob',interests:[],avatarUri:second});
+ await verify(second);
+ await expectCode(finn.call('attendance',{eventId:named.id}),'permission-denied');
+ await bob.call('updateProfile',{name:'Bob',interests:[],avatarUri:''});
+});
+
+
+test('new free-form submissions accept 100 characters and reject 101 at the server',async()=>{
+ const e=await event(),limit='x'.repeat(100),over='x'.repeat(101);
+ await bob.call('join',{eventId:e.id});
+ await expectCode(alice.call('postAnnouncement',{eventId:e.id,content:over}),'invalid-argument');
+ await alice.call('postAnnouncement',{eventId:e.id,content:limit});
+ await expectCode(bob.call('askQuestion',{eventId:e.id,content:over}),'invalid-argument');
+ const question=await bob.call('askQuestion',{eventId:e.id,content:limit});
+ await expectCode(alice.call('answerQuestion',{eventId:e.id,questionId:question.id,content:over}),'invalid-argument');
+ await alice.call('answerQuestion',{eventId:e.id,questionId:question.id,content:limit});
+ await expectCode(alice.call('updateMeeting',{eventId:e.id,meetingAt:e.startAt,location:e.location,notes:over}),'invalid-argument');
+ await alice.call('updateMeeting',{eventId:e.id,meetingAt:e.startAt,location:e.location,notes:limit});
+ await db.doc('events/'+e.id).update({startAt:Date.now()-7200000,endAt:Date.now()-1000});
+ await expectCode(bob.call('submitFeedback',{eventId:e.id,rating:4,comment:over}),'invalid-argument');
+ await expectCode(bob.call('submitFeedback',{eventId:e.id,rating:4,comment:limit,details:{positiveComment:over}}),'invalid-argument');
+ const saved=(await bob.call('submitFeedback',{eventId:e.id,rating:4,comment:limit,details:{positiveComment:limit,improvementComment:limit}})).feedback;
+ assert.equal(saved.comment.length,100);assert.equal(saved.details.positiveComment.length,100);
+});

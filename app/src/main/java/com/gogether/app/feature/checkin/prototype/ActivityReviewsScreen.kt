@@ -35,7 +35,7 @@ internal fun ActivityReviewsScreen(actor: String, session: PrototypeSession, rev
             verticalArrangement = Arrangement.spacedBy(50.dp)) {
             itemsIndexed(reviews) { index, review ->
                 SavedReviewItem(review.authorName, review.own, review.rating, review.comment, review.createdAt,
-                    review.details, Modifier.testTag("activity_review_$index")) {
+                    review.details, Modifier.testTag("activity_review_$index"), avatarUri = review.avatarUri) {
                     FeedbackPhotoStrip(review.details.photos, actor, session.id, showHeader = false)
                 }
             }

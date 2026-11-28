@@ -12,7 +12,7 @@ class PrototypeFeedbackTest {
         time = session.endAt
         val details = FeedbackDetails(5, 3, 4, listOf("welcoming", "more_guidance"),
             positiveComment = "Friendly teammates.", improvementComment = "More warm-up time.")
-        for (bad in listOf(details.copy(positiveComment = "x".repeat(501)), details.copy(improvementComment = "x".repeat(501)), details.copy(venue = 6), details.copy(organization = -1),
+        for (bad in listOf(details.copy(positiveComment = "x".repeat(101)), details.copy(improvementComment = "x".repeat(101)), details.copy(venue = 6), details.copy(organization = -1),
             details.copy(tags = listOf("unknown")), details.copy(tags = listOf("welcoming", "welcoming")))) {
             assertThrows(IllegalArgumentException::class.java) { backend().submitFeedback("bob", session.id, 4, "", bad) }
             assertNull(backend().history("bob").single().feedback)
@@ -79,10 +79,10 @@ class PrototypeFeedbackTest {
         for (rating in listOf(0, 6)) assertThrows(IllegalArgumentException::class.java) {
             backend().submitFeedback("bob", session.id, rating, "")
         }
-        assertThrows(IllegalArgumentException::class.java) { backend().submitFeedback("bob", session.id, 5, "a".repeat(501)) }
+        assertThrows(IllegalArgumentException::class.java) { backend().submitFeedback("bob", session.id, 5, "a".repeat(101)) }
         assertNull(backend().history("bob").single().feedback)
-        backend().submitFeedback("bob", session.id, 1, "a".repeat(500))
-        assertEquals(500, backend().history("bob").single().feedback!!.comment.length)
+        backend().submitFeedback("bob", session.id, 1, "a".repeat(100))
+        assertEquals(100, backend().history("bob").single().feedback!!.comment.length)
     }
 
     @Test fun conflictingMetadataCannotRewriteAnExistingEventsEndTime() {

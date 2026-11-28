@@ -26,6 +26,23 @@ class RegistrationAttendanceBridgeTest {
     private fun raw(s: PrototypeSession) = PrototypeCodeCodec.encode(bridge.backend.issue("alice", s, fix))
     private fun rejects(action: () -> Unit) { assertThrows(IllegalArgumentException::class.java, action) }
 
+    @Test fun profilePhotoChangesReachRosterAndExistingReviews() = runTest {
+        val s = prepare()
+        repo.login("bob").getOrThrow()
+        repo.updateProfile(ProfileUpdate("Bob", emptySet(), avatarUri = "file:///first.jpg")).getOrThrow()
+        assertEquals("file:///first.jpg", bridge.participants(s.id).single { it.userId == "bob" }.avatarUri)
+        time = s.endAt
+        bridge.prepareFeedback("bob", "event-1")
+        bridge.backend.submitFeedback("bob", s.id, 4, "Friendly group", FeedbackDetails())
+        assertEquals("file:///first.jpg", bridge.backend.reviews("bob", s).single().avatarUri)
+        repo.updateProfile(ProfileUpdate("Bob", emptySet(), avatarUri = "file:///second.jpg")).getOrThrow()
+        assertEquals("file:///second.jpg", bridge.backend.reviews("bob", s).single().avatarUri)
+        repo.login("alice").getOrThrow()
+        assertEquals("file:///second.jpg", bridge.backend.attendance("alice", s).single { it.userId == "bob" }.avatarUri)
+        bridge.prepareFeedback("alice", "event-1")
+        assertEquals("file:///second.jpg", bridge.backend.reviews("alice", s).single().avatarUri)
+    }
+
     @Test fun liveCancellationAndPromotionDriveBothRosterAndEligibility() = runTest {
         val s = prepare(); val code = raw(s)
         repo.login("emma").getOrThrow()

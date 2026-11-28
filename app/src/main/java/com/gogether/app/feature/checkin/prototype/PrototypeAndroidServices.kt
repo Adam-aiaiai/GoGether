@@ -125,7 +125,7 @@ class PreferencesPrototypeStore(private val context: Context) : PrototypeStore {
     override fun saveFeedback(feedback: PrototypeFeedback) = synchronized(writeLock) {
         val key = "feedback.${feedback.sessionId}.${feedback.userId}"
         require(!prefs.contains(key)) { "You have already reviewed this event." }
-        feedback.details.requireValid()
+        feedback.details.requireValid(maxTextLength = 500)
         val photoStore = FeedbackPhotoStore(context)
         require(feedback.details.photos.all { photoStore.isOwned(it, feedback.userId, feedback.sessionId) }) { "This photo is no longer available. Remove it and choose it again." }
         val draftPhotos = runCatching { FeedbackDraftStore(context).load(feedback.userId, feedback.sessionId).details.photos }.getOrDefault(emptyList())

@@ -64,8 +64,7 @@ internal fun ParticipantSearchSheet(people: List<PrototypeAttendee>, dismiss: ()
                             }
                             .padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Box(Modifier.size(48.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
-                                contentAlignment = Alignment.Center) { Text(person.name.take(1).uppercase()) }
+                            com.gogether.app.feature.profile.ParticipantAvatar(person.name, person.avatarUri, Modifier.size(48.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(person.name, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                 Text(if (person.checkedInAt == null) "Not checked in" else "Checked in", style = MaterialTheme.typography.bodySmall,

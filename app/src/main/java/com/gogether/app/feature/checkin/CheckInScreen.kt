@@ -42,7 +42,7 @@ fun CheckInScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
                         (1..5).forEach { score -> AppFilterChip(rating == score, { rating = score }, label = { Text("$score") }) }
                     }
                     AppCommentField(comment, { comment = it }, label = { Text("Comment (optional)") }, minLines = 3,
-                        supportingText = { Text("Up to 500 characters") }, modifier = Modifier.fillMaxWidth())
+                        modifier = Modifier.fillMaxWidth())
                     PageActionButton(onClick = { feedback(rating, comment) }, enabled = !busy && FeedbackInput.valid(rating, comment),
                         modifier = Modifier.fillMaxWidth()) { Text("Submit feedback") }
                 }

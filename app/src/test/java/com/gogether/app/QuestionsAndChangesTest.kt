@@ -61,7 +61,7 @@ class QuestionsAndChangesTest {
     @Test fun blankOversizedDuplicateAndMissingTargetsDoNotMutate() = runTest {
         val repo = repo(); repo.login("finn").getOrThrow()
         val initial = repo.state.value
-        for (content in listOf("  ", "x".repeat(501))) assertTrue(repo.askQuestion("event-1", content).isFailure)
+        for (content in listOf("  ", "x".repeat(101))) assertTrue(repo.askQuestion("event-1", content).isFailure)
         assertTrue(repo.askQuestion("missing", "Question").isFailure)
         assertEquals(initial, repo.state.value)
         repo.askQuestion("event-1", "Question").getOrThrow()
@@ -73,7 +73,7 @@ class QuestionsAndChangesTest {
         assertTrue(repo.askQuestion("event-1", "My own event").isFailure)
         assertTrue(repo.answerQuestion("missing", "Answer").isFailure)
         val id = repo.state.value.questions.single().id
-        for (content in listOf(" ", "x".repeat(1001))) assertTrue(repo.answerQuestion(id, content).isFailure)
+        for (content in listOf(" ", "x".repeat(101))) assertTrue(repo.answerQuestion(id, content).isFailure)
         assertEquals(organizer, repo.state.value)
     }
 

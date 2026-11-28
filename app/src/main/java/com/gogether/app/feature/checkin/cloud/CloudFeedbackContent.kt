@@ -61,8 +61,8 @@ internal fun CloudFeedbackContent(backend:CloudOperations,event:Event,actor:Stri
         FeedbackEditor("$actor/${event.id}", ReviewEventSummary(event.title,organizerName,event.startAt,event.imageUri,event.category.symbol),
             draft,busy,draftError,statusMessage,::update,{update(draft)},submit={perform {
             val submitted=draft
-            require(submitted.rating in 1..5 && submitted.comment.length<=500){"Choose a rating and use up to 500 characters."}
-            submitted.details.requireValid()
+            require(submitted.rating in 1..5 && submitted.comment.length<=100){"Choose a rating and use up to 100 characters."}
+            submitted.details.requireValid(maxTextLength = 100)
             val paths=withContext(Dispatchers.IO){submitted.details.photos.map { id ->
                 require(photos.isOwned(id,actor,event.id)){"A photo is missing. Remove it and choose it again."}
                 val file=File(context.filesDir,"feedback_photos/$id.jpg")
@@ -152,7 +152,7 @@ private fun CloudReviewCard(backend:CloudOperations,value:Map<*,*>,own:Boolean, 
     val detail=details(value.map("details"))
     val label=value.string("authorName").ifBlank{if(own) "You" else "Participant"}
     SavedReviewItem(label,own,value.number("rating").toInt(),value.string("comment"),
-        value.number("createdAt"),detail,modifier) { CloudReviewPhotos(backend, detail.photos) }
+        value.number("createdAt"),detail,modifier,avatarUri=value.string("avatarUri")) { CloudReviewPhotos(backend, detail.photos) }
 }
 
 /** Keep protected media scoped to this viewer/review composition; never use a public URL. */

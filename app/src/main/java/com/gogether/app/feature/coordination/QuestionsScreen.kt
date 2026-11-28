@@ -35,10 +35,10 @@ fun QuestionsScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
         else if (!organizer) {
             AppCommentField(draft, { draft = it }, enabled = !busy,
                 label = { Text("Your question") }, minLines = 2,
-                maxLength = 500, isError = draft.trim().length > 500,
+                isError = draft.length > 100,
                 modifier = Modifier.fillMaxWidth().testTag("question_input"))
             PageActionButton(onClick = { ask(draft) { draft = ""; unanswered = false } },
-                enabled = !busy && draft.trim().length in 1..500,
+                enabled = !busy && draft.trim().length in 1..100,
                 modifier = Modifier.fillMaxWidth().testTag("post_question")) {
                 Text(if (busy) "Sending…" else "Ask organizer")
             }
@@ -61,11 +61,10 @@ fun QuestionsScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
                     if (editingId == question.id) {
                         AppCommentField(answerDraft, { answerDraft = it }, enabled = !busy,
                             label = { Text("Your answer") }, minLines = 2,
-                            maxLength = 1000,
-                            isError = answerDraft.trim().length > 1000,
+                            isError = answerDraft.length > 100,
                             modifier = Modifier.fillMaxWidth().testTag("answer_input"))
                         PageActionButton(onClick = { answer(question.id, answerDraft) { editingId = null; answerDraft = "" } },
-                            enabled = !busy && answerDraft.trim().length in 1..1000 && answerDraft.trim() != question.answer,
+                            enabled = !busy && answerDraft.trim().length in 1..100 && answerDraft.trim() != question.answer,
                             modifier = Modifier.testTag("send_answer_${question.id}")) {
                             Text(if (busy) "Saving…" else "Save answer")
                         }

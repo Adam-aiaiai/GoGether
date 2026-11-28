@@ -148,7 +148,10 @@ fun ParticipantsCard(event: Event, state: AppSnapshot, modifier: Modifier = Modi
                                         .then(if (visible) Modifier else Modifier.clearAndSetSemantics {}),
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                 ) {
-                                    InitialAvatar(name, AvatarColors[colorIndex], Modifier
+                                    val photo = state.users.find { it.id == participant.userId }?.avatarUri.orEmpty()
+                                    if (photo.isNotBlank()) com.gogether.app.feature.profile.ParticipantAvatar(name, photo, Modifier
+                                        .size(avatarSize).testTag("participant_avatar_${participant.userId}"))
+                                    else InitialAvatar(name, AvatarColors[colorIndex], Modifier
                                         .size(avatarSize).testTag("participant_avatar_${participant.userId}"))
                                     if (showingRow) {
                                         Spacer(Modifier.height(8.dp))
