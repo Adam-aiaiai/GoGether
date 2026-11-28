@@ -44,17 +44,16 @@ class PrototypeCheckInActivity : ComponentActivity() {
         val entry = try { CheckInEntryIntent.read(intent) } catch (_: IllegalArgumentException) { finish(); return }
         val identity = CheckInIdentitySource { (application as GogetherApplication).repository.state.value.currentUserId }
         val store = PreferencesPrototypeStore(applicationContext)
-        val linked = RegistrationAttendanceBridge({ (application as GogetherApplication).repository.state.value }, store,
-            elapsedNow = SystemClock::elapsedRealtime)
+        val linked = RegistrationAttendanceBridge({ (application as GogetherApplication).repository.state.value }, store)
         val registrations = CombinedCheckInRegistrations(store, linked, StoredMockCheckInRegistrations(store))
         val backend = CombinedCheckInBackend(store, linked.backend,
-            LocalPrototypeBackend(store, elapsedNow = SystemClock::elapsedRealtime, registrations = registrations,
+            LocalPrototypeBackend(store,  registrations = registrations,
                 userName = { id -> (application as GogetherApplication).repository.state.value.users
                     .find { it.id == id }?.displayName ?: "Participant" }))
         model = ViewModelProvider(this, RepositoryViewModel.factory {
             PrototypeViewModel(actor,
                 backend,
-                AndroidPositionSource(applicationContext), store.latestReceipt(actor), entry = entry, identity = identity,
+                store.latestReceipt(actor), entry = entry, identity = identity,
                 registrations = registrations, pendingSubmissions = PreferencesPendingCheckInStore(applicationContext))
         })[PrototypeViewModel::class.java]
         // Keep this lightweight identity watch active while the external camera covers this Activity.
@@ -75,8 +74,11 @@ class PrototypeCheckInActivity : ComponentActivity() {
                     onDispose { window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
                 }
                 val current = state.session ?: state.participantSession
-                PrototypeRoute(model, state, now, ::finish,
-                    integrated = current?.let { store.activityInfo(it.id)?.sourceEventId != null } == true)
+                val social = remember { com.gogether.app.feature.social.RepositorySocialGateway(this, (application as GogetherApplication).repository) }
+                CompositionLocalProvider(com.gogether.app.feature.social.LocalSocialGateway provides social) {
+                    PrototypeRoute(model, state, now, ::finish,
+                        integrated = current?.let { store.activityInfo(it.id)?.sourceEventId != null } == true)
+                }
             }
         }
     }
@@ -98,6 +100,7 @@ private enum class PermissionAction { MEETING, DISPLAY, SCAN }
 internal fun PrototypeRoute(model: PrototypeViewModel, state: PrototypeUiState, now: Long, back: () -> Unit,
     integrated: Boolean = false) {
     val context = LocalContext.current
+    com.gogether.app.feature.social.ObserveSocialChanges { model.refreshLiveData() }
     var pending by rememberSaveable { mutableStateOf<PermissionAction?>(null) }
     var scanRequest by rememberSaveable(model.actor) { mutableStateOf<Long?>(null) }
     val scanner = rememberLauncherForActivityResult(ScanContract()) { result ->
@@ -107,7 +110,7 @@ internal fun PrototypeRoute(model: PrototypeViewModel, state: PrototypeUiState, 
     fun perform(action: PermissionAction) {
         if (!model.refreshIdentity()) return
         when (action) {
-            PermissionAction.MEETING -> model.locateMeeting()
+            PermissionAction.MEETING -> model.prepareMeeting()
             PermissionAction.DISPLAY -> model.showCode()
             PermissionAction.SCAN -> scanner.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE)
                 .setPrompt("Scan the organizer's check-in code").setBeepEnabled(false).setOrientationLocked(false))
@@ -117,24 +120,20 @@ internal fun PrototypeRoute(model: PrototypeViewModel, state: PrototypeUiState, 
     val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         val action = pending
         pending = null
-        if (action != null && granted(Manifest.permission.ACCESS_FINE_LOCATION) &&
-            (action != PermissionAction.SCAN || granted(Manifest.permission.CAMERA))) perform(action)
+        if (action != null && (action != PermissionAction.SCAN || granted(Manifest.permission.CAMERA))) perform(action)
         else {
             model.abandonScan(); scanRequest = null
-            model.message("Precise location is required; scanning also needs camera access. Go back or allow access in app settings and try again.")
+            model.message("Allow camera access to scan the organizer's code.")
         }
     }
     fun request(action: PermissionAction, general: Boolean = false) {
         if (pending != null || state.busy) return
         if (!model.refreshIdentity()) return
         if (action == PermissionAction.SCAN) scanRequest = model.beginScan(general) ?: return
-        if (granted(Manifest.permission.ACCESS_FINE_LOCATION) &&
-            (action != PermissionAction.SCAN || granted(Manifest.permission.CAMERA))) perform(action)
+        if (action != PermissionAction.SCAN || granted(Manifest.permission.CAMERA)) perform(action)
         else {
             pending = action
-            val needed = mutableListOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION)
-            if (action == PermissionAction.SCAN) needed += Manifest.permission.CAMERA
-            permissions.launch(needed.toTypedArray())
+            permissions.launch(arrayOf(Manifest.permission.CAMERA))
         }
     }
     CompositionLocalProvider(LocalCheckInActivities provides model.activitySource) {
@@ -147,7 +146,7 @@ internal fun PrototypeRoute(model: PrototypeViewModel, state: PrototypeUiState, 
         openHistory = model::openHistory, submitFeedback = model::submitFeedback, dismissNotice = model::dismissNotice,
         scanOther = { request(PermissionAction.SCAN, general = true) }, selectActivity = model::enterActivity,
         refreshAttendance = model::refreshAttendance, stopAttendance = model::stopAttendance, loadReviews = model::loadReviews,
-        retryLocation = model::retryLocation, resolveCheckIn = model::resolveCheckIn,
+        resolveCheckIn = model::resolveCheckIn,
         pendingActivities = state.history.filter { model.hasPendingCheckIn(it.session) }.map { it.session.id }.toSet(),
         integrated = integrated)
     }
@@ -161,7 +160,7 @@ fun PrototypeScreen(actor: String, state: PrototypeUiState, now: Long, back: () 
     dismissNotice: (Long) -> Unit = {}, scanOther: () -> Unit = scan,
     selectActivity: (PrototypeSession) -> Unit = {},
     refreshAttendance: (PrototypeSession) -> Unit = {}, stopAttendance: () -> Unit = {},
-    loadReviews: (PrototypeSession) -> Unit = {}, retryLocation: () -> Unit = {}, resolveCheckIn: () -> Unit = {},
+    loadReviews: (PrototypeSession) -> Unit = {}, resolveCheckIn: () -> Unit = {},
     pendingActivities: Set<String> = state.pendingSubmission?.let { setOf(it.session.id) }.orEmpty(),
     integrated: Boolean = false) {
     if (state.identityExpired || (state.ownerUserId != null && state.ownerUserId != actor)) {
@@ -213,7 +212,7 @@ fun PrototypeScreen(actor: String, state: PrototypeUiState, now: Long, back: () 
             } else if (!organizerMode) {
                 ParticipantCheckInPanel(actor, state, now, back, scan, ::viewHistory, settings,
                     record = { id -> historySessionId = id; openHistory(); historyOpen = true }, scanOther = scanOther,
-                    retryLocation = retryLocation, resolveCheckIn = resolveCheckIn)
+                    resolveCheckIn = resolveCheckIn)
             } else Page {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     AppBackButton(back)
@@ -222,16 +221,16 @@ fun PrototypeScreen(actor: String, state: PrototypeUiState, now: Long, back: () 
                 SectionTitle(if (organizerMode) "Event check-in" else "Scan to check in", "Account: $actor")
                 if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                 Text(if (state.entry is CheckInEntry.Activity) "Organizer check-in details are unavailable. Go back and check the event."
-                    else "Confirm the meeting point on site. It stays fixed when your phone moves. The event starts in 10 minutes.")
+                    else "Create a local test event. It starts in 10 minutes. Confirm arrival when displaying its code.")
                 PageActionButton(onClick = locate, enabled = !state.busy && state.entry !is CheckInEntry.Activity,
-                    modifier = Modifier.fillMaxWidth().testTag("prototype_meeting")) { Text("Locate meeting point") }
+                    modifier = Modifier.fillMaxWidth().testTag("prototype_meeting")) { Text("Prepare test event") }
                 if (organizerMode && state.session == null)
                     CheckInInfoCard("Status", state.message, Modifier.testTag("prototype_status"))
                 state.receipt?.let {
                     CheckInInfoCard("Last check-in on this device", "Event ${it.sessionId.take(8)}\n${it.userId}\n${checkInDisplayTime(it.checkedInAt)}",
                         Modifier.testTag("prototype_receipt"))
                 }
-                CheckInInfoCard("Why we need your location", "Organizers and participants must be within 200 m of the fixed meeting point. Location is used only for actions on this page. Allow precise location; scanning also requires camera access.")
+                CheckInInfoCard("Check-in", "A confirmed place and a valid code are required. Camera access is requested only when scanning.")
                 TextButton(shape = CheckInStyle.shape, onClick = settings) { Text("Open permission settings") }
             }
             if (!historyOpen) state.notice?.let {
@@ -239,23 +238,22 @@ fun PrototypeScreen(actor: String, state: PrototypeUiState, now: Long, back: () 
             }
         }
     }
-    state.candidate?.let { fix ->
-        CheckInActionDialog(title = "Confirm meeting point?",
-            description = "Create a new event at your current location. The meeting point stays fixed; participants must scan the new event code.\n" +
-                "Estimated location accuracy: ${fix.accuracyMeters.toInt()} m.",
-            action = "Confirm meeting point", onDismiss = dismissMeeting, onConfirm = confirmMeeting,
+    if (state.creatingMeeting) {
+        CheckInActionDialog(title = "Prepare test event?",
+            description = "Create a local event for testing check-in. Existing records will be kept.",
+            action = "Prepare event", onDismiss = dismissMeeting, onConfirm = confirmMeeting,
             confirmEnabled = !state.busy)
     }
-    if (confirmNew) CheckInConfirmDialog("Create another event?", "This creates a new event and meeting point. Existing check-in records are kept.",
-        "Retry location", { confirmNew = false }, { confirmNew = false; locate() })
-    if (confirmCancel) CheckInConfirmDialog("Cancel this event?", "Stop issuing codes. Existing codes expire within 30 seconds.",
+    if (confirmNew) CheckInConfirmDialog("Create another event?", "This creates a new test event. Existing check-in records are kept.",
+        "Prepare event", { confirmNew = false }, { confirmNew = false; locate() })
+    if (confirmCancel) CheckInConfirmDialog("Cancel this event?", "Close check-in and invalidate existing codes.",
         "Confirm cancellation", { confirmCancel = false }, { confirmCancel = false; cancel() })
 }
 
 @Composable
 internal fun MeetingSummary(session: PrototypeSession) {
     CheckInInfoCard("Meeting point ${session.id.take(8)}",
-        "Location confirmed by the organizer on site (stays fixed)" +
+        "Confirm arrival when displaying the check-in code" +
             "\nStarts: ${checkInDisplayTime(session.startAt)}\nCheck-in: ${checkInDisplayTime(session.startAt - PrototypePolicy.HALF_HOUR_MS)} to " +
             checkInDisplayTime(session.startAt + PrototypePolicy.HALF_HOUR_MS))
 }

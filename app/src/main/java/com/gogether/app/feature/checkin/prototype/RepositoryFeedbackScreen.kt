@@ -36,9 +36,10 @@ internal fun RepositoryFeedbackScreen(repository: GogetherRepository, bridge: Re
     val context = LocalContext.current
     val instance = remember(actor, session.id) { java.util.UUID.randomUUID().toString() }
     val model: PrototypeViewModel = viewModel(key = "feedback:$instance", factory = RepositoryViewModel.factory {
-        PrototypeViewModel(actor, bridge.backend, AndroidPositionSource(context), entry = CheckInEntry.Activity(session),
+        PrototypeViewModel(actor, bridge.backend, entry = CheckInEntry.Activity(session),
             identity = CheckInIdentitySource { repository.state.value.currentUserId }, registrations = bridge)
     })
+    com.gogether.app.feature.social.ObserveSocialChanges { model.refreshLiveData() }
     val state by model.state.collectAsStateWithLifecycle()
     LaunchedEffect(snapshot) { model.refreshLiveData(); model.openHistory() }
     val lifecycle = LocalLifecycleOwner.current.lifecycle

@@ -10,7 +10,7 @@ class PendingCheckInStoreTest {
     @Test fun pendingRequestsSurviveRecreationAndStayIsolatedByAccountAndActivity() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val store = PreferencesPendingCheckInStore(context)
-        val session = PrototypeSession(UUID.randomUUID().toString(), MeetingPoint(31.27, 120.74), 1000, 5000)
+        val session = PrototypeSession(UUID.randomUUID().toString(), 1000, 5000)
         val bob = CheckInAttempt(UUID.randomUUID().toString(), "bob", session)
         val carol = bob.copy(id = UUID.randomUUID().toString(), actor = "carol")
         val other = bob.copy(id = UUID.randomUUID().toString(), session = session.copy(id = UUID.randomUUID().toString()))

@@ -1,19 +1,6 @@
 package com.gogether.app.feature.checkin.prototype
 
-import android.Manifest
 import android.content.Context
-import android.content.pm.PackageManager
-import android.location.Location
-import android.location.LocationListener
-import android.location.LocationManager
-import android.os.Bundle
-import android.os.Looper
-import android.os.SystemClock
-import androidx.core.content.ContextCompat
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withTimeoutOrNull
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 import org.json.JSONObject
 import org.json.JSONArray
 
@@ -78,11 +65,18 @@ class PreferencesPrototypeStore(private val context: Context) : PrototypeStore {
     }
     override fun receipt(sessionId: String, userId: String): PrototypeReceipt? {
         val time = prefs.getLong("receipt.$sessionId.$userId", 0)
-        return if (time > 0) PrototypeReceipt(sessionId, userId, time) else null
+        return if (time > 0) PrototypeReceipt(sessionId, userId, time,
+            prefs.getString("receipt-key.$sessionId.$userId", null), prefs.getBoolean("receipt-host.$sessionId.$userId", false)) else null
     }
     override fun save(receipt: PrototypeReceipt) = synchronized(writeLock) {
-        require(this.receipt(receipt.sessionId, receipt.userId) == null) { "You are already checked in." }
-        require(prefs.edit().putLong("receipt.${receipt.sessionId}.${receipt.userId}", receipt.checkedInAt).commit()) {
+        val previous = this.receipt(receipt.sessionId, receipt.userId)
+        require(previous == null || previous.registrationKey != receipt.registrationKey) { "You are already checked in." }
+        val edit = prefs.edit()
+        previous?.let { edit.putString("receipt-archive.${it.sessionId}.${it.userId}.${it.registrationKey ?: it.checkedInAt}",
+            JSONObject().put("at", it.checkedInAt).put("registrationKey", it.registrationKey).put("organizer", it.organizer).toString()) }
+        require(edit.putLong("receipt.${receipt.sessionId}.${receipt.userId}", receipt.checkedInAt)
+            .putString("receipt-key.${receipt.sessionId}.${receipt.userId}", receipt.registrationKey)
+            .putBoolean("receipt-host.${receipt.sessionId}.${receipt.userId}", receipt.organizer).commit()) {
             "Could not save check-in. Try again."
         }
     }
@@ -101,7 +95,13 @@ class PreferencesPrototypeStore(private val context: Context) : PrototypeStore {
             val id = it.key.removePrefix("member.").removeSuffix(".$userId")
             prefs.getString("session.$id", null)?.let { raw -> runCatching { PrototypeSessionStorage.decode(raw) }.getOrNull() }
         }
-    override fun feedback(sessionId: String, userId: String): PrototypeFeedback? =
+    private val social get() = com.gogether.app.feature.social.LocalSocialStore(context)
+    override fun isDeleted(id: String) = id in social.load().deleted
+    override fun isBlocked(viewer: String, author: String) = social.load().blocked(viewer, author)
+    override fun feedback(sessionId: String, userId: String): PrototypeFeedback? = rawFeedback(sessionId,userId)?.takeUnless {
+        isDeleted(it.contentId)
+    }?.let { if(it.details.anonymous) it.copy(anonymousName=social.anonymousName(activityInfo(sessionId)?.sourceEventId ?: sessionId,userId)) else it }
+    fun rawFeedback(sessionId: String, userId: String): PrototypeFeedback? =
         prefs.getString("feedback.$sessionId.$userId", null)?.let {
             val value = JSONObject(it)
             val details = value.optJSONObject("details")
@@ -117,25 +117,52 @@ class PreferencesPrototypeStore(private val context: Context) : PrototypeStore {
                         else -> FeedbackVisibility.ORGANIZER_ONLY
                     },
                     if (photos == null) emptyList() else (0 until photos.length()).map { index -> photos.getString(index) },
-                    details?.optString("positiveComment").orEmpty(), details?.optString("improvementComment").orEmpty()))
+                    details?.optString("positiveComment").orEmpty(), details?.optString("improvementComment").orEmpty()),
+                "",value.optString("publicId"))
         }
+    /** Current records including tombstones; archived reviews cannot return to the public score. */
+    fun currentRawFeedbackForSession(sessionId:String):List<PrototypeFeedback> = prefs.all.keys
+        .filter {it.startsWith("feedback.$sessionId.")}
+        .mapNotNull {rawFeedback(sessionId,it.removePrefix("feedback.$sessionId."))}
+    fun rawFeedbackForSession(sessionId: String): List<PrototypeFeedback> = prefs.all.keys
+        .filter { it.startsWith("feedback.$sessionId.") || it.startsWith("feedback-archive.$sessionId.") }
+        .mapNotNull { key -> if(key.startsWith("feedback.")) rawFeedback(sessionId,key.removePrefix("feedback.$sessionId.")) else {
+            val value=JSONObject(prefs.getString(key,null)!!)
+            PrototypeFeedback(sessionId,value.getString("userId"),value.getInt("rating"),value.getString("comment"),value.getLong("createdAt"),
+                FeedbackDetails(anonymous=value.optBoolean("anonymous"),visibility=if(value.optBoolean("private")) FeedbackVisibility.ORGANIZER_ONLY else FeedbackVisibility.PUBLIC),publicId=value.optString("publicId"))
+        } }
     override fun feedbackForSession(sessionId: String): List<PrototypeFeedback> = prefs.all.keys
         .filter { it.startsWith("feedback.$sessionId.") }
         .mapNotNull { feedback(sessionId, it.removePrefix("feedback.$sessionId.")) }
+    fun reviewNotices(): List<com.gogether.app.feature.social.InteractionNotice> = prefs.all.keys
+        .filter { it.startsWith("interaction.") }.flatMap { key ->
+            val a=JSONArray(prefs.getString(key,"[]"));(0 until a.length()).map { com.gogether.app.feature.social.LocalSocialStore.decodeNotice(a.getJSONObject(it)) }
+        }
     override fun saveFeedback(feedback: PrototypeFeedback) = synchronized(writeLock) {
         val key = "feedback.${feedback.sessionId}.${feedback.userId}"
-        require(!prefs.contains(key)) { "You have already reviewed this event." }
+        require(this.feedback(feedback.sessionId, feedback.userId) == null) { "You have already reviewed this event." }
         feedback.details.requireValid(maxTextLength = 500)
         val photoStore = FeedbackPhotoStore(context)
         require(feedback.details.photos.all { photoStore.isOwned(it, feedback.userId, feedback.sessionId) }) { "This photo is no longer available. Remove it and choose it again." }
         val draftPhotos = runCatching { FeedbackDraftStore(context).load(feedback.userId, feedback.sessionId).details.photos }.getOrDefault(emptyList())
-        val value = JSONObject().put("rating", feedback.rating).put("comment", feedback.comment).put("createdAt", feedback.createdAt)
+        val value = JSONObject().put("publicId", feedback.contentId).put("rating", feedback.rating).put("comment", feedback.comment).put("createdAt", feedback.createdAt)
             .put("details", JSONObject().put("organization", feedback.details.organization).put("venue", feedback.details.venue)
                 .put("atmosphere", feedback.details.atmosphere).put("tags", JSONArray(feedback.details.tags))
                 .put("anonymous", feedback.details.anonymous).put("visibility", feedback.details.visibility.name)
                 .put("photos", JSONArray(feedback.details.photos))
                 .put("positiveComment", feedback.details.positiveComment).put("improvementComment", feedback.details.improvementComment))
-        require(prefs.edit().putString(key, value.toString())
+        val edit = prefs.edit()
+        activityInfo(feedback.sessionId)?.let { info -> info.sourceEventId?.let { eventId ->
+            val content=com.gogether.app.feature.social.SocialContent(feedback.contentId,eventId,feedback.userId,feedback.comment,feedback.createdAt,"REVIEW",anonymous=feedback.details.anonymous,private=feedback.details.visibility==FeedbackVisibility.ORGANIZER_ONLY)
+            if(content.anonymous) social.anonymousName(eventId,feedback.userId)
+            val notices=com.gogether.app.feature.social.interactionDeliveries(content,content,content,info.organizerId,social.load()::blocked)
+            // The durable delivery record and review commit together; projection never backfills old reviews.
+            edit.putString("interaction.${feedback.contentId}",JSONArray(notices.map(com.gogether.app.feature.social.LocalSocialStore::encodeNotice)).toString())
+        } }
+        rawFeedback(feedback.sessionId,feedback.userId)?.let { old ->
+            edit.putString("feedback-archive.${old.sessionId}.${old.userId}.${old.createdAt}",JSONObject().put("publicId",old.contentId).put("userId",old.userId).put("rating",old.rating).put("comment",old.comment).put("createdAt",old.createdAt).put("anonymous",old.details.anonymous).put("private",old.details.visibility==FeedbackVisibility.ORGANIZER_ONLY).toString())
+        }
+        require(edit.putString(key, value.toString())
             .remove(FeedbackDraftStore.key(feedback.userId, feedback.sessionId)).commit()) { "Could not save your review. Try again." }
         draftPhotos.filterNot { it in feedback.details.photos }.forEach {
             runCatching { photoStore.removeDraft(it, feedback.userId, feedback.sessionId) }
@@ -144,55 +171,6 @@ class PreferencesPrototypeStore(private val context: Context) : PrototypeStore {
     fun latestReceipt(userId: String): PrototypeReceipt? = prefs.all.entries
         .filter { it.key.startsWith("receipt.") && it.key.endsWith(".$userId") && it.value is Long }
         .maxByOrNull { it.value as Long }?.let {
-            PrototypeReceipt(it.key.removePrefix("receipt.").removeSuffix(".$userId"), userId, it.value as Long)
+            receipt(it.key.removePrefix("receipt.").removeSuffix(".$userId"), userId)
         }
-}
-
-fun interface PositionSource { suspend fun locate(): PositionFix }
-
-/** Foreground, bounded request; removes GPS/network listeners on success, timeout and cancellation. */
-class AndroidPositionSource(private val context: Context) : PositionSource {
-    override suspend fun locate(): PositionFix {
-        require(ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
-            PackageManager.PERMISSION_GRANTED) { "Allow precise location in settings to check the 200 m distance." }
-        val manager = context.getSystemService(LocationManager::class.java)
-        val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
-            .filter { manager.allProviders.contains(it) && manager.isProviderEnabled(it) }
-        require(providers.isNotEmpty()) { "Location services are off. Enable them and try again." }
-        var reason = "Could not get your location. Try in an open area and check location settings."
-        return withTimeoutOrNull(20_000) {
-            suspendCancellableCoroutine { continuation ->
-                val listener = object : LocationListener {
-                    override fun onLocationChanged(location: Location) {
-                        if (!continuation.isActive) return
-                        @Suppress("DEPRECATION")
-                        val mock = location.isFromMockProvider
-                        val fix = PositionFix(MeetingPoint(location.latitude, location.longitude),
-                            if (location.hasAccuracy()) location.accuracy.toDouble() else Double.NaN,
-                            location.elapsedRealtimeNanos / 1_000_000, mock)
-                        try {
-                            validatePosition(fix, SystemClock.elapsedRealtime())
-                            manager.removeUpdates(this)
-                            continuation.resume(fix)
-                        } catch (e: IllegalArgumentException) { reason = e.message ?: reason }
-                    }
-                    override fun onProviderEnabled(provider: String) = Unit
-                    override fun onProviderDisabled(provider: String) = Unit
-                    @Deprecated("Legacy Android callback")
-                    override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) = Unit
-                }
-                continuation.invokeOnCancellation { manager.removeUpdates(listener) }
-                try {
-                    providers.forEach { manager.requestLocationUpdates(it, 1_000L, 0f, listener, Looper.getMainLooper()) }
-                } catch (e: SecurityException) {
-                    manager.removeUpdates(listener)
-                    if (continuation.isActive) continuation.resumeWithException(
-                        IllegalArgumentException("Location permission has changed. Grant permission again.", e))
-                } catch (e: IllegalArgumentException) {
-                    manager.removeUpdates(listener)
-                    if (continuation.isActive) continuation.resumeWithException(e)
-                }
-            }
-        } ?: throw IllegalArgumentException(reason)
-    }
 }

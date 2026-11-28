@@ -25,7 +25,7 @@ import java.util.UUID
 class PrototypeScreenTest {
     @get:Rule val compose = createComposeRule()
     private val now = 1_800_000_000_000L
-    private val session = PrototypeSession("f23e4af8-b3ed-49ef-a7ee-d7c1cf2bf317", MeetingPoint(31.27, 120.74),
+    private val session = PrototypeSession("f23e4af8-b3ed-49ef-a7ee-d7c1cf2bf317",
         now + 600_000, now + 7_800_000)
     private var state by mutableStateOf(PrototypeUiState())
     private var time by mutableStateOf(now)
@@ -163,14 +163,15 @@ class PrototypeScreenTest {
     @Test fun participantCanScanButCannotCreateOrMoveTheMeetingPoint() {
         launch("bob")
         compose.onNodeWithTag("prototype_scan").assertIsDisplayed().performClick()
+        compose.waitForIdle()
         assertEquals(1, scanCalls)
         compose.onNodeWithTag("prototype_meeting").assertDoesNotExist()
         compose.onNodeWithTag("prototype_show").assertDoesNotExist()
-        compose.runOnIdle { state = state.copy(busy = true, message = "Getting location…") }
+        compose.runOnIdle { state = state.copy(busy = true, message = "Opening camera…") }
         compose.onNodeWithTag("prototype_scan").assertIsNotEnabled()
-        compose.runOnIdle { state = state.copy(busy = false, scanStage = ParticipantScanStage.ATTENTION, message = "Precise location permission is required") }
+        compose.runOnIdle { state = state.copy(busy = false, scanStage = ParticipantScanStage.ATTENTION, message = "Camera permission is required") }
         compose.onNodeWithTag("prototype_status").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Precise location permission is required").assertExists()
+        compose.onNodeWithText("Camera permission is required").assertExists()
         compose.onNodeWithTag("prototype_receipt").assertDoesNotExist()
     }
 

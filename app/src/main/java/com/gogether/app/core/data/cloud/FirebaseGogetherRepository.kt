@@ -110,7 +110,7 @@ class FirebaseGogetherRepository(context: Context, private val services: Firebas
         payload["notificationId"] != null -> mapOf("notificationId" to payload["notificationId"])
         else -> emptyMap()
     }
-    private val readActions = setOf("snapshot", "reviews", "attendance", "eventInfo", "resolveCheckIn", "mediaRead", "resolveRequest")
+    private val readActions = setOf("socialRead", "snapshot", "reviews", "attendance", "eventInfo", "resolveCheckIn", "mediaRead", "resolveRequest")
     private val inFlight = mutableMapOf<String, Int>()
     private fun removePending(editor: android.content.SharedPreferences.Editor, key: String) {
         editor.remove(key).remove("scope:$key").remove("sequence:$key").remove("actor:$key")

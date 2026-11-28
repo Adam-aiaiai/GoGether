@@ -44,6 +44,7 @@ class UiConsistencyJourneyTest {
         val node = compose.onNodeWithTag(tag)
         if (!tag.startsWith("nav_")) node.performScrollTo()
         node.performClick()
+        compose.waitForIdle()
     }
     private fun phone(content: @Composable () -> Unit) {
         compose.setContent {
@@ -68,8 +69,10 @@ class UiConsistencyJourneyTest {
         capture("02-create-event")
         tap("nav_profile")
         tap("edit_profile")
-        compose.onAllNodesWithText("Edit profile").assertCountEquals(1)
-        compose.onNodeWithTag("interest_STUDY").performClick().assertIsSelected()
+        compose.onNodeWithTag("edit_profile_page").assertExists()
+        compose.onNodeWithTag("edit_profile_back").assertExists()
+        compose.onNodeWithTag("save_profile").assertExists()
+        compose.onNodeWithTag("interest_STUDY").performScrollTo().performClick().assertIsSelected()
         capture("03-edit-profile")
         compose.onNodeWithContentDescription("Back").performClick()
         assertEquals(original.currentUser!!.interests, repo.state.value.currentUser!!.interests)
@@ -94,8 +97,8 @@ class UiConsistencyJourneyTest {
         tap("open_inbox")
         capture("06-notifications")
         tap("notification_open_ui-notice")
-        compose.onAllNodesWithText("Questions & answers").assertCountEquals(1)
-        compose.onNodeWithTag("question_ui-question").assertExists()
+        compose.onAllNodesWithText("Conversation").assertCountEquals(1)
+        compose.onNodeWithTag("social_item_ui-question").assertExists()
         assertEquals(original.questions, repo.state.value.questions)
     }
 
@@ -104,7 +107,7 @@ class UiConsistencyJourneyTest {
         override val sync = MutableStateFlow(CloudSyncState())
         override suspend fun refresh() = Unit
         override suspend fun call(action: String, payload: Map<String, Any?>, requestId: String?): Map<String, Any?> = when(action) {
-            "eventInfo" -> mapOf("serverNow" to clock, "meeting" to null, "receipt" to null, "ownFeedback" to null)
+            "eventInfo" -> mapOf("serverNow" to clock, "checkInReady" to true, "receipt" to mapOf("checkedInAt" to clock - 10_800_000), "ownFeedback" to null)
             "reviews" -> mapOf("reviews" to emptyList<Any>())
             "attendance" -> mapOf("attendees" to listOf(
                 mapOf("userId" to "bob", "name" to "Bob", "checkedInAt" to clock - 10_800_000),
@@ -120,7 +123,7 @@ class UiConsistencyJourneyTest {
         val event = base.event("event-history")!!.copy(id = id, title = "Campus badminton meetup", category = Category.SPORTS,
             startAt = clock - 10_800_000, endAt = clock - 3_600_000,
             location = "Sports Centre, Court 3", meetingLocation = "Sports Centre, east entrance")
-        val registrations = base.registrations.filter { it.eventId == "event-history" }.map { it.copy(eventId = id) }
+        val registrations = base.registrations.filter { it.eventId == "event-history" }.map { it.copy(eventId = id, joinedAt = event.startAt - 60_000, updatedAt = event.startAt - 60_000) }
         val repo = FakeGogetherRepository(base.copy(currentUserId = "bob", events = listOf(event), registrations = registrations))
         val backend = GalleryBackend(clock)
         var roster by mutableStateOf(false)

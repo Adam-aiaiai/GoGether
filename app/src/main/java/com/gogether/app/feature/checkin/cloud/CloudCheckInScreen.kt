@@ -62,6 +62,7 @@ private fun CloudEventContent(repository:GogetherRepository, backend:CloudOperat
     var rosterUpdatedAt by remember { mutableStateOf<Long?>(null) }
     var organizerReviewReturn by rememberSaveable { mutableStateOf<String?>(null) }
     var reviews by remember { mutableStateOf<List<Map<*,*>>>(emptyList()) }
+    var ratingSummary by remember { mutableStateOf<com.gogether.app.core.model.EventRatingSummary?>(null) }
     var busy by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
     var message by remember { mutableStateOf("") }
@@ -76,9 +77,11 @@ private fun CloudEventContent(repository:GogetherRepository, backend:CloudOperat
     val effectiveNow=serverTime+(elapsedNow-receivedAt).coerceAtLeast(0)
     val closed=event.status!=EventStatus.OPEN || effectiveNow>=event.endAt
     val confirmed=state.registration(event.id,actor)?.status==RegistrationStatus.CONFIRMED
-    val receipt=information.map("receipt")
+    val receipt=currentCloudReceipt(information.map("receipt"),state.registration(event.id,actor),event.status)
     val ownReview=information.map("ownFeedback")
-    val meeting=information.map("meeting")
+    val checkInReady=information["checkInReady"]==true
+    var confirmArrival by remember { mutableStateOf(false) }
+    var arrivalConfirmed by remember { mutableStateOf(false) }
 
     suspend fun refreshAttendance() {
         if (!organizer || rosterLoading) return
@@ -96,7 +99,9 @@ private fun CloudEventContent(repository:GogetherRepository, backend:CloudOperat
         serverTime=next.number("serverNow").takeIf{it>0}?:System.currentTimeMillis()
         receivedAt=SystemClock.elapsedRealtime()
         if(organizer) refreshAttendance()
-        reviews=backend.call("reviews",mapOf("eventId" to event.id)).rows("reviews")
+        val reviewResponse=backend.call("reviews",mapOf("eventId" to event.id))
+        reviews=reviewResponse.rows("reviews")
+        ratingSummary=reviewResponse["ratingSummary"]?.let { com.gogether.app.core.data.cloud.CloudDto.ratingSummary(com.gogether.app.core.data.cloud.CloudDto.objectValue(it)) }
         if(next.map("receipt")!=null && pending!=null) { pendingStore.clear(actor,event.id); pending=null }
         loading=false
     }
@@ -108,7 +113,7 @@ private fun CloudEventContent(repository:GogetherRepository, backend:CloudOperat
     }
     suspend fun resolvePending() {
         val attempt=pending?:return
-        val result=backend.call("resolveCheckIn",mapOf("eventId" to event.id,"attemptId" to attempt.id))
+        val result=backend.call("resolveCheckIn",mapOf("eventId" to event.id,"attemptId" to attempt.id,"registrationKey" to attempt.registrationKey))
         when(result.string("status")) {
             "SAVED" -> { pendingStore.clear(actor,event.id);pending=null;message="Check-in confirmed by the server.";refresh();backend.refresh() }
             "NOT_SUBMITTED" -> {pendingStore.clear(actor,event.id);pending=null;message="The previous attempt was not submitted. Scan again."}
@@ -117,7 +122,12 @@ private fun CloudEventContent(repository:GogetherRepository, backend:CloudOperat
     }
     suspend fun send(attempt:CloudPendingCheckIn) {
         try {
-            backend.call("submitCheckIn",mapOf("eventId" to event.id,"code" to attempt.code,"fix" to attempt.fix),attempt.id)
+            val current = repository.state.value.registration(event.id,actor)
+            if (attempt.registrationKey.isBlank() || current?.status != RegistrationStatus.CONFIRMED || attempt.registrationKey != current.attendanceKey) {
+                pendingStore.clear(actor,event.id);pending=null
+                throw IllegalArgumentException("Your registration changed. Scan again.")
+            }
+            backend.call("submitCheckIn",mapOf("eventId" to event.id,"code" to attempt.code,"registrationKey" to attempt.registrationKey),attempt.id)
             pendingStore.clear(actor,event.id);pending=null
             message="Checked in. Your attendance is saved on the server."
             refresh();backend.refresh()
@@ -129,13 +139,15 @@ private fun CloudEventContent(repository:GogetherRepository, backend:CloudOperat
             throw error
         }
     }
+    var scanRegistrationKey by remember { mutableStateOf<String?>(null) }
     val scanner=rememberLauncherForActivityResult(ScanContract()) { result ->
         result.contents?.let { raw -> perform {
             check(repository.state.value.currentUserId==actor){"The account changed. Reopen this event."}
             check(pending==null){"Resolve the previous check-in first."}
-            require(raw.startsWith("GOGETHER-CLOUD-1|")){"Scan the cloud check-in code shown by this event's organizer."}
-            val fix=AndroidPositionSource(context).locate().cloudPayload()
-            val attempt=CloudPendingCheckIn(UUID.randomUUID().toString(),raw,fix)
+            require(raw.startsWith("GOGETHER-CLOUD-2|")){"Scan the cloud check-in code shown by this event's organizer."}
+            val registration = requireNotNull(repository.state.value.registration(event.id,actor)) { "Register for this event first." }
+            require(scanRegistrationKey == registration.attendanceKey) { "Your registration changed while scanning. Scan again." }
+            val attempt=CloudPendingCheckIn(UUID.randomUUID().toString(),raw,registration.attendanceKey)
             pendingStore.save(actor,event.id,attempt);pending=attempt
             send(attempt)
         } }
@@ -145,25 +157,22 @@ private fun CloudEventContent(repository:GogetherRepository, backend:CloudOperat
         when(action) {
             "scan" -> scanner.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE)
                 .setPrompt("Scan the organizer's check-in code").setBeepEnabled(false).setOrientationLocked(false))
-            "bind" -> perform {
-                val fix=AndroidPositionSource(context).locate().cloudPayload()
-                backend.call("bindMeeting",mapOf("eventId" to event.id,"fix" to fix))
-                message="Meeting point saved on the server.";refresh();backend.refresh()
-            }
-            "code" -> showingCode=true
+            "code" -> { if (receipt == null) confirmArrival=true else showingCode=true }
         }
     }
     val permissions=rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         val action=permissionAction;permissionAction=null
-        if(action!=null && permissionGranted(Manifest.permission.ACCESS_FINE_LOCATION) &&
-            (action!="scan" || permissionGranted(Manifest.permission.CAMERA)))runPermissionAction(action)
-        else message="Allow precise location; scanning also needs camera permission."
+        if(action!=null && (action!="scan" || permissionGranted(Manifest.permission.CAMERA)))runPermissionAction(action)
+        else message="Allow camera access to scan the organizer's code."
     }
     fun request(action:String) {
-        if(permissionGranted(Manifest.permission.ACCESS_FINE_LOCATION) && (action!="scan" || permissionGranted(Manifest.permission.CAMERA)))runPermissionAction(action)
-        else {permissionAction=action;permissions.launch(if(action=="scan")arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION,Manifest.permission.CAMERA)
-            else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION))}
+        if(action=="scan") scanRegistrationKey=repository.state.value.registration(event.id,actor)?.attendanceKey
+        if(action!="scan" || permissionGranted(Manifest.permission.CAMERA))runPermissionAction(action)
+        else {permissionAction=action;permissions.launch(arrayOf(Manifest.permission.CAMERA))}
     }
+    if(confirmArrival) CheckInActionDialog("Confirm your arrival?",
+        "Your arrival will be recorded when the check-in code is successfully displayed.", "Confirm and show code",
+        {confirmArrival=false}, {confirmArrival=false;arrivalConfirmed=true;showingCode=true})
     LaunchedEffect(actor,event.id) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             try { if(pending!=null)resolvePending() }catch(cancelled:CancellationException){throw cancelled}catch(_:Exception){message="Check-in result is not confirmed. Reconnect and check the saved attempt."}
@@ -178,8 +187,10 @@ private fun CloudEventContent(repository:GogetherRepository, backend:CloudOperat
             try {
                 while(isActive) {
                     try {
-                        val result=backend.call("issueCheckInCode",mapOf("eventId" to event.id,"fix" to AndroidPositionSource(context).locate().cloudPayload()))
+                        val result=backend.call("issueCheckInCode",mapOf("eventId" to event.id,"confirmArrival" to arrivalConfirmed))
                         code=result.string("code");codeExpiresAt=result.number("expiresAt")
+                        information=information+mapOf("receipt" to result["receipt"],"checkInReady" to true)
+                        backend.refresh()
                         serverTime=result.number("serverNow");receivedAt=SystemClock.elapsedRealtime()
                     }catch(cancelled:CancellationException){throw cancelled}catch(error:Exception){code=null;message=error.message?:"Could not refresh code."}
                     delay(10_000)
@@ -196,10 +207,10 @@ private fun CloudEventContent(repository:GogetherRepository, backend:CloudOperat
         tab = if (tab == "reviews") organizerReviewReturn ?: "checkin" else "checkin"
     }
     if (tab == "reviews") {
-        CloudFeedbackContent(backend,event,actor,confirmed,closed,ownReview,reviews,busy,
+        CloudFeedbackContent(backend,event,actor,confirmed && receipt != null,closed,ownReview,reviews,busy,
             {action->perform{action();refresh();backend.refresh()}},{message=it},
             organizerName=state.users.find { it.id == event.organizerId }?.displayName ?: "Organizer",
-            back={if(organizer && organizerReviewReturn != null) tab = organizerReviewReturn!! else back()},statusMessage=message,loading=loading)
+            back={if(organizer && organizerReviewReturn != null) tab = organizerReviewReturn!! else back()},statusMessage=message,loading=loading,replacesReviewId=information.string("replacesReviewId"),ratingSummary=ratingSummary)
         return
     }
 
@@ -211,12 +222,12 @@ private fun CloudEventContent(repository:GogetherRepository, backend:CloudOperat
                 onBack = { if (attendanceOnly) back() else tab = "checkin" },
                 onReviews = { organizerReviewReturn = "attendance"; tab = "reviews" })
         } else {
-            CloudOrganizerCheckInContent(event, effectiveNow, meeting != null, code, codeExpiresAt, showingCode,
+            CloudOrganizerCheckInContent(event, effectiveNow, checkInReady, code, codeExpiresAt, showingCode,
                 loading, information.isNotEmpty(), busy, message, people, rosterLoaded, rosterLoading, rosterError,
                 onBack = back, onRefresh = { perform { refresh(); message = "Updated from the server." } },
                 onReviews = { organizerReviewReturn = "checkin"; tab = "reviews" }, onAttendance = { tab = "attendance" },
                 onShowCode = { request("code") }, onHideCode = { showingCode = false; code = null },
-                onBindMeeting = { showingCode = false; code = null; request("bind") },
+                onConfirmArrival = { request("code") },
                 extraMenuItems = { closeMenu ->
                     // Preserve existing recovery and organizer-as-participant actions without crowding the desk.
                     if (pendingError != null) DropdownMenuItem({
@@ -228,9 +239,6 @@ private fun CloudEventContent(repository:GogetherRepository, backend:CloudOperat
                         DropdownMenuItem({ Text("Retry saved attempt") }, { closeMenu(); pending?.let { perform { send(it) } } },
                             enabled = !busy, modifier = Modifier.testTag("cloud_retry_checkin"))
                     }
-                    if (confirmed && receipt == null) DropdownMenuItem({ Text("Scan to check in") }, { closeMenu(); request("scan") },
-                        enabled = !busy && pending == null && pendingError == null && !closed,
-                        modifier = Modifier.testTag("cloud_scan_checkin"))
                     if (receipt != null) DropdownMenuItem({ Text("Checked in · ${displayTime(receipt.number("checkedInAt"))}") }, {}, enabled = false)
                 })
         }
@@ -244,7 +252,7 @@ private fun CloudEventContent(repository:GogetherRepository, backend:CloudOperat
             organizerName = state.users.find { it.id == event.organizerId }?.displayName ?: "the organizer",
             registration = state.registration(event.id, actor)?.status,
             now = effectiveNow,
-            meetingReady = meeting != null,
+            checkInReady = checkInReady,
             checkedInAt = receipt?.number("checkedInAt")?.takeIf { it > 0 },
             loading = loading,
             hasInformation = information.isNotEmpty(),

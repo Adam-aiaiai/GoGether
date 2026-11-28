@@ -9,20 +9,20 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class AttendanceRefreshTest {
     private val time = 1_800_000_000_000L
-    private val fix = PositionFix(MeetingPoint(31.27, 120.74), 10.0, 0)
+
     private fun scenario(block: suspend TestScope.() -> Unit) = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         try { block() } finally { Dispatchers.resetMain() }
     }
-    private fun backend(store: MemoryPrototypeStore = MemoryPrototypeStore()) = LocalPrototypeBackend(store, { time }, { 0 })
+    private fun backend(store: MemoryPrototypeStore = MemoryPrototypeStore()) = LocalPrototypeBackend(store, { time })
 
     @Test fun loadingFailureAndRetryAreIndependentOfQrAndLocation() = scenario {
         val backend = backend()
-        val session = backend.createMeeting("alice", fix)
+        val session = backend.createMeeting("alice")
         var locations = 0
         var requests = 0
         var response = CompletableDeferred<List<PrototypeAttendee>>()
-        val model = PrototypeViewModel("alice", backend, PositionSource { locations++; fix }, now = { time },
+        val model = PrototypeViewModel("alice", backend, now = { time },
             attendanceSource = AttendanceSource { _, _ -> requests++; response.await() })
         assertEquals(0, requests) // Constructor must not perform a fallible roster request.
         model.showCode(); runCurrent()
@@ -45,17 +45,17 @@ class AttendanceRefreshTest {
         assertTrue(model.state.value.attendance.loaded)
         assertNull(model.state.value.attendance.error)
         assertNull(model.state.value.notice) // First successful snapshot is not a new arrival.
-        assertEquals(1, locations)
+        assertEquals(0, locations)
         assertEquals(qr, model.state.value.code)
         model.leaveForeground()
     }
 
     @Test fun failedUpdateKeepsSnapshotAndRetryAppliesMembershipAndTimestampChanges() = scenario {
         val backend = backend()
-        val session = backend.createMeeting("alice", fix)
+        val session = backend.createMeeting("alice")
         var people = listOf(PrototypeAttendee("bob", "Bob"), PrototypeAttendee("carol", "Carol"))
         var failure = false
-        val model = PrototypeViewModel("alice", backend, PositionSource { error("Must not locate") }, now = { time },
+        val model = PrototypeViewModel("alice", backend, now = { time },
             attendanceSource = AttendanceSource { _, _ -> if (failure) error("offline") else people })
         model.refreshAttendance(session); runCurrent()
         val initial = model.state.value.attendees
@@ -84,10 +84,10 @@ class AttendanceRefreshTest {
 
     @Test fun oldActivityResponseCannotOverwriteNewSelectionEvenIfSourceIgnoresCancellation() = scenario {
         val backend = backend()
-        val first = backend.createMeeting("alice", fix)
-        val second = backend.createMeeting("alice", fix)
+        val first = backend.createMeeting("alice")
+        val second = backend.createMeeting("alice")
         val oldResponse = CompletableDeferred<List<PrototypeAttendee>>()
-        val model = PrototypeViewModel("alice", backend, PositionSource { fix }, now = { time },
+        val model = PrototypeViewModel("alice", backend, now = { time },
             attendanceSource = AttendanceSource { _, session ->
                 if (session == first) withContext(NonCancellable) { oldResponse.await() }
                 else listOf(PrototypeAttendee("carol", "Carol"))
@@ -103,10 +103,10 @@ class AttendanceRefreshTest {
 
     @Test fun logoutDuringLoadClearsRosterAndDiscardsLateResult() = scenario {
         val backend = backend()
-        val session = backend.createMeeting("alice", fix)
+        val session = backend.createMeeting("alice")
         var user: String? = "alice"
         val response = CompletableDeferred<List<PrototypeAttendee>>()
-        val model = PrototypeViewModel("alice", backend, PositionSource { fix }, now = { time },
+        val model = PrototypeViewModel("alice", backend, now = { time },
             identity = CheckInIdentitySource { user },
             attendanceSource = AttendanceSource { _, _ -> withContext(NonCancellable) { response.await() } })
         model.refreshAttendance(session); runCurrent()
@@ -122,10 +122,10 @@ class AttendanceRefreshTest {
 
     @Test fun leavingCancelsRosterRequestAndResumeCanRetryWithoutQr() = scenario {
         val backend = backend()
-        val session = backend.createMeeting("alice", fix)
+        val session = backend.createMeeting("alice")
         var cancelled = false
         var first = true
-        val model = PrototypeViewModel("alice", backend, PositionSource { error("No GPS") }, now = { time },
+        val model = PrototypeViewModel("alice", backend, now = { time },
             attendanceSource = AttendanceSource { _, _ ->
                 if (first) try { awaitCancellation() } finally { cancelled = true }
                 else emptyList()
@@ -144,10 +144,10 @@ class AttendanceRefreshTest {
     @Test fun endedAndCancelledOldActivityRemainReadableWithoutIssuingCodeOrAnnouncingArrivals() = scenario {
         val store = MemoryPrototypeStore()
         val backend = backend(store)
-        val first = backend.createMeeting("alice", fix)
-        val current = backend.createMeeting("alice", fix)
+        val first = backend.createMeeting("alice")
+        val current = backend.createMeeting("alice")
         store.save(PrototypeReceipt(first.id, "bob", time))
-        val model = PrototypeViewModel("alice", backend, PositionSource { error("No GPS") }, now = { first.endAt + 1 })
+        val model = PrototypeViewModel("alice", backend, now = { first.endAt + 1 })
         model.refreshAttendance(first); runCurrent()
         assertEquals(time, model.state.value.attendees.single { it.userId == "bob" }.checkedInAt)
         store.save(PrototypeReceipt(first.id, "carol", time + 1))
@@ -159,16 +159,16 @@ class AttendanceRefreshTest {
         store.cancel(first.id)
         model.refreshAttendance(first); runCurrent()
         assertNull(model.state.value.attendance.error)
-        assertEquals(2, model.state.value.attendees.count { it.checkedInAt != null })
+        assertEquals(0, model.state.value.attendees.count { it.checkedInAt != null })
         model.refreshAttendance(current); runCurrent()
         assertTrue(model.state.value.attendees.all { it.checkedInAt == null })
     }
 
     @Test fun participantCannotReadOrganizerRoster() = scenario {
         val backend = backend()
-        val session = backend.createMeeting("alice", fix)
+        val session = backend.createMeeting("alice")
         var calls = 0
-        val model = PrototypeViewModel("bob", backend, PositionSource { fix },
+        val model = PrototypeViewModel("bob", backend,
             attendanceSource = AttendanceSource { _, _ -> calls++; emptyList() })
         model.refreshAttendance(session); runCurrent()
         assertEquals(0, calls)

@@ -31,12 +31,10 @@ private fun eventTime(time: Long, pattern: String) = SimpleDateFormat(pattern, L
 @Composable
 internal fun ParticipantCheckInPanel(actor: String, state: PrototypeUiState, now: Long, back: () -> Unit,
     scan: () -> Unit, history: () -> Unit, settings: () -> Unit, record: (String) -> Unit, scanOther: () -> Unit,
-    retryLocation: () -> Unit = {}, resolveCheckIn: () -> Unit = {}) {
+    resolveCheckIn: () -> Unit = {}) {
     val session = state.participantSession ?: state.scanned?.session
     val activity = LocalCheckInActivities.current.infoOrNull(session)
     var sheet by rememberSaveable(actor, session?.id) { mutableStateOf<String?>(null) }
-    var mapError by rememberSaveable(actor, session?.id) { mutableStateOf(false) }
-    val context = LocalContext.current
     val registration = state.registration ?: MockCheckInRegistrations.status(session?.id, actor)
     val confirmed = registration == CheckInRegistration.CONFIRMED
     val waitlisted = registration == CheckInRegistration.WAITLISTED
@@ -50,8 +48,6 @@ internal fun ParticipantCheckInPanel(actor: String, state: PrototypeUiState, now
     val needsResolution = state.pendingSubmission?.let { it.actor == actor && it.session == session } == true
     val busy = state.busy || state.scanStage == ParticipantScanStage.VERIFYING || resolving
     val attention = !busy && state.scanStage == ParticipantScanStage.ATTENTION
-    val retryCode = state.scanned?.takeIf { state.locationRetryAvailable && it.session == session }
-    val canRetryLocation = attention && retryCode != null && runCatching { retryCode.requireValid(now) }.isSuccess
     val showReceipt = receipt != null && !busy && !attention && !needsResolution
     val cancelled = entry?.cancelled == true || state.cancelled
     val ended = session != null && (now >= session.endAt || (state.checkInClosed && !cancelled))
@@ -99,10 +95,7 @@ internal fun ParticipantCheckInPanel(actor: String, state: PrototypeUiState, now
                     "${eventTime(session.startAt, "MMM d, HH:mm")}–${eventTime(session.endAt, "HH:mm")}")
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.weight(1f)) { EventInfoRow("Meeting point", if (session == null) "Scan the organizer's code when you arrive" else (activity?.meetingName ?: "Meeting point not confirmed")) }
-                    if (session != null) TextButton(shape = CheckInStyle.shape, onClick = { mapError = false; sheet = "location" },
-                        contentPadding = PaddingValues(horizontal = 4.dp), modifier = Modifier.testTag("participant_location")) {
-                        Text("Location >", style = MaterialTheme.typography.labelLarge)
-                    }
+
                 }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("People", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -119,18 +112,17 @@ internal fun ParticipantCheckInPanel(actor: String, state: PrototypeUiState, now
                     when {
                         busy -> {
                             LinearProgressIndicator(Modifier.fillMaxWidth())
-                            Text(state.message.ifBlank { "Checking location and eligibility…" }, style = MaterialTheme.typography.bodySmall)
+                            Text(state.message.ifBlank { "Checking eligibility…" }, style = MaterialTheme.typography.bodySmall)
                         }
                         needsResolution -> Text(state.message, style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.testTag("participant_issue"))
-                        attention -> Text(if (retryCode != null && !canRetryLocation) "Check-in code expired. Scan the organizer's new code."
-                            else state.message, style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("participant_issue"))
+                        attention -> Text(state.message, style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("participant_issue"))
                         cancelled -> Text("Check-in and reviews are closed for this event.", style = MaterialTheme.typography.bodySmall)
                         showReceipt -> Text("Checked in ${eventTime(receipt!!.checkedInAt, "MMM d, HH:mm:ss")}",
                             Modifier.testTag("prototype_receipt"), style = MaterialTheme.typography.bodyMedium)
-                        ended -> Text("Leave a rating and share your experience in the event record.", style = MaterialTheme.typography.bodySmall)
+                        ended -> Text(if (entry?.canReview(now) == true) "Leave a rating and share your experience in the event record." else "Only checked-in participants can review this event.", style = MaterialTheme.typography.bodySmall)
                         !confirmed -> Text(if (waitlisted) "You can check in once your place is confirmed." else "A confirmed place is required to check in.", style = MaterialTheme.typography.bodySmall)
-                        session != null -> Text("${eventTime(session.startAt - PrototypePolicy.HALF_HOUR_MS, "HH:mm")}–${eventTime(minOf(session.endAt, session.startAt + PrototypePolicy.HALF_HOUR_MS), "HH:mm")}  Check-in window\nScan within 200 m of the meeting point.", style = MaterialTheme.typography.bodySmall)
+                        session != null -> Text("${eventTime(session.startAt - PrototypePolicy.HALF_HOUR_MS, "HH:mm")}–${eventTime(minOf(session.endAt, session.startAt + PrototypePolicy.HALF_HOUR_MS), "HH:mm")}  Check-in window", style = MaterialTheme.typography.bodySmall)
                         else -> Text("Scan the organizer's code to confirm the event and meeting point.", style = MaterialTheme.typography.bodySmall)
                     }
                 }
@@ -143,20 +135,19 @@ internal fun ParticipantCheckInPanel(actor: String, state: PrototypeUiState, now
         PageActionButton(enabled = !busy && (needsResolution || (!cancelled &&
             (canOpenRecord || (!ended && !early && !late && confirmed)))),
             onClick = { if (needsResolution) resolveCheckIn() else if (canOpenRecord) record(entry!!.session.id)
-                else if (canRetryLocation) retryLocation() else scan() },
+                else scan() },
             modifier = Modifier.fillMaxWidth().padding(top = 10.dp).testTag("prototype_scan")) {
             Text(when {
                 resolving -> "Checking…"
                 busy -> "Verifying…"
                 needsResolution -> "Check result"
                 cancelled -> "Event cancelled"
-                canOpenRecord && ended -> if (entry?.feedback != null) "View review" else "Review event"
+                canOpenRecord && ended -> if (entry?.canReview(now) == true) "Review event" else "View event record"
                 canOpenRecord -> "View check-in record"
                 ended -> "Event ended"
                 early -> "Check-in not open yet"
                 late -> "Check-in closed"
                 !confirmed -> "Not eligible to check in"
-                canRetryLocation -> "Retry location"
                 attention -> "Scan again"
                 else -> "Scan to check in"
             })
@@ -171,19 +162,6 @@ internal fun ParticipantCheckInPanel(actor: String, state: PrototypeUiState, now
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when (sheet) {
-                "location" -> {
-                    Text("Meeting location", style = MaterialTheme.typography.titleLarge)
-                    Text((activity?.meetingName ?: "Meeting point not confirmed"))
-                    Text("Meet near the location confirmed by the organizer on site.")
-                    session?.meeting?.let { point ->
-                        PageActionButton(onClick = {
-                            val uri = Uri.parse("geo:${point.latitude},${point.longitude}?q=${point.latitude},${point.longitude}(${Uri.encode("Meeting point")})")
-                            try { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
-                            catch (_: ActivityNotFoundException) { mapError = true }
-                        }, modifier = Modifier.testTag("participant_map")) { Text("Open in Maps") }
-                    }
-                    if (mapError) Text("No maps app is available. Ask the organizer to confirm the meeting point.")
-                }
                 "about" -> {
                     Text("About the event", style = MaterialTheme.typography.titleLarge)
                     Text((activity?.introduction ?: "Load an event to see its description"))
@@ -195,7 +173,7 @@ internal fun ParticipantCheckInPanel(actor: String, state: PrototypeUiState, now
                 else -> {
                     Text("Check-in guide", style = MaterialTheme.typography.titleLarge)
                     Text("Confirmed participants can check in from 30 minutes before to 30 minutes after the start. Check-in closes if the event is cancelled or ends.")
-                    Text("Organizers and participants must be within 200 m of the fixed meeting point. Scanning needs camera and precise location access. Location is used only during check-in actions.")
+                    Text("Scan the organizer's latest code with camera access enabled. Cancelling and rejoining requires a new check-in.")
                     TextButton(shape = CheckInStyle.shape, onClick = { sheet = null; settings() },
                         modifier = Modifier.testTag("participant_settings")) { Text("Open permission settings") }
                     TextButton(shape = CheckInStyle.shape, enabled = !busy,

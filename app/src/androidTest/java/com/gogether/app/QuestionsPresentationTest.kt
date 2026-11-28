@@ -19,6 +19,9 @@ import com.gogether.app.navigation.GogetherApp
 import com.gogether.app.ui.theme.GogetherTheme
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
+import org.junit.Before
+import org.junit.After
+import com.gogether.app.feature.social.*
 import org.junit.Rule
 import org.junit.Test
 import java.io.File
@@ -27,6 +30,10 @@ import java.io.File
 @OptIn(ExperimentalTestApi::class)
 class QuestionsPresentationTest {
     @get:Rule val compose = createComposeRule()
+    private val social = LocalSocialStore(InstrumentationRegistry.getInstrumentation().targetContext)
+    private val savedSocial = social.load()
+    @Before fun isolateSocialState() { social.edit { SocialState() to Unit } }
+    @After fun restoreSocialState() { social.edit { savedSocial to Unit } }
     private val now = System.currentTimeMillis()
     private fun fixture(): AppSnapshot {
         val seed = DemoData.create(now)
@@ -88,24 +95,23 @@ class QuestionsPresentationTest {
         compose.onNodeWithTag("questions_all").assertIsSelected()
         compose.onNodeWithTag("answer_bob-q").assertIsDisplayed()
     }
-    @Test fun savingInUnansweredUpdatesCountsAndEditingAndCancelKeepTheAnswer() {
+    @Test fun replyingInUnansweredUpdatesCountsAndCancellingFollowUpKeepsTheAnswer() {
         val repo = FakeGogetherRepository(fixture(), { now })
-        launch(repo); openQuestions(); tap("questions_unanswered"); tap("reply_carol-q")
-        compose.onNodeWithTag("answer_input").performScrollTo().performTextReplacement("Meet at the east entrance.")
-        closeSoftKeyboard()
-        compose.onNodeWithText("26/100").assertExists()
-        compose.onNodeWithTag("send_answer_carol-q").performScrollTo()
-        capture("03-reply-editor")
-        tap("send_answer_carol-q")
-        compose.waitUntil(5000) { repo.state.value.questions.first { it.id == "carol-q" }.answer != null }
+        launch(repo); openQuestions(); tap("questions_unanswered"); tap("social_open_carol-q"); tap("social_reply_carol-q")
+        compose.onNodeWithTag("social_input").performTextReplacement("Meet at the east entrance.")
+        closeSoftKeyboard(); tap("social_send")
+        val reply = social.load().replies.single { it.rootId == "carol-q" }
+        assertEquals("Meet at the east entrance.", reply.text)
+        compose.onNodeWithTag("social_thread").assertIsDisplayed()
+        compose.onNode(hasContentDescription("Back") and hasAnyAncestor(hasTestTag("social_thread"))).performClick()
+        compose.waitForIdle()
         compose.onNodeWithText("Unanswered (1)").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("question_carol-q").assertDoesNotExist()
-        tap("questions_all"); tap("reply_carol-q")
-        compose.onNodeWithTag("answer_input").assertTextContains("Meet at the east entrance.")
-        compose.onNodeWithTag("send_answer_carol-q").assertIsNotEnabled()
-        compose.onNodeWithTag("answer_input").performTextReplacement("Discard this draft")
-        closeSoftKeyboard(); tap("cancel_answer_carol-q")
-        assertEquals("Meet at the east entrance.", repo.state.value.questions.first { it.id == "carol-q" }.answer)
+        tap("questions_all"); tap("social_open_carol-q"); tap("social_reply_${reply.id}")
+        compose.onNodeWithTag("social_input").performTextReplacement("Discard this draft")
+        closeSoftKeyboard(); compose.onNodeWithText("Cancel").performClick(); compose.waitForIdle()
+        assertEquals(listOf("Meet at the east entrance."), social.load().replies.filter { it.rootId == "carol-q" }.map {it.text})
+        compose.onNodeWithTag("social_input").assertDoesNotExist()
     }
     @Test fun bothAnnouncementEntrypointsRenderTheSameRows() {
         val repo = FakeGogetherRepository(fixture(), { now })
@@ -154,8 +160,8 @@ class QuestionsPresentationTest {
         compose.onNodeWithContentDescription("Close photo").assertIsDisplayed().performClick()
         tap("questions_unanswered")
         compose.onNodeWithTag("question_carol-q").performScrollTo().assertIsDisplayed()
-        tap("reply_carol-q")
-        compose.onNodeWithTag("answer_input").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithTag("cancel_answer_carol-q").performScrollTo().assertIsDisplayed()
+        tap("social_open_carol-q"); tap("social_reply_carol-q")
+        compose.onNodeWithTag("social_input").assertIsDisplayed()
+        compose.onNodeWithText("Cancel").assertIsDisplayed()
     }
 }

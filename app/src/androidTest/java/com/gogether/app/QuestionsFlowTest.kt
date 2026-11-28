@@ -13,11 +13,19 @@ import com.gogether.app.navigation.GogetherApp
 import com.gogether.app.ui.theme.GogetherTheme
 import kotlinx.coroutines.*
 import org.junit.Assert.*
+import org.junit.Before
+import org.junit.After
+import com.gogether.app.feature.social.*
 import org.junit.Rule
 import org.junit.Test
 
 class QuestionsFlowTest {
     @get:Rule val compose = createComposeRule()
+    private val context = InstrumentationRegistry.getInstrumentation().targetContext
+    private val social = LocalSocialStore(context)
+    private val savedSocial = social.load()
+    @Before fun isolateSocialState() { social.edit { SocialState() to Unit } }
+    @After fun restoreSocialState() { social.edit { savedSocial to Unit } }
     private fun launch(repo: GogetherRepository) { compose.setContent { GogetherTheme { GogetherApp(repo) } } }
     private fun settle() {
         val start = compose.mainClock.currentTime
@@ -39,6 +47,7 @@ class QuestionsFlowTest {
         val node = compose.onNodeWithTag(tag)
         if (!tag.startsWith("nav_")) runCatching { node.performScrollTo() }
         node.performClick()
+        compose.waitForIdle()
     }
     private fun text(tag: String, value: String) {
         compose.onNodeWithTag(tag).performScrollTo().performTextReplacement(value)
@@ -59,17 +68,20 @@ class QuestionsFlowTest {
         switch("alice"); inbox()
         val questionNotice = repo.state.value.notifications.single { it.type == NotificationType.QUESTION_ASKED }
         tap("notification_open_${questionNotice.id}")
-        compose.onNodeWithTag("question_${q.id}").performScrollTo().assertIsDisplayed()
-        tap("reply_${q.id}"); text("answer_input", "Yes, spare rackets are available."); capture("answer-input"); tap("send_answer_${q.id}")
-        compose.waitUntil(5_000) { repo.state.value.questions.single().answer != null }
+        compose.onNodeWithTag("social_item_${q.id}").performScrollTo().assertIsDisplayed()
+        tap("social_reply_${q.id}")
+        compose.onNodeWithTag("social_input").performTextReplacement("Yes, spare rackets are available.")
+        closeSoftKeyboard(); capture("answer-input"); tap("social_send")
+        compose.waitUntil(5_000) { social.load().replies.any { it.rootId == q.id } }
         switch("finn"); inbox()
-        val answerNotice = repo.state.value.notifications.single { it.type == NotificationType.QUESTION_ANSWERED }
+        val gateway = RepositorySocialGateway(context, repo)
+        val answerNotice = gateway.projectNotifications(repo.state.value).notifications.single { it.type == NotificationType.QUESTION_REPLIED }
         tap("notification_open_${answerNotice.id}")
-        compose.onNodeWithTag("answer_${q.id}").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("social_item_${answerNotice.contentId}").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Yes, spare rackets are available.").assertIsDisplayed()
-        compose.onNodeWithTag("reply_${q.id}").assertDoesNotExist()
+        compose.onNodeWithTag("social_reply_${answerNotice.contentId}").assertIsEnabled()
         capture("question-answer")
-        assertTrue(repo.state.value.notifications.single { it.id == answerNotice.id }.isRead)
+        assertTrue(gateway.projectNotifications(repo.state.value).notifications.single { it.id == answerNotice.id }.isRead)
         assertTrue(repo.state.value.notifications.single { it.id == questionNotice.id }.isRead)
     }
 
@@ -104,19 +116,26 @@ class QuestionsFlowTest {
         assertTrue(base.state.value.questions.isEmpty())
     }
 
-    @Test fun failedAnswerRetainsDraftAndExistingQuestion() {
+    @Test fun failedReplyRetainsDraftAndExistingQuestion() {
         val base = FakeGogetherRepository()
         runBlocking { base.login("finn").getOrThrow(); base.askQuestion("event-1", "What should I bring?").getOrThrow(); base.login("alice").getOrThrow() }
         val id = base.state.value.questions.single().id
-        val repo = object : GogetherRepository by base {
-            override suspend fun answerQuestion(questionId: String, content: String) = Result.failure<Unit>(IllegalStateException("Could not save answer."))
+        val actual = RepositorySocialGateway(context, base)
+        val gateway = object : SocialGateway {
+            override suspend fun call(action: String, args: Map<String, Any?>): Map<String, Any?> {
+                if (action == "reply") error("Could not save reply.")
+                return actual.call(action, args)
+            }
         }
-        launch(repo); tap("event_event-1"); tap("manage_event"); tap("manage_questions")
-        tap("reply_$id"); text("answer_input", "Bring water and a racket"); tap("send_answer_$id")
-        settle()
-        compose.onNodeWithTag("answer_input").assertTextContains("Bring water and a racket")
+        compose.setContent { GogetherTheme { SocialThread(gateway, id, {}) } }
+        tap("social_reply_$id")
+        compose.onNodeWithTag("social_input").performTextReplacement("Bring water and a racket")
+        closeSoftKeyboard(); tap("social_send")
+        compose.onNodeWithTag("social_error").assertTextContains("Could not save reply.")
+        compose.onNodeWithTag("social_input").assertTextContains("Bring water and a racket")
         assertNull(base.state.value.questions.single().answer)
-        assertTrue(base.state.value.notifications.none { it.type == NotificationType.QUESTION_ANSWERED })
+        assertTrue(social.load().replies.isEmpty())
+        assertTrue(social.load().notices.isEmpty())
     }
 
     @Test fun endedEventKeepsQuestionAndAnswerButDisablesWriting() {

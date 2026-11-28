@@ -27,12 +27,12 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-internal data class CloudAttendancePerson(val userId: String, val name: String, val checkedInAt: Long, val avatarUri: String = "") {
+internal data class CloudAttendancePerson(val userId: String, val name: String, val checkedInAt: Long, val avatarUri: String = "", val organizer: Boolean = false) {
     val checkedIn get() = checkedInAt > 0
 }
 
 internal fun attendancePeople(rows: List<Map<*, *>>) = rows.map {
-    CloudAttendancePerson(it.string("userId"), it.string("name").ifBlank { "Participant" }, it.number("checkedInAt"), it.string("avatarUri"))
+    CloudAttendancePerson(it.string("userId"), it.string("name").ifBlank { "Participant" }, it.number("checkedInAt"), it.string("avatarUri"), it["organizer"] == true)
 }
 
 internal fun attendanceTime(time: Long, pattern: String = "HH:mm"): String =
@@ -63,8 +63,9 @@ internal fun CloudOrganizerAttendance(
 ) {
     var search by rememberSaveable(event.id) { mutableStateOf("") }
     var filter by rememberSaveable(event.id) { mutableStateOf("all") }
-    val checked = people.count { it.checkedIn }
-    val filtered = people.filter { it.name.contains(search.trim(), ignoreCase = true) }
+    val participants = people.filterNot { it.organizer }
+    val checked = participants.count { it.checkedIn }
+    val filtered = participants.filter { it.name.contains(search.trim(), ignoreCase = true) }
     Column(Modifier.fillMaxSize().testTag("cloud_attendance_page")) {
         AppPageHeader("Attendance", onBack, actions = {
             IconButton(onClick = onRefresh, enabled = !loading, modifier = Modifier.testTag("cloud_attendance_refresh")) {
@@ -75,8 +76,12 @@ internal fun CloudOrganizerAttendance(
             contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
                 Text(event.title, style = MaterialTheme.typography.titleMedium)
+                people.firstOrNull { it.organizer }?.let { host ->
+                    Text("Organizer · ${host.name} · " + if(host.checkedIn) "Arrival confirmed" else "Arrival not confirmed",
+                        style = MaterialTheme.typography.bodySmall)
+                }
                 Spacer(Modifier.height(8.dp))
-                Text(if (loaded) "$checked of ${people.size} checked in" else "Attendance",
+                Text(if (loaded) "$checked of ${participants.size} checked in" else "Attendance",
                     style = MaterialTheme.typography.headlineSmall, modifier = Modifier.testTag("cloud_attendance_count"))
                 updatedAt?.let { Text("Updated at ${attendanceTime(it)}", style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -86,7 +91,7 @@ internal fun CloudOrganizerAttendance(
                     leadingIcon = { Icon(Icons.Default.Search, null) }, singleLine = true,
                     modifier = Modifier.fillMaxWidth().testTag("cloud_attendance_search"))
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("all" to "All ${people.size}", "checked" to "Checked in $checked",
+                    listOf("all" to "All ${participants.size}", "checked" to "Checked in $checked",
                         "waiting" to "Not checked in ${people.size - checked}").forEach { (value, label) ->
                         AppFilterChip(filter == value, { filter = value }, { Text(label) },
                             Modifier.testTag("cloud_attendance_filter_$value"))

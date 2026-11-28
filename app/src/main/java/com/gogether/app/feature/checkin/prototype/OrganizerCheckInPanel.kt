@@ -81,7 +81,7 @@ internal fun OrganizerCheckInPanel(state: PrototypeUiState, now: Long, back: () 
             TextButton(shape = CheckInStyle.shape, onClick = { more = false; history() }, modifier = Modifier.testTag("open_history")) { Text("My records") }
             CheckInInfoCard("Status", state.message)
             MeetingSummary(session)
-            Text("Organizers and participants must be within 200 m. Precise location is used only for check-in actions.")
+            Text("Confirm your arrival when first showing the code. Participants need a confirmed place and the current code.")
             TextButton(shape = CheckInStyle.shape, onClick = { more = false; settings() }) { Text("Open permission settings") }
             if (!integrated) TextButton(shape = CheckInStyle.shape, onClick = { preview = !preview; more = false }, modifier = Modifier.testTag("attendance_preview")) {
                 Text(if (preview) "Back to current attendance" else "Preview larger attendance list")
@@ -104,7 +104,7 @@ private fun OrganizerCode(state: PrototypeUiState, now: Long, show: () -> Unit, 
         state.cancelled -> "Event cancelled. Codes are unavailable."
         !available -> "Outside the check-in window"
         code != null -> "Refreshes in ${(code.expiresAt - now + 999) / 1000}s"
-        state.busy -> "Checking location…"
+        state.busy -> "Preparing code…"
         else -> state.message
     }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally,
@@ -117,7 +117,7 @@ private fun OrganizerCode(state: PrototypeUiState, now: Long, show: () -> Unit, 
                 Image(bitmap, "Refreshing check-in QR code", Modifier.size(side).background(Color.White).testTag("prototype_qr"))
             } else Surface(Modifier.size(side), shape = CheckInStyle.shape, color = MaterialTheme.colorScheme.surfaceContainerLow) {
                 Box(Modifier.padding(12.dp), contentAlignment = Alignment.Center) {
-                    Text(if (state.busy) "Locating…" else "Waiting for a code", style = MaterialTheme.typography.bodyMedium)
+                    Text(if (state.busy) "Preparing…" else "Waiting for a code", style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }
@@ -133,8 +133,12 @@ private fun OrganizerCodeAction(state: PrototypeUiState, now: Long, show: () -> 
     val available = !state.cancelled && !state.checkInClosed && now < session.endAt &&
         now >= session.startAt - PrototypePolicy.HALF_HOUR_MS && now <= session.startAt + PrototypePolicy.HALF_HOUR_MS
     val code = state.code?.takeIf { available && now >= it.issuedAt - 5_000 && now < it.expiresAt }
-    PageActionButton(onClick = show, enabled = !state.busy && available,
+    var confirmArrival by remember(session.id) { mutableStateOf(false) }
+    if (confirmArrival) CheckInActionDialog("Confirm your arrival?",
+        "Your arrival will be recorded when the check-in code is successfully displayed.", "Confirm and show code",
+        { confirmArrival = false }, { confirmArrival = false; show() })
+    PageActionButton(onClick = { if (state.receipt == null) confirmArrival = true else show() }, enabled = !state.busy && available,
         modifier = Modifier.testTag("prototype_show")) {
-        Text(if (code != null) "Refresh code" else "Get location and show code")
+        Text(if (code != null) "Refresh code" else if (state.receipt == null) "Confirm arrival and show code" else "Show check-in code")
     }
 }

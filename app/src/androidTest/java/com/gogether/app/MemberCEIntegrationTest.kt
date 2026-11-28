@@ -21,15 +21,15 @@ class MemberCEIntegrationTest {
     private val store = PreferencesPrototypeStore(context)
     private var sessionId: String? = null
     private val time = System.currentTimeMillis()
-    private val fix = PositionFix(MeetingPoint(31.25, 120.7), 5.0, 1000)
+
     private fun fixture(): Pair<FakeGogetherRepository, RegistrationAttendanceBridge> {
         val seed = DemoData.create(time).let { s -> s.copy(currentUserId = "alice", events = s.events.map {
             if (it.id == "event-1") it.copy(createdAt = time + 173, startAt = time + 600_000,
                 endAt = time + 7_800_000, registrationDeadline = time + 300_000) else it
         }) }
         val repo = FakeGogetherRepository(seed, { time })
-        val bridge = RegistrationAttendanceBridge({ repo.state.value }, store, { time }, { 1000 })
-        sessionId = bridge.prepare("alice", "event-1", fix).id
+        val bridge = RegistrationAttendanceBridge({ repo.state.value }, store, { time })
+        sessionId = bridge.prepare("alice", "event-1").id
         return repo to bridge
     }
     @After fun cleanupOnlyThisTestsRecords() {
@@ -43,10 +43,10 @@ class MemberCEIntegrationTest {
     @Test fun cAvatarEntryOpensBobsBoundEPageAndShowsSavedCheckIn() {
         val (repo, bridge) = fixture()
         val session = bridge.session(repo.state.value.event("event-1")!!)!!
-        val raw = PrototypeCodeCodec.encode(bridge.backend.issue("alice", session, fix))
+        val raw = PrototypeCodeCodec.encode(bridge.backend.issue("alice", session))
         runBlocking { repo.login("bob").getOrThrow() }
         // Exercise the same backend the scanner calls; real camera/GPS remains a device test.
-        bridge.backend.submit("bob", raw, fix)
+        bridge.backend.submit("bob", raw)
         compose.setContent { GogetherTheme { GogetherApp(repo) } }
         compose.onNodeWithTag("event_event-1").performScrollTo().performClick()
         compose.onNodeWithTag("participants_toggle").performScrollTo().performClick()
@@ -64,9 +64,9 @@ class MemberCEIntegrationTest {
     @Test fun organizerManagementAndEAttendanceUseTheSameReceiptAndPromotedRoster() {
         val (repo, bridge) = fixture()
         val session = bridge.session(repo.state.value.event("event-1")!!)!!
-        val raw = PrototypeCodeCodec.encode(bridge.backend.issue("alice", session, fix))
+        val raw = PrototypeCodeCodec.encode(bridge.backend.issue("alice", session))
         runBlocking { repo.login("bob").getOrThrow(); repo.cancelRegistration("event-1").getOrThrow(); repo.login("emma").getOrThrow() }
-        bridge.backend.submit("emma", raw, fix)
+        bridge.backend.submit("emma", raw)
         runBlocking { repo.login("alice").getOrThrow() }
         compose.setContent { GogetherTheme { GogetherApp(repo) } }
         compose.onNodeWithTag("event_event-1").performScrollTo().performClick()
@@ -74,12 +74,12 @@ class MemberCEIntegrationTest {
         compose.onNodeWithTag("participant_name_bob", useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithTag("participant_name_emma", useUnmergedTree = true).assertExists()
         compose.onNodeWithTag("manage_event").performScrollTo().performClick()
-        compose.onNodeWithText("1 checked in", substring = true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("1 participants checked in", substring = true).performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("manage_attendance").performScrollTo().performClick()
         compose.onNodeWithTag("organizer_panel").assertIsDisplayed()
         compose.waitUntil(5000) { compose.onAllNodesWithTag("attendance_search_open").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("attendance_search_open").assertIsEnabled()
         assertEquals(RegistrationStatus.CONFIRMED, repo.state.value.registration("event-1", "emma")!!.status)
-        assertEquals("emma", bridge.backend.attendance("alice", session).single { it.checkedInAt != null }.userId)
+        assertEquals("emma", bridge.backend.attendance("alice", session).single { it.checkedInAt != null && !it.organizer }.userId)
     }
 }

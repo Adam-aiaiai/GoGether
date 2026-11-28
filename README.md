@@ -4,6 +4,16 @@ Find Your People. Make It Happen.
 
 面向小型线下兴趣活动的 Android 应用。正式应用名为 **Gogether**；GitHub 仓库和克隆目录保持 **GoGether**。
 
+## 当前五阶段验收分支（2026-11-28）
+
+`feat/event-attendance-social-ratings` 基于 `feat/member-ui-polish` 的 `10d07ac`，包含报名/签到资格与定位移除、多轮互动/黑名单/维护者举报处理、互动通知与 My Events 红点、综合评分与 History、旧数据兼容及回归修复。
+
+- 组员获取代码、配置 Demo、一次准备验收活动：[组员测试指南](docs/TEAM_TESTING_GUIDE.md)。
+- 切换账号、逐步操作和预期结果：[五阶段手动验收清单（41 项）](docs/MANUAL_ACCEPTANCE_PHASES_1_TO_5.md)。
+- 规则与实现：[第一阶段](docs/PHASE1_ATTENDANCE.md)、[第二阶段](docs/PHASE2_SOCIAL.md)、[第三阶段](docs/PHASE3_NOTIFICATIONS.md)、[第四阶段](docs/PHASE4_RATINGS.md)、[第五阶段](docs/PHASE5_COMPATIBILITY.md)。
+
+默认运行 Demo。测试数据保存在各自设备，使用指南中的显式准备入口可创建同样的活动与账号场景；生产 Firebase 部署另行进行。下方带旧日期的整合记录描述对应历史版本。
+
 ## 共享后端（2026-11-24）
 
 已加入 A/B/C/D/E 的 Firebase 后端与 Android 接入，可在本机使用 Auth、Firestore、Functions、Storage 模拟器联调。默认构建仍为 Demo；共享后端版运行 `firebase/start-local.ps1` 后，用 `build-local-app.ps1 -Install` 构建安装。活动问答和活动变更通知已包含。
@@ -41,7 +51,7 @@ A 的入口、接口和验证见 [ACCOUNT_HANDOFF](docs/ACCOUNT_HANDOFF.md)；�
 
 ```bash
 ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
-./gradlew :app:connectedDebugAndroidTest  # 需先启动模拟器或连接设备
+# 完整设备回归使用独立测试 AVD；手动验收数据准备见上方组员测试指南。
 ```
 
 Windows 使用 `gradlew.bat`。Android Studio 会生成本机 `local.properties`；命令行也可通过 `ANDROID_HOME` 指向已安装 SDK。
@@ -85,15 +95,15 @@ export JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home'
 - **Explore**：标题 / 描述搜索、类别、城市 / 地点、未来七天筛选；包含羽毛球、桌游、摄影散步、读书会、徒步。
 - **Event Detail**：人数、截止时间、个人报名状态、候补排名、集合地点及操作。
 - **Create**：字段与严格日期校验；发布后进入详情，并立即出现在共享活动列表。
-- **My Events**：Joined / Waitlisted / Created / History 四个 Tab；历史显示自己的签到及评分。
+- **My Events**：Joined / Waitlisted / Created / History 四个 Tab；历史显示签到、个人评分及公开参与者综合评分；Notifications 区分 Interactions / Activity updates，底部图标显示未读红点。
 - **Event Management**：仅组织者可管理；活动编辑/复用、参与名单、候补队列、取消、集合信息编辑、公告历史和 E 出席入口。
-- **Check-in**：进入当前活动的 E 扫码/出席页面；组织者确认固定集合点，双方均需在 200 m 内。开始前后各 30 分钟自动开放，两个端点均包含。集合地点或活动时间更新后重新绑定并获取新码。
-- **Feedback**：结束后的正式参与者（包括组织者）每场一次；不要求先签到。统一使用 E 的评分、评论、分项、标签、图片、匿名、可见范围、草稿和预览；保留旧评价只读兼容。
+- **Check-in**：进入当前活动的 E 扫码/出席页面；组织者确认到场后显示动态二维码，参与者凭当前正式报名扫码。开始前后各 30 分钟开放，活动结束即关闭。移除定位与地图功能，保留文字集合信息。
+- **Feedback**：结束后，当前正式报名且有效签到的用户每场一次；组织者先确认到场且实名评价。统一使用 E 的评分、评论、分项、标签、图片、匿名、可见范围、草稿和预览；保留旧评价只读兼容。
 - **Profile**：编辑昵称与兴趣、个人活动概览、参与历史、切换测试用户、退出确认、通知阅读状态。
 
-候补演示：以 Bob 登录 → 打开已满的羽毛球 → 取消报名并确认 → Profile 切换 Emma → My Events 的 Joined 中出现羽毛球 → Profile Inbox 出现转正通知。
+候补演示：在活动截止和开始前，以 Bob 登录 → 打开已满的羽毛球 → 取消报名并确认 → Profile 切换 Emma → My Events 的 Joined 中出现羽毛球 → Notifications 的 Activity updates 出现转正通知。
 
-签到联调：Alice → 羽毛球详情 → Check-in & meeting，先在约定地点确认本场集合点；切换 Bob 或已转正的 Emma，从同一活动入口查看实时资格和扫码入口。正常活动在开始前 30 分钟至开始后 30 分钟内自动允许签到，无需组织者开启。自动化界面测试使用窗口内夹具；真实相机/定位和跨手机共享应分别验证，详见 ABCDE 集成说明。
+签到联调：创建开始时间约为当前时间后 10 分钟的活动，组织者进入签到页确认到场并显示二维码；正式参与者扫码签到。取消再报名必须重新签到。完整报名边界、旧存档处理和本机测试方式见 [第一阶段规则](docs/PHASE1_ATTENDANCE.md)。
 
 ## 工程结构
 
@@ -118,22 +128,17 @@ docs/                 # 架构、分工、计划与验证说明
 
 ## Demo Mode 边界
 
-本集成分支通过 LocalSnapshotStore 保存主活动、用户资料及 C 报名数据，重启后保留，但需重新选择 Demo 用户。E 签到、反馈、草稿与图片沿用本机私有存储；普通活动经 RegistrationAttendanceBridge 读取同一份实时资格，签到投影至管理页。每台设备仍拥有独立数据。测试用户切换不是安全认证，不接受真实邮箱或密码。
+本集成分支通过共享快照保存主活动、用户资料及 C 报名数据，未退出登录时重启恢复上次选择的 Demo 用户。E 签到、反馈、草稿与图片沿用本机私有存储；普通活动经 RegistrationAttendanceBridge 读取同一份实时资格，签到投影至管理页。每台设备仍拥有独立数据。测试用户切换不是安全认证，不接受真实邮箱或密码。
 
-报名、取消、补位和通知以一次完整快照保存和发布；Mutex / LocalDataLock 只协调单进程操作，不能保证多设备并发正确。普通活动详情已进入 E 签到，组织者先确认本场固定集合点；相机、动态二维码、前台定位与 200 米检查已有实现，但账号、活动与报名仍是本机 Demo 数据，码没有服务端签发验证，也没有跨设备同步。扫码时请求相机和精确位置权限，出码时请求精确位置权限；应用当前没有联网权限。真实认证、共享后端、可信事务及服务端权限校验仍待接入，后端技术与负责人需小组统一确认。旧 Profile 独立演示与本次集成的区别见 [集成说明](docs/MEMBER_C_E_INTEGRATION.md)。
+报名、取消、补位和通知以一次完整快照保存和发布；Mutex / LocalDataLock 只协调单进程操作。Demo 的二维码与签到记录保存在本机，跨设备同步使用 Firebase 模式；Firebase 的身份、报名、签到与重试由服务器和事务校验，配置见 [后端说明](docs/BACKEND_SETUP.md)。本次验证不部署线上服务。
 
-规则简化：容量包含组织者；组织者若退出须取消活动；截止时刻起停止报名和补位，截止后但开始前仍可取消；活动开始后禁止取消；每场活动暂定两小时。签到默认启用但严格受时间窗口约束，取消、标记完成或到达结束时间后停止签到；本次不改变取消权限。失败的请求返回错误，不产生 `REJECTED` 持久记录；该状态保留供后续审批逻辑使用。
-运行版本通过版本化的本地文件保存完整 Demo 快照；旋转屏幕、结束进程和重新打开可保留资料及活动记录。测试中不注入存储时仍使用纯内存 Fake。每台设备拥有独立数据。测试用户切换不是安全认证，不接受真实邮箱或密码。应用无需联网权限，也不采集位置。
-
-报名、取消、补位和通知以一次完整快照发布；Mutex 只协调单进程操作，不能保证多设备并发正确。签到明确为本地模拟，未实现相机、二维码、身份 / 位置证明。真实 Authentication、Firestore 同步、可信后端事务、安全规则及后台通知属于后续阶段；A 已提供独立账号服务契约与可接入的邮箱表单。
-
-规则简化：容量包含组织者；组织者若退出须取消活动；截止时刻起停止报名和补位，截止后但开始前仍可取消；活动开始后禁止编辑或取消；活动由组织者填写开始和结束时间，最长 24 小时；为方便排练可提前开启 Demo 签到。失败的请求返回错误，不产生 `REJECTED` 持久记录；该状态保留供后续审批逻辑使用。
+当前报名、签到、评价资格以及旧数据兼容规则见 [第一阶段规则](docs/PHASE1_ATTENDANCE.md)。扫码仅请求相机权限；不采集设备位置。容量包含组织者，截止后但开始前可取消但不补位；只有有效签到的用户才可在结束后评价。
 
 ## 五人协作与后端接入
 
 每位成员负责功能代码、对应测试和说明；分工详见 [MODULE_OWNERSHIP](docs/MODULE_OWNERSHIP.md)。各自使用 feature branch，通过小 PR 合并。`core/model`、Repository 契约、版本目录与导航属于共享接口，先协商再改动。
 
-后端技术与负责人由小组确认，Firebase 是早期候选方案。正式认证身份必须来自真实认证服务；报名 / 补位 / 签到由可信后端和数据库事务校验。两设备同步、断网恢复和权限测试通过后，才可作为正式多人流程验收。
+项目已提供 Demo 与 Firebase 两种后端模式。正式认证身份必须来自真实认证服务；报名 / 补位 / 签到由可信后端和数据库事务校验。两设备同步、断网恢复和权限测试通过后，才可作为正式多人流程验收。
 
 - [架构与状态规则](docs/ARCHITECTURE.md)
 - [开发计划](docs/DEVELOPMENT_PLAN.md)
@@ -141,4 +146,6 @@ docs/                 # 架构、分工、计划与验证说明
 - [测试与排查](docs/TESTING.md)
 - [Proposal 对照与本阶段取舍](docs/REQUIREMENTS.md)
 - [本次实现与验证记录](docs/IMPLEMENTATION_REPORT.md)
-- [E：双手机扫码＋200 米定位原型试用](docs/CHECKIN_PROTOTYPE.md)（Profile 入口；使用独立模拟活动）
+- [E：早期签到原型记录（历史）](docs/CHECKIN_PROTOTYPE.md)（Profile 入口；使用独立模拟活动）
+
+第五阶段的旧数据升级、兼容性修复和回归范围见 [兼容与回归说明](docs/PHASE5_COMPATIBILITY.md)。

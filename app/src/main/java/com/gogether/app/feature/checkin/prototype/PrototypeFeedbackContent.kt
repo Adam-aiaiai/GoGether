@@ -73,7 +73,7 @@ internal fun HistoryDetail(actor: String, entry: PrototypeHistoryEntry, now: Lon
             activity?.title ?: "Event details unavailable", activity?.organizerName ?: "Organizer", entry.session.startAt),
             draft, blocked, draftError, message, { value -> updateDraft { value } }, { updateDraft { it } },
             submit = { submit(entry.session.id, rating, comment, draft.details) }, back = back,
-            reviews = { openReviews(entry.session) }, modifier = modifier,
+            reviews = { openReviews(entry.session) }, modifier = modifier, allowAnonymous = activity?.organizerId != actor,
             extraActions = {
                 if (activity?.organizerId == actor) DropdownMenuItem(text = { Text("View attendance") },
                     onClick = { openAttendance(entry.session) }, modifier = Modifier.testTag("history_open_attendance"))
@@ -125,19 +125,22 @@ internal fun HistoryDetail(actor: String, entry: PrototypeHistoryEntry, now: Lon
                     item {
                         SavedReviewItem("You", true, entry.feedback.rating, entry.feedback.comment,
                             entry.feedback.createdAt, entry.feedback.details, Modifier.testTag("feedback_saved"),
-                            avatarUri = LocalCheckInActivities.current.avatarUri(actor)) {
+                            avatarUri = LocalCheckInActivities.current.avatarUri(actor), anonymousName = entry.feedback.anonymousName, organizer = activity?.organizerId == actor) {
                             FeedbackPhotoStrip(entry.feedback.details.photos, actor, entry.session.id, showHeader = false)
                         }
+                        com.gogether.app.feature.social.SocialContentActions(entry.feedback.contentId)
                     }
                 }
                 entry.cancelled -> item { Text("This event is cancelled. You cannot review it.") }
                 !entry.eligible -> item { Text("Only confirmed participants can review this event.") }
                 !entry.hasEnded(now) -> item {
-                    Text("Review after the event ends. No need to scan again.")
+                    Text(if (entry.receipt == null) "Check in during the event to leave a review after it ends."
+                        else "Review after the event ends. No need to scan again.")
                     Text("Ends: ${reviewTime(entry.session.endAt)}", style = MaterialTheme.typography.bodySmall)
                     PageActionButton(onClick = { openCheckIn(entry.session) }, enabled = !blocked,
                         modifier = Modifier.testTag("history_open_checkin")) { Text("Open event check-in") }
                 }
+                entry.receipt == null -> item { Text("You did not check in. A valid check-in is required to review this event.") }
                 else -> Unit
             }
 

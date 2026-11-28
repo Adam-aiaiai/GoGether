@@ -19,6 +19,11 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -45,7 +50,7 @@ internal val AppTopLevelRoutes = navigationItems.map { it.route }.toSet()
 
 /** Visual states only; the existing app owns every navigation callback. */
 @Composable
-internal fun AppBottomNavigation(selectedRoute: String, onNavigate: (String) -> Unit) {
+internal fun AppBottomNavigation(selectedRoute: String, unreadCount: Int = 0, onNavigate: (String) -> Unit) {
     NavigationBar(containerColor = AppUi.NavigationBackground, tonalElevation = 0.dp,
         modifier = Modifier.testTag("bottom_navigation")) {
         navigationItems.forEach { item ->
@@ -82,6 +87,9 @@ internal fun AppBottomNavigation(selectedRoute: String, onNavigate: (String) -> 
                             })
                         Icon(icon, contentDescription = null, tint = tint,
                             modifier = Modifier.size(24.dp).testTag("nav_icon_${item.route}"))
+                        if(item.route=="my-events" && unreadCount>0) Box(Modifier.align(Alignment.TopEnd)
+                            .offset(x=5.dp,y=(-3).dp).size(7.dp).background(Color(0xFFEF534B),CircleShape)
+                            .testTag("my_events_unread").semantics { contentDescription="$unreadCount unread notifications" })
                     }
                 },
                 label = {

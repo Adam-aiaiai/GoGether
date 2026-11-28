@@ -49,7 +49,7 @@ class ReviewEditorNavigationTest {
         override val sync = MutableStateFlow(CloudSyncState())
         override suspend fun refresh() = Unit
         override suspend fun call(action: String, payload: Map<String, Any?>, requestId: String?): Map<String, Any?> = when (action) {
-            "eventInfo" -> mapOf("serverNow" to clock, "meeting" to null, "receipt" to null, "ownFeedback" to null)
+            "eventInfo" -> mapOf("serverNow" to clock, "checkInReady" to true, "receipt" to mapOf("checkedInAt" to clock - 7_000_000), "ownFeedback" to null)
             "reviews" -> mapOf("reviews" to emptyList<Any>())
             else -> error("Unexpected action: $action")
         }
@@ -67,7 +67,7 @@ class ReviewEditorNavigationTest {
             startAt = clock - 7_200_000, endAt = clock - 3_600_000, category = Category.SPORTS,
             imageUri = if (withPhoto) Uri.fromFile(cover).toString() else "")
         val registrations = listOf(id,"$id-other").flatMap { eventKey ->
-            listOf("bob","carol").map { actor -> Registration("$eventKey-$actor",eventKey,actor,RegistrationStatus.CONFIRMED,clock - 10_000,clock - 10_000,0) }
+            listOf("bob","carol").map { actor -> Registration("$eventKey-$actor",eventKey,actor,RegistrationStatus.CONFIRMED,clock - 8_000_000,clock - 8_000_000,0) }
         }
         repository = FakeGogetherRepository(base.copy(currentUserId = "bob", events = listOf(event,event.copy(id="$id-other")),registrations=registrations))
         compose.setContent {
@@ -200,15 +200,15 @@ class ReviewEditorNavigationTest {
         runBlocking { repository.login("carol").getOrThrow() }
         compose.reviewNode("cloud_feedback_comment").assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.EditableText, androidx.compose.ui.text.AnnotatedString("")))
         compose.reviewNode("feedback_anonymous").assertIsOff()
-        compose.reviewNode("feedback_positive_comment").assertTextContains("0/500")
-        compose.reviewNode("feedback_improvement_comment").assertTextContains("0/500")
+        compose.reviewNode("feedback_positive_comment").assertTextContains("0/100")
+        compose.reviewNode("feedback_improvement_comment").assertTextContains("0/100")
         runBlocking { repository.login("bob").getOrThrow() }
         compose.reviewNode("cloud_feedback_comment").assertTextContains("A welcoming group.")
         compose.runOnIdle { eventId="$id-other" }
         compose.reviewNode("cloud_feedback_comment").assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.EditableText, androidx.compose.ui.text.AnnotatedString("")))
         compose.reviewNode("feedback_organization_4").assertIsNotSelected()
-        compose.reviewNode("feedback_positive_comment").assertTextContains("0/500")
-        compose.reviewNode("feedback_improvement_comment").assertTextContains("0/500")
+        compose.reviewNode("feedback_positive_comment").assertTextContains("0/100")
+        compose.reviewNode("feedback_improvement_comment").assertTextContains("0/100")
         compose.runOnIdle { eventId=id }
         compose.reviewNode("feedback_organization_4").assertIsSelected()
         compose.reviewNode("feedback_positive_comment").assertTextContains("Friendly teammates.")
@@ -292,7 +292,7 @@ class ReviewEditorNavigationTest {
         assertEquals("", drafts.load("bob", id).details.improvementComment)
         compose.reviewNode("feedback_positive_comment").performTextInput("x".repeat(501))
         Espresso.closeSoftKeyboard()
-        assertEquals(500, drafts.load("bob", id).details.positiveComment.length)
+        assertEquals(100, drafts.load("bob", id).details.positiveComment.length)
     }
     @After fun cleanup() {
         listOf(id,"$id-other").forEach { event -> listOf("bob","carol").forEach { drafts.clear(it,event) } }

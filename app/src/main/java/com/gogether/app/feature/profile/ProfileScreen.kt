@@ -28,7 +28,7 @@ import com.gogether.app.feature.checkin.prototype.PrototypeCheckInActivity
 @Composable
 fun ProfileScreen(state: AppSnapshot, now: Long, busy: Boolean, mode: AccountMode, storageDescription: String,
     edit: () -> Unit, switchUser: (String) -> Unit, logout: () -> Unit,
-    openEvent: (String) -> Unit, moreHistory: () -> Unit = {}) {
+    openEvent: (String) -> Unit, moreHistory: () -> Unit = {}, socialSettings: () -> Unit = {}) {
     val user = state.currentUser ?: return
     val context = LocalContext.current
     val history = personalEvents(state, PersonalEventTab.HISTORY, now)
@@ -47,6 +47,7 @@ fun ProfileScreen(state: AppSnapshot, now: Long, busy: Boolean, mode: AccountMod
                             Icon(Icons.Default.MoreVert, "Account options", Modifier.size(21.dp))
                         }
                         DropdownMenu(accountMenu, { accountMenu = false }) {
+                            DropdownMenuItem({ Text("Privacy & reports") }, { accountMenu = false; socialSettings() }, modifier = Modifier.testTag("social_settings"))
                             if (mode == AccountMode.LOCAL_DEMO) {
                                 DropdownMenuItem(text = { Text("Check-in and review records") }, onClick = {
                                     accountMenu = false; context.startActivity(Intent(context, PrototypeCheckInActivity::class.java))
@@ -71,8 +72,9 @@ fun ProfileScreen(state: AppSnapshot, now: Long, busy: Boolean, mode: AccountMod
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 val joined = state.registrations.count { it.userId == user.id && it.status == RegistrationStatus.CONFIRMED }
+                val attended = state.events.count { it.status != EventStatus.CANCELLED && it.statusAt(now) == EventStatus.COMPLETED && state.activeCheckIn(it.id, user.id) != null }
                 val created = state.events.count { it.organizerId == user.id }
-                listOf(joined to "Joined", created to "Created").forEach { (count, label) ->
+                listOf(joined to "Joined", attended to "Attended", created to "Created").forEach { (count, label) ->
                     Surface(Modifier.weight(1f), color = ProfileGray, shape = AppUi.FieldShape) {
                         Column(Modifier.padding(vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("$count", fontSize = 21.sp, fontWeight = FontWeight.Bold)
@@ -91,7 +93,7 @@ fun ProfileScreen(state: AppSnapshot, now: Long, busy: Boolean, mode: AccountMod
                 }
             }
             repeat(3) { index ->
-                history.getOrNull(index)?.let { event -> ProfileActivityRow(event) { openEvent(event.id) } }
+                history.getOrNull(index)?.let { event -> ProfileActivityRow(event,state.eventRatings[event.id]) { openEvent(event.id) } }
                     ?: Box(Modifier.fillMaxWidth().height(64.dp)) {
                         if (index == 0) Text("Your past activities will appear here.", Modifier.padding(top = 14.dp),
                             fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -146,6 +148,6 @@ fun ProfileHistoryScreen(state: AppSnapshot, now: Long, openEvent: (String) -> U
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)) {
         if (history.isEmpty()) item { Text("Your past activities will appear here.", Modifier.padding(vertical = 20.dp),
             fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        items(history.size, key = { history[it].id }) { index -> ProfileActivityRow(history[index]) { openEvent(history[index].id) } }
+        items(history.size, key = { history[it].id }) { index -> ProfileActivityRow(history[index],state.eventRatings[history[index].id]) { openEvent(history[index].id) } }
     }
 }

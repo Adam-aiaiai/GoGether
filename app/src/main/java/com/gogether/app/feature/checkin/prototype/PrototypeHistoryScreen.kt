@@ -15,7 +15,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.gogether.app.core.ui.displayTime
 
-internal fun PrototypeHistoryEntry.canReview(now: Long) = !cancelled && eligible && feedback == null && hasEnded(now)
+internal fun PrototypeHistoryEntry.canReview(now: Long) = !cancelled && eligible && receipt != null && feedback == null && hasEnded(now)
 
 /** Bounded list and a separate detail/form screen; no growing content on the QR screen. */
 @Composable
@@ -56,13 +56,17 @@ fun PrototypeHistoryScreen(actor: String, records: List<PrototypeHistoryEntry>, 
                     Card(shape = CheckInStyle.shape, onClick = { selectedId = entry.session.id },
                         modifier = Modifier.fillMaxWidth().testTag("history_${entry.session.id}")) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(activities.infoOrNull(entry.session)?.title ?: "Event details unavailable", style = MaterialTheme.typography.titleMedium)
+                            val info=activities.infoOrNull(entry.session)
+                            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                                Text(info?.title ?: "Event details unavailable",Modifier.weight(1f),style=MaterialTheme.typography.titleMedium)
+                                info?.sourceEventId?.let {id->com.gogether.app.core.ui.EventRatingBadge(com.gogether.app.core.ui.LocalEventRatings.current[id],id)}
+                            }
                             Text(historyTime(entry.session.startAt), style = MaterialTheme.typography.bodySmall)
                             Text(when {
                                 entry.session.id in pendingCheckIns -> "Check-in unconfirmed"
                                 entry.cancelled -> "Event cancelled"
                                 entry.feedback != null -> "Reviewed ${entry.feedback.rating} / 5"
-                                entry.hasEnded(now) -> if (entry.eligible) "Ended. Ready to review." else "Ended. Not eligible to review."
+                                entry.hasEnded(now) -> if (entry.eligible && entry.receipt != null) "Ended. Ready to review." else "Ended. Not checked in or registration inactive."
                                 entry.receipt != null -> "Checked in. Review after the event."
                                 else -> "Not checked in"
                             })

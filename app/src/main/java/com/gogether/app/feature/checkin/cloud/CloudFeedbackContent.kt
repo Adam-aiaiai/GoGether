@@ -36,7 +36,7 @@ import java.io.File
 @Composable
 internal fun CloudFeedbackContent(backend:CloudOperations,event:Event,actor:String,confirmed:Boolean,ended:Boolean,
     own:Map<*,*>?,reviews:List<Map<*,*>>,busy:Boolean,perform:(suspend ()->Unit)->Unit,message:(String)->Unit,
-    organizerName:String,back:()->Unit,statusMessage:String = "",loading:Boolean = false) {
+    organizerName:String,back:()->Unit,statusMessage:String = "",loading:Boolean = false, replacesReviewId:String = "", ratingSummary:com.gogether.app.core.model.EventRatingSummary? = null) {
     val context=LocalContext.current.applicationContext
     val drafts=remember{CloudFeedbackDraftStore(context)}
     val photos=remember{FeedbackPhotoStore(context)}
@@ -59,7 +59,7 @@ internal fun CloudFeedbackContent(backend:CloudOperations,event:Event,actor:Stri
     val canReview=own==null && event.status!=EventStatus.CANCELLED && ended && confirmed
     if(canReview && !viewingReviews && !loading) {
         FeedbackEditor("$actor/${event.id}", ReviewEventSummary(event.title,organizerName,event.startAt,event.imageUri,event.category.symbol),
-            draft,busy,draftError,statusMessage,::update,{update(draft)},submit={perform {
+            draft,busy,draftError,statusMessage,::update,{update(draft)},allowAnonymous=actor!=event.organizerId,submit={perform {
             val submitted=draft
             require(submitted.rating in 1..5 && submitted.comment.length<=100){"Choose a rating and use up to 100 characters."}
             submitted.details.requireValid(maxTextLength = 100)
@@ -77,7 +77,7 @@ internal fun CloudFeedbackContent(backend:CloudOperations,event:Event,actor:Stri
                 path
             }}
             backend.call("submitFeedback",mapOf("eventId" to event.id,"rating" to submitted.rating,
-                "comment" to submitted.comment,"details" to submitted.details.payload(paths)))
+                "comment" to submitted.comment,"details" to submitted.details.payload(paths),"replacesReviewId" to replacesReviewId))
             drafts.clear(actor,event.id)
             message("Review saved on the server.")
             }},back=back,reviews={viewingReviews=true},commentTag="cloud_feedback_comment",submitTag="cloud_submit_feedback",
@@ -94,14 +94,16 @@ internal fun CloudFeedbackContent(backend:CloudOperations,event:Event,actor:Stri
     Column(Modifier.fillMaxSize()) {
         AppPageHeader(if(own!=null) "My review" else "Event reviews",onBack={if(viewingReviews && canReview)viewingReviews=false else back()})
         Page(Modifier.weight(1f)) {
+            com.gogether.app.core.ui.EventRatingOverview(event.id,ratingSummary ?: com.gogether.app.core.ui.LocalEventRatings.current[event.id])
             if(loading) LinearProgressIndicator(Modifier.fillMaxWidth())
             if(statusMessage.isNotBlank()) Text(statusMessage,color=MaterialTheme.colorScheme.error)
             if(own!=null) {
-                key(actor, event.id) { CloudReviewCard(backend,own,true,Modifier.testTag("cloud_feedback_saved")) }
+                key(actor, event.id) { CloudReviewCard(backend,own,true,Modifier.testTag("cloud_feedback_saved"), changed={perform { }}) }
             } else if(event.status==EventStatus.CANCELLED)ReviewNotice("This event is cancelled. New reviews are closed.")
             else if(!ended)ReviewNotice("Reviews open after the event ends.")
             else if(!confirmed)ReviewNotice("Only confirmed participants can review this event.")
             else if(viewingReviews) PageActionButton(onClick={viewingReviews=false}){Text("Write a review")}
+            com.gogether.app.feature.social.DeletedReviewThreads(event.id)
             val otherReviews = reviews.filterNot{it["own"]==true && own!=null}
             if(own != null && otherReviews.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
@@ -112,7 +114,7 @@ internal fun CloudFeedbackContent(backend:CloudOperations,event:Event,actor:Stri
                 otherReviews.forEach { review ->
                     key(actor, event.id, review.string("id")){
                         CloudReviewCard(backend,review,review["own"]==true,
-                            Modifier.testTag("cloud_review_${review.string("id")}"))
+                            Modifier.testTag("cloud_review_${review.string("id")}"), changed={perform { }})
                     }
                 }
             }
@@ -148,11 +150,12 @@ private fun ReviewNotice(text: String) {
 }
 
 @Composable
-private fun CloudReviewCard(backend:CloudOperations,value:Map<*,*>,own:Boolean, modifier: Modifier = Modifier) {
+private fun CloudReviewCard(backend:CloudOperations,value:Map<*,*>,own:Boolean, modifier: Modifier = Modifier, changed:()->Unit = {}) {
     val detail=details(value.map("details"))
     val label=value.string("authorName").ifBlank{if(own) "You" else "Participant"}
     SavedReviewItem(label,own,value.number("rating").toInt(),value.string("comment"),
-        value.number("createdAt"),detail,modifier,avatarUri=value.string("avatarUri")) { CloudReviewPhotos(backend, detail.photos) }
+        value.number("createdAt"),detail,modifier,avatarUri=value.string("avatarUri"),anonymousName=value.string("authorName"),organizer=value["organizer"]==true || value["organizerReview"]==true) { CloudReviewPhotos(backend, detail.photos) }
+    com.gogether.app.feature.social.SocialContentActions(value.string("publicId").ifBlank {value.string("id")},changed)
 }
 
 /** Keep protected media scoped to this viewer/review composition; never use a public URL. */

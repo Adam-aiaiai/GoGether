@@ -1,52 +1,15 @@
 package com.gogether.app.feature.checkin.prototype
 
 import java.util.UUID
-import kotlin.math.*
 
-/** Prototype-only policy. The radius is agreed; accuracy/age/TTL are adjustable trial values. */
+/** Short-lived QR policy shared by local check-in flows. */
 object PrototypePolicy {
-    const val RADIUS_METERS = 200.0
-    const val MAX_ACCURACY_METERS = 50.0
-    const val MAX_FIX_AGE_MS = 15_000L
     const val CODE_TTL_MS = 30_000L
     const val REFRESH_MS = 10_000L
     const val HALF_HOUR_MS = 1_800_000L
 }
 
-data class MeetingPoint(val latitude: Double, val longitude: Double) {
-    init {
-        require(latitude.isFinite() && latitude in -90.0..90.0 &&
-            longitude.isFinite() && longitude in -180.0..180.0) { "Invalid meeting point coordinates." }
-    }
-    // Android LocationManager and this prototype use WGS84 throughout; no map SDK conversion.
-    fun distanceTo(other: MeetingPoint): Double {
-        val lat = Math.toRadians(other.latitude - latitude)
-        val lon = Math.toRadians(other.longitude - longitude)
-        val a = sin(lat / 2).pow(2) + cos(Math.toRadians(latitude)) *
-            cos(Math.toRadians(other.latitude)) * sin(lon / 2).pow(2)
-        return 6_371_000.0 * 2 * asin(sqrt(a.coerceIn(0.0, 1.0)))
-    }
-}
-
-data class PositionFix(val point: MeetingPoint, val accuracyMeters: Double,
-                       val elapsedMillis: Long, val simulated: Boolean = false)
-
-fun validatePosition(fix: PositionFix, elapsedNow: Long, meeting: MeetingPoint? = null): Double {
-    require(!fix.simulated) { "Mock location detected. Use your phone's real location." }
-    require(fix.accuracyMeters.isFinite() && fix.accuracyMeters in 0.0..PrototypePolicy.MAX_ACCURACY_METERS) {
-        "Location is not accurate enough. Try in an open area; accuracy must be within 50 m."
-    }
-    require(fix.elapsedMillis >= 0 && elapsedNow >= fix.elapsedMillis && elapsedNow - fix.elapsedMillis <= PrototypePolicy.MAX_FIX_AGE_MS) {
-        "Your location is out of date. Get a new location."
-    }
-    val distance = meeting?.distanceTo(fix.point) ?: 0.0
-    require(distance <= PrototypePolicy.RADIUS_METERS + 0.000001) {
-        "You are about ${distance.roundToInt()} m away. Move within 200 m and try again."
-    }
-    return distance
-}
-
-data class PrototypeSession(val id: String, val meeting: MeetingPoint?, val startAt: Long, val endAt: Long) {
+data class PrototypeSession(val id: String, val startAt: Long, val endAt: Long) {
     init {
         require(UUID.fromString(id).toString() == id) { "Invalid event ID." }
         require(startAt in 1..4_102_444_800_000L && endAt > startAt && endAt - startAt <= 86_400_000) {
@@ -54,7 +17,6 @@ data class PrototypeSession(val id: String, val meeting: MeetingPoint?, val star
         }
     }
     fun requireWindow(now: Long) {
-        requireNotNull(meeting) { "The check-in meeting point has not been set." }
         require(now < endAt) { "This event has ended. You cannot check in." }
         require(now >= startAt - PrototypePolicy.HALF_HOUR_MS) { "Check-in has not opened yet." }
         require(now <= startAt + PrototypePolicy.HALF_HOUR_MS) { "The check-in window has closed." }
@@ -75,30 +37,30 @@ data class PrototypeCode(val session: PrototypeSession, val issuedAt: Long, val 
     }
 }
 
-/** Portable mock event data, NOT signed or trusted. Replace the whole codec/backend for production. */
+/** Local demo credential; production uses opaque server-issued tokens. Old QR versions are rejected. */
 object PrototypeCodeCodec {
-    private const val PREFIX = "GOGETHER-LOCAL-QR-1"
+    private const val PREFIX = "GOGETHER-LOCAL-QR-2"
     fun encode(code: PrototypeCode): String = with(code) {
-        val point = requireNotNull(session.meeting) { "A check-in code requires a meeting point." }
-        listOf(PREFIX, session.id, point.latitude, point.longitude,
-            session.startAt, session.endAt, issuedAt, expiresAt).joinToString("|")
+        listOf(PREFIX, session.id, session.startAt, session.endAt, issuedAt, expiresAt).joinToString("|")
     }
     fun decode(raw: String): PrototypeCode {
         require(raw.length <= 512) { "This is not a valid Gogether check-in code." }
         try {
             val p = raw.split('|')
-            require(p.size == 8 && p[0] == PREFIX)
-            return PrototypeCode(PrototypeSession(p[1], MeetingPoint(p[2].toDouble(), p[3].toDouble()),
-                p[4].toLong(), p[5].toLong()), p[6].toLong(), p[7].toLong())
+            require(p.size == 6 && p[0] == PREFIX)
+            return PrototypeCode(PrototypeSession(p[1], p[2].toLong(), p[3].toLong()), p[4].toLong(), p[5].toLong())
         } catch (_: IllegalArgumentException) {
-            throw IllegalArgumentException("Invalid Gogether check-in code. Scan the code shown by the organizer.")
+            throw IllegalArgumentException("Invalid or old Gogether code. Scan the organizer's latest code.")
         }
     }
 }
 
-data class PrototypeReceipt(val sessionId: String, val userId: String, val checkedInAt: Long)
+data class PrototypeReceipt(val sessionId: String, val userId: String, val checkedInAt: Long,
+    val registrationKey: String? = null, val organizer: Boolean = false)
 data class PrototypeFeedback(val sessionId: String, val userId: String, val rating: Int,
-    val comment: String, val createdAt: Long, val details: FeedbackDetails = FeedbackDetails())
+    val comment: String, val createdAt: Long, val details: FeedbackDetails = FeedbackDetails(), val anonymousName: String = "", val publicId: String = "") {
+    val contentId: String get() = publicId.ifBlank { com.gogether.app.feature.social.LocalSocialStore.reviewId(sessionId,userId,createdAt) }
+}
 data class PrototypeHistoryEntry(val session: PrototypeSession, val receipt: PrototypeReceipt?,
     val feedback: PrototypeFeedback?, val cancelled: Boolean,
     val completed: Boolean = false, val eligible: Boolean = true) {
@@ -109,7 +71,7 @@ internal fun feedbackHasEnded(session: PrototypeSession, now: Long, completed: B
     completed || now >= session.endAt
 
 /** Confirmed registrations only; replace these profiles with A/C data when integrating. */
-data class PrototypeAttendee(val userId: String, val name: String, val checkedInAt: Long? = null, val avatarUri: String = "")
+data class PrototypeAttendee(val userId: String, val name: String, val checkedInAt: Long? = null, val avatarUri: String = "", val organizer: Boolean = false)
 
 internal val prototypeParticipants = listOf(
     PrototypeAttendee("alice", "Alice"), PrototypeAttendee("bob", "Bob"),
@@ -134,6 +96,8 @@ interface PrototypeStore {
     fun sessions(userId: String): List<PrototypeSession>
     fun feedback(sessionId: String, userId: String): PrototypeFeedback?
     fun saveFeedback(feedback: PrototypeFeedback)
+    fun isDeleted(id: String): Boolean = false
+    fun isBlocked(viewer: String, author: String): Boolean = false
     fun feedbackForSession(sessionId: String): List<PrototypeFeedback>
 }
 
@@ -143,9 +107,9 @@ interface PrototypeCheckInBackend {
     fun activityInfo(session: PrototypeSession): CheckInActivityInfo = LegacyCheckInActivities.activity(session)
     fun hostedSession(actor: String): PrototypeSession? = hostedSession()?.takeIf { activityInfo(it).organizerId == actor }
     fun hostedSession(actor: String, session: PrototypeSession): PrototypeSession? = hostedSession(actor)?.takeIf { it == session }
-    fun createMeeting(actor: String, fix: PositionFix): PrototypeSession
-    fun issue(actor: String, session: PrototypeSession, fix: PositionFix): PrototypeCode
-    fun submit(actor: String, raw: String, fix: PositionFix): PrototypeReceipt
+    fun createMeeting(actor: String): PrototypeSession
+    fun issue(actor: String, session: PrototypeSession): PrototypeCode
+    fun submit(actor: String, raw: String, registrationKey: String? = null): PrototypeReceipt
     fun cancel(actor: String, session: PrototypeSession)
     fun isCancelled(session: PrototypeSession): Boolean
     fun isCheckInClosed(session: PrototypeSession): Boolean = isCancelled(session)
@@ -159,12 +123,12 @@ interface PrototypeCheckInBackend {
 
 class LocalPrototypeBackend(private val store: PrototypeStore,
     private val now: () -> Long = System::currentTimeMillis,
-    private val elapsedNow: () -> Long,
     private val registrations: CheckInRegistrationSource = MockCheckInRegistrations,
     private val activities: CheckInActivitySource = LegacyCheckInActivities,
     private val completed: (PrototypeSession) -> Boolean = { false },
     private val userName: (String) -> String = { id -> prototypeParticipants.find { it.userId == id }?.name ?: "Participant" },
     private val userAvatar: (String) -> String = { "" },
+    private val receiptLookup: ((String, String) -> PrototypeReceipt?)? = null,
 ) : PrototypeCheckInBackend {
     private val scopedRegistrations = if (registrations === MockCheckInRegistrations) StoredMockCheckInRegistrations(store) else registrations
     override fun hostedSession() = store.hostedSession
@@ -191,6 +155,9 @@ class LocalPrototypeBackend(private val store: PrototypeStore,
     override fun hostedSession(actor: String, session: PrototypeSession): PrototypeSession? =
         if (catalogActivity(session) && owns(actor, session)) session else hostedSession(actor)?.takeIf { it == session }
     override fun isCancelled(session: PrototypeSession) = store.isCancelled(session.id)
+    private fun currentReceipt(sessionId: String, actor: String): PrototypeReceipt? =
+        (receiptLookup?.invoke(sessionId, actor) ?: store.receipt(sessionId, actor))?.takeIf { !store.isCancelled(sessionId) && scopedRegistrations.isCurrentReceipt(it) }
+
     private fun requireConfirmed(actor: String, activityId: String) {
         val status = scopedRegistrations.status(activityId, actor)
         require(status == CheckInRegistration.CONFIRMED) {
@@ -203,24 +170,25 @@ class LocalPrototypeBackend(private val store: PrototypeStore,
         requireConfirmed(actor, code.session.id)
         code.requireValid(now())
         require(!isCancelled(code.session)) { "This event has been cancelled." }
-        // Mock C membership is remembered even when location fails: feedback does not require check-in.
+        // Keep the activity record even if submission fails; it does not grant review eligibility.
         store.rememberSession(actor, code.session)
         return code.session
     }
     override fun history(actor: String): List<PrototypeHistoryEntry> = store.sessions(actor)
-        .map { PrototypeHistoryEntry(it, store.receipt(it.id, actor), store.feedback(it.id, actor), isCancelled(it),
+        .map { PrototypeHistoryEntry(it, currentReceipt(it.id, actor), store.feedback(it.id, actor), isCancelled(it),
             completed(it), scopedRegistrations.status(it.id, actor) == CheckInRegistration.CONFIRMED) }
         .sortedByDescending { it.session.startAt }
 
     override fun reviews(actor: String, session: PrototypeSession): List<VisibleFeedback> {
         require(actor.isNotBlank() && session in store.sessions(actor)) { "Open the event record for your current account to review." }
         val organizer = activityInfo(session).organizerId
-        return store.feedbackForSession(session.id).mapNotNull { it.visibleTo(actor, organizer, userName(it.userId), userAvatar(it.userId)) }.sortedByDescending { it.createdAt }
+        return store.feedbackForSession(session.id).filterNot { store.isBlocked(actor,it.userId) }.mapNotNull { it.visibleTo(actor, organizer, userName(it.userId), userAvatar(it.userId)) }.sortedByDescending { it.createdAt }
     }
 
     @Synchronized override fun submitFeedback(actor: String, sessionId: String, rating: Int, comment: String,
         details: FeedbackDetails): PrototypeFeedback {
         requireConfirmed(actor, sessionId)
+        require(currentReceipt(sessionId, actor) != null) { "Check in at this event before leaving a review." }
         val session = requireNotNull(store.sessions(actor).find { it.id == sessionId }) { "Your event record could not be found." }
         activityInfo(session)
         require(!isCancelled(session)) { "This event is cancelled. You cannot review it." }
@@ -229,8 +197,9 @@ class LocalPrototypeBackend(private val store: PrototypeStore,
         require(rating in 1..5) { "Choose a rating from 1 to 5." }
         require(comment.length <= 100) { "Comments must be 100 characters or less." }
         details.requireValid(maxTextLength = 100)
+        require(actor != activityInfo(session).organizerId || !details.anonymous) { "Organizers must use a named review." }
         val feedback = PrototypeFeedback(sessionId, actor, rating, comment.trim(), time,
-            details.copy(tags = details.tags.toList(), photos = details.photos.toList()))
+            details.copy(tags = details.tags.toList(), photos = details.photos.toList()), publicId = java.util.UUID.randomUUID().toString())
         store.saveFeedback(feedback)
         return feedback
     }
@@ -238,36 +207,42 @@ class LocalPrototypeBackend(private val store: PrototypeStore,
         require(owns(actor, session)) {
             "Only this event's organizer can view attendance."
         }
-        return scopedRegistrations.participants(session.id).map { it.copy(checkedInAt = store.receipt(session.id, it.userId)?.checkedInAt) }
+        return scopedRegistrations.participants(session.id).map { it.copy(checkedInAt = currentReceipt(session.id, it.userId)?.checkedInAt, organizer = it.userId == activityInfo(session).organizerId) }
     }
-    override fun createMeeting(actor: String, fix: PositionFix): PrototypeSession {
+    override fun createMeeting(actor: String): PrototypeSession {
         require(activities === LegacyCheckInActivities && actor == "alice") { "Open this event from its details page." }
-        validatePosition(fix, elapsedNow())
         val time = now()
-        return PrototypeSession(UUID.randomUUID().toString(), fix.point, time + 600_000, time + 7_800_000)
+        return PrototypeSession(UUID.randomUUID().toString(), time + 600_000, time + 7_800_000)
             .also { store.rememberSession(actor, it); store.hostedSession = it }
     }
-    override fun issue(actor: String, session: PrototypeSession, fix: PositionFix): PrototypeCode {
+    override fun issue(actor: String, session: PrototypeSession): PrototypeCode {
         require(owns(actor, session)) { "Only this event's organizer can show a check-in code." }
         require(hostedSession(actor, session) == session) { "The test event has changed. Reopen this page." }
         require(!isCancelled(session)) { "Event cancelled. No more codes will be issued." }
         val time = now()
         session.requireWindow(time)
-        validatePosition(fix, elapsedNow(), session.meeting)
-        return PrototypeCode(session, time, minOf(time + PrototypePolicy.CODE_TTL_MS,
+        requireConfirmed(actor, session.id)
+        val code = PrototypeCode(session, time, minOf(time + PrototypePolicy.CODE_TTL_MS,
             session.endAt, session.startAt + PrototypePolicy.HALF_HOUR_MS + 1))
+        if (currentReceipt(session.id, actor) == null) {
+            store.save(PrototypeReceipt(session.id, actor, time,
+                scopedRegistrations.registrationKey(session.id, actor), organizer = true))
+        }
+        return code
     }
-    @Synchronized override fun submit(actor: String, raw: String, fix: PositionFix): PrototypeReceipt {
+    @Synchronized override fun submit(actor: String, raw: String, registrationKey: String?): PrototypeReceipt {
         val code = PrototypeCodeCodec.decode(raw)
         activityInfo(code.session)
         requireConfirmed(actor, code.session.id)
         val time = now()
         code.requireValid(time)
         require(!isCancelled(code.session)) { "This event is cancelled. You cannot check in." }
-        validatePosition(fix, elapsedNow(), code.session.meeting)
-        require(store.receipt(code.session.id, actor) == null) { "You are already checked in." }
+        require(actor != activityInfo(code.session).organizerId) { "Confirm your arrival when showing the code." }
+        val currentKey = scopedRegistrations.registrationKey(code.session.id, actor)
+        require(registrationKey == null || registrationKey == currentKey) { "Your registration changed. Scan again." }
+        require(currentReceipt(code.session.id, actor) == null) { "You are already checked in." }
         store.rememberSession(actor, code.session)
-        return PrototypeReceipt(code.session.id, actor, time).also(store::save)
+        return PrototypeReceipt(code.session.id, actor, time, currentKey).also(store::save)
     }
     override fun cancel(actor: String, session: PrototypeSession) {
         require(owns(actor, session) && hostedSession(actor, session) == session) { "Only the organizer can cancel this event." }

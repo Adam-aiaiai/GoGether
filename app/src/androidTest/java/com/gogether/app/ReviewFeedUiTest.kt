@@ -106,7 +106,7 @@ class ReviewFeedUiTest {
         val review = VisibleFeedback("Private name", true, false, 5, "Everyone was welcoming.", time,
             FeedbackDetails(5,4,5,listOf("welcoming","beginner_friendly"),anonymous = true,
                 visibility = FeedbackVisibility.ORGANIZER_ONLY, positiveComment = "Plenty of support for beginners."))
-        val session = PrototypeSession(java.util.UUID.randomUUID().toString(), MeetingPoint(31.27,120.74),time-7_200_000,time)
+        val session = PrototypeSession(java.util.UUID.randomUUID().toString(),time-7_200_000,time)
         compose.setContent {
             DeviceConfigurationOverride(DeviceConfigurationOverride.ForcedSize(DpSize(320.dp,568.dp)) then
                 DeviceConfigurationOverride.FontScale(1.6f)) {

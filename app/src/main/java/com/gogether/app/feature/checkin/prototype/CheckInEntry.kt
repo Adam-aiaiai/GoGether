@@ -14,6 +14,11 @@ enum class CheckInRegistration { CONFIRMED, WAITLISTED, NONE }
 /** Read-only C seam; both the UI and mock backend use the same source. */
 interface CheckInRegistrationSource {
     fun status(activityId: String?, userId: String): CheckInRegistration
+    fun registrationKey(activityId: String?, userId: String): String? =
+        if (status(activityId, userId) == CheckInRegistration.CONFIRMED) "initial:$activityId:$userId" else null
+    fun isCurrentReceipt(receipt: PrototypeReceipt): Boolean = registrationKey(receipt.sessionId, receipt.userId)?.let {
+        receipt.registrationKey == null || receipt.registrationKey == it
+    } == true
     fun participants(activityId: String?): List<PrototypeAttendee>
 }
 
@@ -27,4 +32,4 @@ object MockCheckInRegistrations : CheckInRegistrationSource {
 }
 
 /** A pending camera result belongs to a user, activity scope and entry generation. */
-internal data class PendingCheckInScan(val id: Long, val entry: CheckInEntry, val generation: Long)
+internal data class PendingCheckInScan(val id: Long, val entry: CheckInEntry, val generation: Long, val registrationKey: String? = null)

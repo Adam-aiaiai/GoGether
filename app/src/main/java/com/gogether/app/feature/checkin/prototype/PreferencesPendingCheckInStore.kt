@@ -12,15 +12,14 @@ class PreferencesPendingCheckInStore(context: Context) : PendingCheckInStore {
         prefs.getString(key(actor, sessionId), null)?.let { raw ->
             val value = JSONObject(raw)
             CheckInAttempt(value.getString("request"), actor, PrototypeSession(sessionId,
-                MeetingPoint(value.getDouble("lat"), value.getDouble("lon")),
-                value.getLong("start"), value.getLong("end")))
+                value.getLong("start"), value.getLong("end")), value.optString("registrationKey").takeIf { it.isNotBlank() })
         }
     }
     override fun save(attempt: CheckInAttempt) = synchronized(lock) {
         val previous = get(attempt.actor, attempt.session.id)
         check(previous == null || previous == attempt) { "Check the result of your previous check-in first." }
-        val value = JSONObject().put("request", attempt.id).put("lat", requireNotNull(attempt.session.meeting).latitude)
-            .put("lon", requireNotNull(attempt.session.meeting).longitude).put("start", attempt.session.startAt).put("end", attempt.session.endAt)
+        val value = JSONObject().put("request", attempt.id).put("registrationKey", attempt.registrationKey)
+            .put("start", attempt.session.startAt).put("end", attempt.session.endAt)
         check(prefs.edit().putString(key(attempt.actor, attempt.session.id), value.toString()).commit()) {
             "Could not save check-in progress. Try again later."
         }

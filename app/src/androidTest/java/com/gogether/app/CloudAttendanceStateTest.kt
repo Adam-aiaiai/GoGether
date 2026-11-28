@@ -12,7 +12,7 @@ class CloudAttendanceStateTest {
     @Test fun pendingAttemptSurvivesRecreationAndBlocksNewIdentityForSameEvent() {
         val context=ApplicationProvider.getApplicationContext<Context>()
         val actor="test-${UUID.randomUUID()}"; val event="event-${UUID.randomUUID()}"
-        val attempt=CloudPendingCheckIn("attempt-id","GOGETHER-CLOUD-1|opaque",mapOf("ageMillis" to 1000,"latitude" to 31.2))
+        val attempt=CloudPendingCheckIn("attempt-id","GOGETHER-CLOUD-2|opaque","registration:1")
         val first=CloudCheckInPendingStore(context)
         try {
             first.save(actor,event,attempt)

@@ -28,14 +28,17 @@ class RepositoryFeedbackIntegrationTest {
     private val seed = DemoData.create(time).let { s -> s.copy(currentUserId = "bob", events = listOf(
         s.event("event-1")!!.copy(createdAt = System.nanoTime(), status = EventStatus.COMPLETED,
             startAt = time + 600_000, endAt = time + 7_800_000))) }
-    private val repo = FakeGogetherRepository(seed, { time })
-    private val bridge = RegistrationAttendanceBridge({ repo.state.value }, store, { time }, { 0 })
+    private val attendedSeed = seed.copy(checkIns = seed.registrations.filter {
+        it.eventId == "event-1" && it.status == RegistrationStatus.CONFIRMED && it.userId != "alice"
+    }.map { CheckIn("fixture-${it.userId}", it.eventId, it.userId, time, registrationKey = it.attendanceKey) })
+    private val repo = FakeGogetherRepository(attendedSeed, { time })
+    private val bridge = RegistrationAttendanceBridge({ repo.state.value }, store, { time })
     private val id = bridge.key(seed.events.single())
     private val imported = mutableListOf<String>()
 
     private fun openFromHistory() {
         compose.onNodeWithTag("nav_profile").performClick()
-        compose.onNodeWithTag("event_event-1").performScrollTo().performClick()
+        compose.onNodeWithTag("history_event-1").performScrollTo().performClick()
         compose.onNodeWithTag("open_checkin").performScrollTo().performClick()
         compose.waitUntil(5000) { compose.onAllNodesWithTag("feedback_submit").fetchSemanticsNodes().isNotEmpty() }
     }
@@ -50,7 +53,7 @@ class RepositoryFeedbackIntegrationTest {
         edit.commit()
         imported.forEach { photos.removeDraft(it, "bob", id) }
     }
-    @Test fun normalHistoryOpensCompleteUnboundFormRestoresPhotoDraftAndSubmitsOnce(): Unit = runBlocking {
+    @Test fun attendedHistoryOpensCompleteFormRestoresPhotoDraftAndSubmitsOnce(): Unit = runBlocking {
         val bitmap = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
         val bytes = ByteArrayOutputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it); it.toByteArray() }
         bitmap.recycle()
@@ -70,6 +73,7 @@ class RepositoryFeedbackIntegrationTest {
         find("feedback_comment").assertTextContains("I came back to add a few more thoughts.")
         find("feedback_photo_0").assertExists()
         compose.reviewNode("feedback_submit").performClick()
+        compose.waitForIdle()
         compose.waitUntil(5000) { store.feedback(id, "bob") != null }
         find("feedback_saved").assertExists()
         compose.reviewNode("feedback_submit").assertDoesNotExist()
@@ -78,12 +82,12 @@ class RepositoryFeedbackIntegrationTest {
         assertEquals(listOf(image), saved.details.photos)
         assertTrue(saved.details.anonymous)
         assertEquals(FeedbackVisibility.ORGANIZER_ONLY, saved.details.visibility)
-        assertNull(restored.activityInfo(id)!!.session.meeting)
+        assertNotNull(restored.activityInfo(id)!!.session)
         assertNotNull(photos.bitmap(image, "bob", id))
         assertFalse(photos.canRead(image, "carol", id))
         assertTrue(photos.canRead(image, "alice", id))
         assertEquals(FeedbackDraft(), FeedbackDraftStore(context).load("bob", id))
-        assertTrue(repo.state.value.checkIns.isEmpty())
+        assertNotNull(repo.state.value.activeCheckIn("event-1", "bob"))
         compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithTag("nav_my-events").performClick()
         compose.onNodeWithTag("personal_tab_HISTORY").performScrollTo().performClick()
@@ -109,14 +113,14 @@ class RepositoryFeedbackIntegrationTest {
     }
 
     @Test fun localRecordStorageReadsOldQrFormatAndRestoresUnboundRecords() {
-        val old = PrototypeSession(id, MeetingPoint(31.2, 120.6), time, time + 7_200_000)
+        val old = PrototypeSession(id, time, time + 7_200_000)
         val raw = PrototypeCodeCodec.encode(PrototypeCode(old, time, time + 30_000))
         val prefs = context.getSharedPreferences("checkin_prototype_v1", Context.MODE_PRIVATE)
         prefs.edit().putString("session.$id", raw).putBoolean("member.$id.bob", true).commit()
         assertEquals(old, PreferencesPrototypeStore(context).sessions("bob").single { it.id == id })
         store.rememberSession("bob", old)
         assertEquals(old, PreferencesPrototypeStore(context).sessions("bob").single { it.id == id })
-        val unbound = old.copy(id = java.util.UUID.randomUUID().toString(), meeting = null)
+        val unbound = old.copy(id = java.util.UUID.randomUUID().toString())
         assertEquals(unbound, PrototypeSessionStorage.decode(PrototypeSessionStorage.encode(unbound)))
         assertThrows(IllegalArgumentException::class.java) { PrototypeCodeCodec.decode(PrototypeSessionStorage.encode(unbound)) }
     }

@@ -27,8 +27,9 @@ import java.util.Locale
 @Composable
 internal fun SavedReviewItem(authorName: String, own: Boolean, rating: Int, comment: String,
     createdAt: Long, details: FeedbackDetails, modifier: Modifier = Modifier, avatarUri: String = "",
+    anonymousName: String = "", organizer: Boolean = false,
     photos: @Composable () -> Unit = {}) {
-    val name = if (details.anonymous) "Anonymous participant" else authorName.ifBlank { "Participant" }
+    val name = if (details.anonymous) anonymousName.takeIf { Regex("Anonymous participant [0-9]+").matches(it) } ?: "Anonymous participant" else authorName.ifBlank { "Participant" }
     val displayName = name + if (own && name != "You") " (you)" else ""
     val submitted = Instant.ofEpochMilli(createdAt).atZone(ZoneId.systemDefault())
     val date = submitted.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH))
@@ -57,6 +58,7 @@ internal fun SavedReviewItem(authorName: String, own: Boolean, rating: Int, comm
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.End)
                     }
+                    if (organizer && !details.anonymous) Text("Organizer", style = MaterialTheme.typography.labelSmall)
                     if (stackDate) Text("$date · $time", style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),

@@ -26,7 +26,7 @@ class ParticipantCheckInPanelTest {
     private var retries = 0
     private var resolutions = 0
     private var displayTime by mutableStateOf(now)
-    private val session = PrototypeSession("f23e4af8-b3ed-49ef-a7ee-d7c1cf2bf317", MeetingPoint(31.27, 120.74),
+    private val session = PrototypeSession("f23e4af8-b3ed-49ef-a7ee-d7c1cf2bf317",
         now + 600_000, now + 7_800_000)
 
     private fun launch(fontScale: Float = 1f, width: Int = 320, height: Int = 568) {
@@ -34,7 +34,7 @@ class ParticipantCheckInPanelTest {
             DeviceConfigurationOverride(DeviceConfigurationOverride.ForcedSize(DpSize(width.dp, height.dp)) then
                 DeviceConfigurationOverride.FontScale(fontScale)) {
                 GogetherTheme { PrototypeScreen(actor, state, displayTime, {}, {}, {}, { scans++ }, {}, {}, {}, { settings++ },
-                    retryLocation = { retries++ }, resolveCheckIn = { resolutions++ }) }
+                    resolveCheckIn = { resolutions++ }) }
             }
         }
     }
@@ -49,7 +49,7 @@ class ParticipantCheckInPanelTest {
         compose.onNodeWithTag("participant_status_title").assertTextEquals("Scan to check in on arrival")
         capture("participant-ready-$fontScale.png")
         compose.onNodeWithTag("prototype_scan").assertIsDisplayed().performClick()
-        assertEquals(1, scans)
+        compose.runOnIdle { assertEquals(1, scans) }
         val buttonBounds = compose.onNodeWithTag("prototype_scan").fetchSemanticsNode().boundsInRoot
         compose.runOnIdle { state = state.copy(busy = true, scanStage = ParticipantScanStage.VERIFYING) }
         compose.onNodeWithTag("prototype_scan").assertIsDisplayed().assertIsNotEnabled()
@@ -79,7 +79,7 @@ class ParticipantCheckInPanelTest {
         compose.onNodeWithTag("participant_help").assertIsDisplayed().performClick()
         compose.onNodeWithText("Check-in guide").assertIsDisplayed()
         compose.onNodeWithTag("participant_settings").performScrollTo().performClick()
-        assertEquals(1, settings)
+        compose.runOnIdle { assertEquals(1, settings) }
         compose.onNodeWithTag("prototype_scan").assertIsDisplayed()
     }
 
@@ -89,7 +89,7 @@ class ParticipantCheckInPanelTest {
         launch(width = 360, height = 720)
         compose.onNodeWithTag("participant_event_title").assertTextEquals("Badminton Meetup")
         compose.onNodeWithText("Hosted by Alice").assertIsDisplayed()
-        compose.onNodeWithTag("participant_location").assertIsDisplayed()
+        compose.onNodeWithText("Meeting point").assertIsDisplayed()
         compose.onNodeWithTag("participant_status_title").assertTextEquals("Ready to check in")
         capture("participant-event-ready.png")
         val receipt = PrototypeReceipt(session.id, "bob", now)
@@ -100,21 +100,18 @@ class ParticipantCheckInPanelTest {
         compose.onNodeWithTag("prototype_scan").performClick()
         compose.onNodeWithTag("history_detail").assertIsDisplayed()
         compose.onNodeWithTag("history_checkin").assertTextContains("Checked in", substring = true)
-        assertEquals(0, scans)
+        compose.runOnIdle { assertEquals(0, scans) }
     }
 
-    @Test fun endedActivityOpensReviewDirectlyAndLocationHasMapAction() {
+    @Test fun checkedInEndedActivityOpensReviewAndKeepsTextMeetingAddress() {
         // This is a fresh review form; another test or a prior run may have saved a draft.
         val ended = session.copy(id = java.util.UUID.randomUUID().toString(),
             startAt = now - 7_800_000, endAt = now - 1)
         state = PrototypeUiState(participantSession = ended,
-            history = listOf(PrototypeHistoryEntry(ended, null, null, false)))
+            history = listOf(PrototypeHistoryEntry(ended, PrototypeReceipt(ended.id, "bob", ended.startAt), null, false)))
         launch()
-        compose.onNodeWithTag("participant_location").performClick()
-        compose.onNodeWithText("Meeting location").assertIsDisplayed()
-        compose.onNodeWithTag("participant_map").assertIsDisplayed()
-        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
-        compose.waitForIdle()
+        compose.onNodeWithText("Meeting point").assertIsDisplayed()
+        compose.onNodeWithTag("participant_map").assertDoesNotExist()
         compose.onNodeWithText("Review event").assertIsDisplayed().performClick()
         compose.onNodeWithTag("feedback_rating_4").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("feedback_submit").assertIsNotEnabled()
@@ -130,7 +127,7 @@ class ParticipantCheckInPanelTest {
         compose.onNodeWithTag("prototype_scan").assertIsNotEnabled()
         compose.onNodeWithTag("participant_help").performClick()
         compose.onNodeWithTag("participant_scan_other").performScrollTo().performClick()
-        assertEquals(1, scans)
+        compose.runOnIdle { assertEquals(1, scans) }
     }
 
     @Test fun waitlistedAndUnregisteredAccountsCannotStartCheckIn() {
@@ -141,23 +138,13 @@ class ParticipantCheckInPanelTest {
         compose.onNodeWithTag("prototype_scan").assertIsNotEnabled()
     }
 
-    @Test fun locationRetryChangesToRescanAtExpiryWithoutMovingThePrimaryAction() {
-        state = PrototypeUiState(participantSession = session, scanned = PrototypeCode(session, now, now + 30_000),
-            locationRetryAvailable = true, scanStage = ParticipantScanStage.ATTENTION,
-            message = "Could not get your location. Move to an open area and try again.")
+    @Test fun rejectedScanOffersAnotherScanWithoutLocationAction() {
+        state = PrototypeUiState(participantSession = session, scanStage = ParticipantScanStage.ATTENTION,
+            message = "Your registration changed. Scan again.")
         launch()
-        compose.onNodeWithText("Retry location").assertIsDisplayed().performClick()
-        assertEquals(1, retries)
-        assertEquals(0, scans)
-        val bounds = compose.onNodeWithTag("prototype_scan").fetchSemanticsNode().boundsInRoot
-        capture("participant-location-retry.png")
-        compose.runOnIdle { displayTime = now + 30_000 }
-        compose.onNodeWithText("Check-in code expired. Scan the organizer's new code.").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Scan again").assertIsDisplayed().performClick()
-        assertEquals(1, retries)
-        assertEquals(1, scans)
-        assertEquals(bounds, compose.onNodeWithTag("prototype_scan").fetchSemanticsNode().boundsInRoot)
-        capture("participant-retry-expired.png")
+        compose.runOnIdle { assertEquals(1, scans) }
+        compose.onNodeWithText("Retry location").assertDoesNotExist()
     }
 
     @Test fun uncertainSubmissionUsesExistingActionAndCanBeResolvedAfterActivityCloses() {
@@ -178,8 +165,8 @@ class ParticipantCheckInPanelTest {
         }
         compose.onNodeWithTag("participant_status_title").assertTextEquals("Check-in unconfirmed")
         compose.onNodeWithText("Check result").assertIsDisplayed().performClick()
-        assertEquals(1, resolutions)
-        assertEquals(0, scans)
+        compose.runOnIdle { assertEquals(1, resolutions) }
+        compose.runOnIdle { assertEquals(0, scans) }
         assertEquals(bounds, compose.onNodeWithTag("prototype_scan").fetchSemanticsNode().boundsInRoot)
         compose.onNodeWithTag("prototype_receipt").assertDoesNotExist()
         val issue = compose.onNodeWithTag("participant_issue").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
@@ -202,8 +189,8 @@ class ParticipantCheckInPanelTest {
         compose.onNodeWithTag("history_checkin").assertDoesNotExist()
         compose.onNodeWithTag("history_resolve_checkin").performScrollTo().performClick()
         compose.onNodeWithText("Check result").assertIsDisplayed().performClick()
-        assertEquals(1, resolutions)
-        assertEquals(0, scans)
+        compose.runOnIdle { assertEquals(1, resolutions) }
+        compose.runOnIdle { assertEquals(0, scans) }
     }
 
     private fun capture(name: String) {

@@ -6,6 +6,7 @@ import org.json.JSONObject
 
 /** Versioned local demo snapshot. Contains no passwords or authentication tokens. */
 object SnapshotJson {
+    const val CURRENT_VERSION = 7
     private fun obj(vararg fields: Pair<String, Any?>) = JSONObject().apply {
         fields.forEach { (key, value) -> put(key, value ?: JSONObject.NULL) }
     }
@@ -18,7 +19,7 @@ object SnapshotJson {
     }
 
     fun encode(s: AppSnapshot): String = obj(
-        "version" to 3, "currentUserId" to s.currentUserId,
+        "version" to CURRENT_VERSION, "currentUserId" to s.currentUserId,
         "users" to list(s.users) { u -> obj("id" to u.id, "name" to u.displayName,
             "interests" to JSONArray(u.interests.map { it.name }), "createdAt" to u.createdAt,
             "status" to u.status.name, "email" to u.email, "avatarUri" to u.avatarUri,
@@ -37,15 +38,19 @@ object SnapshotJson {
             "userId" to r.userId, "status" to r.status.name, "joinedAt" to r.joinedAt,
             "updatedAt" to r.updatedAt, "queueOrder" to r.queueOrder) },
         "checkIns" to list(s.checkIns) { c -> obj("id" to c.id, "eventId" to c.eventId,
-            "userId" to c.userId, "at" to c.checkedInAt, "status" to c.status.name) },
+            "userId" to c.userId, "at" to c.checkedInAt, "status" to c.status.name,
+            "registrationKey" to c.registrationKey) },
         "notifications" to list(s.notifications) { n -> obj("id" to n.id, "userId" to n.userId,
             "eventId" to n.eventId, "type" to n.type.name, "content" to n.content,
-            "createdAt" to n.createdAt, "isRead" to n.isRead, "announcementId" to n.announcementId, "questionId" to n.questionId) },
+            "createdAt" to n.createdAt, "isRead" to n.isRead, "announcementId" to n.announcementId, "questionId" to n.questionId,
+            "contentId" to n.contentId, "rootId" to n.rootId, "actorName" to n.actorName, "actorAvatarUri" to n.actorAvatarUri) },
         "announcements" to list(s.announcements) { a -> obj("id" to a.id, "eventId" to a.eventId,
             "authorId" to a.authorId, "content" to a.content, "createdAt" to a.createdAt) },
         "questions" to list(s.questions) { q -> obj("id" to q.id, "eventId" to q.eventId,
             "authorId" to q.authorId, "content" to q.content, "createdAt" to q.createdAt,
-            "answer" to q.answer, "answeredBy" to q.answeredBy, "answeredAt" to q.answeredAt) },
+            "answer" to q.answer, "answeredBy" to q.answeredBy, "answeredAt" to q.answeredAt,
+            "replyHistory" to list(q.replyHistory) { r -> obj("id" to r.id,"authorId" to r.authorId,"content" to r.content,"createdAt" to r.createdAt) }) },
+        "eventRatings" to list(s.eventRatings.entries.toList()) { (eventId,summary) -> obj("eventId" to eventId,"ratingSum" to summary.ratingSum,"reviewCount" to summary.reviewCount) },
         "feedback" to list(s.feedback) { f -> obj("id" to f.id, "eventId" to f.eventId,
             "userId" to f.userId, "rating" to f.rating, "comment" to f.comment,
             "createdAt" to f.createdAt, "status" to f.status.name) },
@@ -53,7 +58,7 @@ object SnapshotJson {
 
     fun decode(text: String): AppSnapshot {
         val root = JSONObject(text)
-        require(root.getInt("version") in 1..3) { "This saved data version is not supported." }
+        require(root.getInt("version") in 1..CURRENT_VERSION) { "This saved data version is not supported." }
         val users = root.items("users") { u ->
             val interests = u.getJSONArray("interests")
             User(u.getString("id"), u.getString("name"), (0 until interests.length()).map {
@@ -81,10 +86,10 @@ object SnapshotJson {
                 r.getString("userId"), RegistrationStatus.valueOf(r.getString("status")), r.getLong("joinedAt"),
                 r.getLong("updatedAt"), r.getLong("queueOrder")) },
             checkIns = root.items("checkIns") { c -> CheckIn(c.getString("id"), c.getString("eventId"),
-                c.getString("userId"), c.getLong("at"), CheckInStatus.valueOf(c.getString("status"))) },
+                c.getString("userId"), c.getLong("at"), CheckInStatus.valueOf(c.getString("status")), c.nullable("registrationKey")) },
             notifications = root.items("notifications") { n -> Notification(n.getString("id"), n.getString("userId"),
                 n.getString("eventId"), NotificationType.valueOf(n.getString("type")), n.getString("content"),
-                n.getLong("createdAt"), n.getBoolean("isRead"), n.nullable("announcementId"), n.nullable("questionId")) },
+                n.getLong("createdAt"), n.getBoolean("isRead"), n.nullable("announcementId"), n.nullable("questionId"), n.nullable("contentId"), n.nullable("rootId"), n.nullable("actorName"), n.text("actorAvatarUri")) },
             announcements = if (root.has("announcements")) root.items("announcements") { a ->
                 Announcement(a.getString("id"), a.getString("eventId"), a.getString("authorId"),
                     a.getString("content"), a.getLong("createdAt"))
@@ -92,8 +97,10 @@ object SnapshotJson {
             questions = if (root.has("questions")) root.items("questions") { q ->
                 EventQuestion(q.getString("id"), q.getString("eventId"), q.getString("authorId"),
                     q.getString("content"), q.getLong("createdAt"), q.nullable("answer"), q.nullable("answeredBy"),
-                    if (q.has("answeredAt") && !q.isNull("answeredAt")) q.getLong("answeredAt") else null)
+                    if (q.has("answeredAt") && !q.isNull("answeredAt")) q.getLong("answeredAt") else null,
+                    if(q.has("replyHistory")) q.items("replyHistory") { r -> QuestionReply(r.getString("id"),r.getString("authorId"),r.getString("content"),r.getLong("createdAt")) } else emptyList())
             } else emptyList(),
+            eventRatings = if(root.has("eventRatings")) root.items("eventRatings") { r -> r.getString("eventId") to EventRatingSummary(r.getInt("ratingSum"),r.getInt("reviewCount")) }.toMap() else emptyMap(),
             feedback = root.items("feedback") { f -> Feedback(f.getString("id"), f.getString("eventId"),
                 f.getString("userId"), f.getInt("rating"), f.getString("comment"), f.getLong("createdAt"),
                 FeedbackStatus.valueOf(f.getString("status"))) })

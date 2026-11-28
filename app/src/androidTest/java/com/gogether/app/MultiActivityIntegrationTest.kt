@@ -31,8 +31,13 @@ class MultiActivityIntegrationTest {
     private val c = fixtures.carolEvent
     private val store = PreferencesPrototypeStore(context)
     private val imported = mutableListOf<Pair<String, String>>()
-    private fun backend(now: Long = a.endAt) = LocalPrototypeBackend(store, { now }, { 0 }, fixtures.registrations, fixtures.activities)
-    private fun seed() = fixtures.seed(store)
+    private fun backend(now: Long = a.endAt) = LocalPrototypeBackend(store, { now }, fixtures.registrations, fixtures.activities)
+    private fun seed() {
+        fixtures.seed(store)
+        listOf(a to "bob", c to "bob", c to "david").forEach { (session, actor) ->
+            store.rememberAttendedSession(actor, session)
+        }
+    }
     private var actor by mutableStateOf("carol")
     private var selected by mutableStateOf(c)
 
@@ -67,11 +72,11 @@ class MultiActivityIntegrationTest {
         assertNull(restartedPhotos.bitmap(third, "david", c.id))
         assertNull(restartedPhotos.bitmap(third, "carol", a.id))
         assertNotNull(restartedPhotos.bitmap(third, "bob", c.id))
-        val restarted = LocalPrototypeBackend(PreferencesPrototypeStore(context), { a.endAt }, { 0 })
+        val restarted = LocalPrototypeBackend(PreferencesPrototypeStore(context), { a.endAt })
         assertEquals("carol", restarted.activityInfo(c).organizerId)
         assertEquals(c, restarted.hostedSession("carol", c))
         assertNull(restarted.hostedSession("alice", c))
-        assertEquals("Anonymous participant", restarted.reviews("carol", c).single().authorName)
+        assertEquals("Anonymous participant 01", restarted.reviews("carol", c).single().authorName)
         assertEquals(listOf("carol", "bob", "david"), restarted.attendance("carol", c).map { it.userId })
         store.rememberSession("alice", c)
         assertThrows(IllegalArgumentException::class.java) { restarted.submitFeedback("alice", c.id, 5, "I would like to join next time.") }
@@ -90,26 +95,31 @@ class MultiActivityIntegrationTest {
                 DeviceConfigurationOverride(DeviceConfigurationOverride.ForcedSize(DpSize(320.dp, 568.dp))) {
                     GogetherTheme {
                         key(actor, selected.id) {
-                            PrototypeHistoryScreen(actor, listOf(PrototypeHistoryEntry(selected, null, null, false)), a.endAt,
+                            PrototypeHistoryScreen(actor, listOf(PrototypeHistoryEntry(selected, PrototypeReceipt(selected.id, actor, selected.startAt), null, false)), a.endAt,
                                 false, "", {}, { _, _, _, _ -> }, initialSessionId = selected.id)
                         }
                     }
                 }
             }
         }
+        fun assertOrganizer(name: String, owns: Boolean) {
+            // The current review editor shows the organizer in its summary and puts attendance in More.
+            compose.onNodeWithText("$name /", substring = true).assertIsDisplayed()
+            compose.onNodeWithTag("feedback_more").performClick()
+            if (owns) compose.onNodeWithTag("history_open_attendance").assertIsDisplayed()
+            else compose.onNodeWithTag("history_open_attendance").assertDoesNotExist()
+            androidx.test.espresso.Espresso.pressBack()
+        }
         compose.onNodeWithText("Easy Jog").assertIsDisplayed()
-        compose.onNodeWithText("Hosted by Carol").assertIsDisplayed()
-        compose.onNodeWithTag("history_open_attendance").assertExists()
+        assertOrganizer("Carol", true)
         compose.runOnIdle { selected = a }
         compose.onNodeWithText("Badminton Meetup").assertIsDisplayed()
-        compose.onNodeWithText("Hosted by Alice").assertIsDisplayed()
-        compose.onNodeWithTag("history_open_attendance").assertDoesNotExist()
+        assertOrganizer("Alice", false)
         compose.runOnIdle { actor = "alice"; selected = b }
         compose.onNodeWithText("Board Game Evening").assertIsDisplayed()
-        compose.onNodeWithTag("history_open_attendance").assertExists()
+        assertOrganizer("Alice", true)
         compose.runOnIdle { selected = c }
-        compose.onNodeWithTag("history_open_attendance").assertDoesNotExist()
-        compose.onNodeWithText("Hosted by Carol").assertIsDisplayed()
+        assertOrganizer("Carol", false)
     }
 
     @Test fun organizerAndParticipantPanelsSwitchRoleWithoutReusingRoster() {
@@ -157,7 +167,7 @@ class MultiActivityIntegrationTest {
             GogetherTheme { ActivityReviewsScreen(actor, selected, local.reviews(actor, selected), false, "", {}, {}) }
         } }
         compose.onNodeWithText("Please consider a slower pace for the next run.").assertExists()
-        compose.onNodeWithText("Anonymous participant").assertExists()
+        compose.onNodeWithText("Anonymous participant 01").assertExists()
         compose.onNodeWithText("Bob").assertDoesNotExist()
         compose.runOnIdle { actor = "alice" }
         compose.onNodeWithText("Please consider a slower pace for the next run.").assertDoesNotExist()

@@ -1,7 +1,7 @@
 package com.gogether.app.feature.checkin.prototype
 
 /** E-only network seam. A missing/stale read is Unknown, never permission to submit again. */
-data class CheckInAttempt(val id: String, val actor: String, val session: PrototypeSession)
+data class CheckInAttempt(val id: String, val actor: String, val session: PrototypeSession, val registrationKey: String? = null)
 
 sealed interface CheckInResolution {
     data class Saved(val receipt: PrototypeReceipt) : CheckInResolution
@@ -13,22 +13,22 @@ sealed interface CheckInResolution {
 class CheckInRejected(message: String) : Exception(message)
 
 interface CheckInSubmissionSource {
-    suspend fun submit(attempt: CheckInAttempt, raw: String, fix: PositionFix): PrototypeReceipt
+    suspend fun submit(attempt: CheckInAttempt, raw: String): PrototypeReceipt
     suspend fun resolve(attempt: CheckInAttempt): CheckInResolution
 }
 
 /** Synchronous local writes are final before this adapter returns. Not a remote HTTP adapter. */
 class LocalCheckInSubmissionSource(private val backend: PrototypeCheckInBackend) : CheckInSubmissionSource {
-    override suspend fun submit(attempt: CheckInAttempt, raw: String, fix: PositionFix): PrototypeReceipt {
+    override suspend fun submit(attempt: CheckInAttempt, raw: String): PrototypeReceipt {
         try {
             require(PrototypeCodeCodec.decode(raw).session == attempt.session) { "Event details do not match. Scan again." }
-            return backend.submit(attempt.actor, raw, fix)
+            return backend.submit(attempt.actor, raw, attempt.registrationKey)
         } catch (e: IllegalArgumentException) { throw CheckInRejected(e.message ?: "Check-in validation failed.") }
     }
 
     override suspend fun resolve(attempt: CheckInAttempt): CheckInResolution {
         val record = backend.history(attempt.actor).find { it.session == attempt.session }
-        return record?.receipt?.let { CheckInResolution.Saved(it) } ?: CheckInResolution.NotSubmitted
+        return record?.receipt?.takeIf { attempt.registrationKey == null || it.registrationKey == attempt.registrationKey }?.let { CheckInResolution.Saved(it) } ?: CheckInResolution.NotSubmitted
     }
 }
 

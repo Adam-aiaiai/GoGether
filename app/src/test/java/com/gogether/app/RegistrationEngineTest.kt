@@ -218,6 +218,8 @@ class RegistrationEngineTest {
     @Test fun feedbackRequiresPastParticipationValidRatingAndNoDuplicate() {
         val event = event(); engine.join("u2", event.id)
         failure { engine.submitFeedback("u2", event.id, 5, "Great") }
+        time = event.startAt
+        engine.checkIn("u2", event.id)
         time = event.endAt
         failure { engine.submitFeedback("u3", event.id, 5, "") }
         failure { engine.submitFeedback("u2", event.id, 6, "") }

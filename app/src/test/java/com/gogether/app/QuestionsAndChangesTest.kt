@@ -46,7 +46,7 @@ class QuestionsAndChangesTest {
         assertEquals(q.id, response.questionId)
     }
 
-    @Test fun answeringAgainUpdatesOneAnswerAndIdenticalSaveDoesNotNotify() = runTest {
+    @Test fun legacyAnswerEndpointPreservesEachAnswerAndIdenticalSaveDoesNotNotify() = runTest {
         val repo = repo(); repo.login("finn").getOrThrow(); repo.askQuestion("event-1", "Equipment?").getOrThrow()
         val id = repo.state.value.questions.single().id
         repo.login("alice").getOrThrow(); repo.answerQuestion(id, "Bring a racket").getOrThrow()
@@ -55,6 +55,7 @@ class QuestionsAndChangesTest {
         repo.answerQuestion(id, " Spare rackets are available ").getOrThrow()
         assertEquals(before, repo.state.value)
         assertEquals("Spare rackets are available", repo.state.value.questions.single().answer)
+        assertEquals(listOf("Bring a racket", "Spare rackets are available"), repo.state.value.questions.single().replyHistory.map { it.content })
         assertEquals(2, repo.state.value.notifications.count { it.type == NotificationType.QUESTION_ANSWERED })
     }
 

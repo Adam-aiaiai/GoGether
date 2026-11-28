@@ -38,30 +38,30 @@ class AbcdePersistenceTest {
                 endAt = now + 7_800_000, registrationDeadline = now + 300_000) else it
         }) }
         val repo = FakeGogetherRepository(initial, { now })
-        val bridge = RegistrationAttendanceBridge({ repo.state.value }, PreferencesPrototypeStore(context), { now }, { 1000 })
-        val fix = PositionFix(MeetingPoint(31.2, 120.6), 5.0, 1000)
-        val first = bridge.prepare("alice", "event-1", fix)
+        val bridge = RegistrationAttendanceBridge({ repo.state.value }, PreferencesPrototypeStore(context), { now })
+
+        val first = bridge.prepare("alice", "event-1")
         val drafts = FeedbackDraftStore(context)
         val draft = FeedbackDraft(4, "I will finish this review later.", FeedbackDetails(anonymous = true,
             visibility = FeedbackVisibility.ORGANIZER_ONLY))
         try {
-            val oldCode = PrototypeCodeCodec.encode(bridge.backend.issue("alice", first, fix))
-            repo.login("bob").getOrThrow(); bridge.backend.submit("bob", oldCode, fix)
+            val oldCode = PrototypeCodeCodec.encode(bridge.backend.issue("alice", first))
+            repo.login("bob").getOrThrow(); bridge.backend.submit("bob", oldCode)
             drafts.save("bob", first.id, draft)
             repo.login("alice").getOrThrow()
             now += 1000
             repo.updateMeeting("event-1", MeetingUpdate(now + 100_000, "East entrance", "Meet by the sign.")).getOrThrow()
-            val second = bridge.prepare("alice", "event-1", fix.copy(point = MeetingPoint(31.21, 120.61)))
+            val second = bridge.prepare("alice", "event-1")
             val restored = PreferencesPrototypeStore(context)
-            val reopened = RegistrationAttendanceBridge({ repo.state.value }, restored, { now }, { 1000 })
+            val reopened = RegistrationAttendanceBridge({ repo.state.value }, restored, { now })
             assertEquals(first.id, second.id)
             assertEquals(second, restored.sessions("bob").single { it.id == first.id })
             assertEquals(second, reopened.session(repo.state.value.event("event-1")!!))
-            assertEquals("bob", reopened.backend.attendance("alice", second).single { it.checkedInAt != null }.userId)
+            assertEquals("bob", reopened.backend.attendance("alice", second).single { it.checkedInAt != null && !it.organizer }.userId)
             assertEquals(draft, FeedbackDraftStore(context).load("bob", first.id))
             repo.login("carol").getOrThrow()
             assertEquals(FeedbackDraft(), drafts.load("carol", first.id))
-            assertThrows(IllegalArgumentException::class.java) { reopened.backend.submit("carol", oldCode, fix) }
+            assertThrows(IllegalArgumentException::class.java) { reopened.backend.submit("carol", oldCode) }
         } finally {
             val prefs = context.getSharedPreferences("checkin_prototype_v1", Context.MODE_PRIVATE)
             val edit = prefs.edit()

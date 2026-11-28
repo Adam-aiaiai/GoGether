@@ -25,7 +25,7 @@ fun checkInEligibility(event: Event, state: AppSnapshot, now: Long,
     val window = CheckInWindow.state(event, now)
     if (window == CheckInWindowState.EVENT_CANCELLED) return CheckInEligibility.EVENT_CANCELLED
     if (window == CheckInWindowState.EVENT_ENDED) return CheckInEligibility.EVENT_ENDED
-    if (state.checkIns.any { it.eventId == event.id && it.userId == userId }) {
+    if (state.activeCheckIn(event.id, userId) != null) {
         return CheckInEligibility.ALREADY_CHECKED_IN
     }
     when (state.registration(event.id, userId)?.status) {

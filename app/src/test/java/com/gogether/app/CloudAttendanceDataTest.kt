@@ -3,19 +3,24 @@ package com.gogether.app
 import com.gogether.app.feature.checkin.cloud.*
 import com.gogether.app.feature.checkin.prototype.*
 import org.junit.Assert.*
+import com.gogether.app.core.model.*
 import org.junit.Test
 
 class CloudAttendanceDataTest {
-    @Test fun positionUsesElapsedAgeAndRejectsMockAndStaleFixes() {
-        val fix=PositionFix(MeetingPoint(31.2,121.5),12.0,1000)
-        val payload=fix.cloudPayload(2000)
-        assertEquals(1000L,payload["ageMillis"])
-        assertEquals(false,payload["simulated"])
-        assertEquals(31.2,payload["latitude"])
-        assertTrue(runCatching{fix.copy(simulated=true).cloudPayload(2000)}.isFailure)
-        assertTrue(runCatching{fix.cloudPayload(17000)}.isFailure)
-        assertTrue(runCatching{fix.cloudPayload(999)}.isFailure)
-        assertTrue(runCatching{fix.copy(accuracyMeters=51.0).cloudPayload(2000)}.isFailure)
+    @Test fun cachedCloudReceiptDisappearsImmediatelyWhenRegistrationChanges() {
+        val registration = Registration("reg", "event", "bob", RegistrationStatus.CONFIRMED, 100, 100, 1)
+        val receipt = mapOf("checkedInAt" to 100L, "registrationKey" to registration.attendanceKey)
+        assertNotNull(currentCloudReceipt(receipt, registration, EventStatus.OPEN))
+        assertNull(currentCloudReceipt(receipt, registration.copy(queueOrder = 2), EventStatus.OPEN))
+        assertNull(currentCloudReceipt(receipt, registration.copy(status = RegistrationStatus.CANCELLED), EventStatus.OPEN))
+        assertNull(currentCloudReceipt(receipt, registration, EventStatus.CANCELLED))
+        assertNull(currentCloudReceipt(mapOf("checkedInAt" to 99L), registration, EventStatus.OPEN))
+    }
+
+    @Test fun pendingRequestCarriesRegistrationCycleInsteadOfCoordinates() {
+        val pending = CloudPendingCheckIn("request-1", "GOGETHER-CLOUD-2|opaque", "registration:2")
+        assertEquals("registration:2", pending.registrationKey)
+        assertEquals("GOGETHER-CLOUD-2|opaque", pending.code)
     }
 
     @Test fun feedbackDetailsPreservePrivacyAndDimensionsWithoutInventingAuthor() {
@@ -36,4 +41,9 @@ class CloudAttendanceDataTest {
         assertFalse(payload.containsKey("userId"))
         assertFalse(payload.containsKey("authorId"))
     }
+    @Test fun unknownExplicitPrivacyStaysPrivateWhileAbsentLegacyFieldsKeepTheirDefaults() {
+        for (value in listOf(null, "", "PUBLIC")) assertEquals(FeedbackVisibility.PUBLIC, details(mapOf("visibility" to value)).visibility)
+        for (value in listOf("ORGANIZER_ONLY", "FUTURE_PRIVATE", 42)) assertEquals(FeedbackVisibility.ORGANIZER_ONLY, details(mapOf("visibility" to value)).visibility)
+    }
+
 }

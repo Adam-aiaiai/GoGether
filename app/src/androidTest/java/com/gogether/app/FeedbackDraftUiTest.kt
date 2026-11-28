@@ -22,7 +22,7 @@ class FeedbackDraftUiTest {
     private val prefs = context.getSharedPreferences("checkin_prototype_v1", 0)
     private val drafts = FeedbackDraftStore(context)
     private val time = 1_800_000_000_000L
-    private val sessions = List(2) { PrototypeSession(UUID.randomUUID().toString(), MeetingPoint(31.27, 120.74), time - 7200000, time) }
+    private val sessions = List(2) { PrototypeSession(UUID.randomUUID().toString(), time - 7200000, time) }
     private var actor by mutableStateOf("bob")
     private var activity by mutableIntStateOf(0)
     private var showing by mutableStateOf(true)
@@ -36,7 +36,7 @@ class FeedbackDraftUiTest {
                 GogetherTheme {
                     if (showing) key(actor, activity) {
                         val session = sessions[activity]
-                        PrototypeHistoryScreen(actor, listOf(PrototypeHistoryEntry(session, null, saved, false)), time, false, message,
+                        PrototypeHistoryScreen(actor, listOf(PrototypeHistoryEntry(session, PrototypeReceipt(session.id, actor, session.startAt), saved, false)), time, false, message,
                             { showing = false }, { _, rating, comment, details ->
                                 if (fail) message = "Could not save. Please try again."
                                 else {

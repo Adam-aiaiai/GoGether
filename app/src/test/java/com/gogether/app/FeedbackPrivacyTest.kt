@@ -14,9 +14,9 @@ class FeedbackPrivacyTest {
         assertEquals("profiles/bob/photo", review.copy(details = FeedbackDetails())
             .visibleTo("carol", "alice", "Bob", "profiles/bob/photo")!!.avatarUri)
     }
-    private val session = PrototypeSession(UUID.randomUUID().toString(), MeetingPoint(31.27, 120.74), 1_000, 2_000)
-    private val store = MemoryPrototypeStore().apply { listOf("alice", "bob", "carol").forEach { rememberSession(it, session) } }
-    private fun backend() = LocalPrototypeBackend(store, { 2_000 }, { 0 })
+    private val session = PrototypeSession(UUID.randomUUID().toString(), 1_000, 2_000)
+    private val store = MemoryPrototypeStore().apply { listOf("alice", "bob", "carol").forEach { rememberSession(it, session); save(PrototypeReceipt(session.id, it, 1_500)) } }
+    private fun backend() = LocalPrototypeBackend(store, { 2_000 })
 
     @Test fun anonymousPublicReviewRedactsIdentityForBothOrganizerAndParticipantsButKeepsInternalAuthor() {
         val saved = backend().submitFeedback("bob", session.id, 4, "I had a great time", FeedbackDetails(anonymous = true))

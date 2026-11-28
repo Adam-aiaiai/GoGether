@@ -22,7 +22,7 @@ class MvpFlowTest {
         val time = System.currentTimeMillis()
         val seed = DemoData.create(time)
         // Only this flow needs an event inside the window; other flows retain their original fixtures.
-        val initial = if (testName.methodName == "normalEntryRequiresBoundMeetingInsteadOfBypassingTheScanner")
+        val initial = if (testName.methodName == "normalEntryUsesQrCheckInWithTextMeetingAddress")
             seed.copy(events = seed.events.map {
                 if (it.id == "event-1") it.copy(startAt = time + 600_000, endAt = time + 7_800_000) else it
             }) else seed
@@ -47,12 +47,14 @@ class MvpFlowTest {
         if (tag.startsWith("switch_") || tag == "logout") compose.onNodeWithTag("profile_account_menu").performClick()
         awaitSnackbar()
         compose.onNodeWithTag(tag).performClick()
+        compose.waitForIdle()
     }
     private fun scrollClick(tag: String) {
         if (tag.startsWith("switch_") || tag == "logout") compose.onNodeWithTag("profile_account_menu").performClick()
         awaitSnackbar()
         runCatching { compose.onNodeWithTag(tag).performScrollTo() }
         compose.onNodeWithTag(tag).performClick()
+        compose.waitForIdle()
     }
     private fun text(tag: String, value: String) = compose.onNodeWithTag(tag).performScrollTo().performTextReplacement(value)
 
@@ -168,7 +170,8 @@ class MvpFlowTest {
         assertEquals(RegistrationStatus.CONFIRMED, repo.state.value.registration("event-1", "bob")?.status)
         assertEquals(RegistrationStatus.WAITLISTED, repo.state.value.registration("event-1", "emma")?.status)
         scrollClick("cancel_registration")
-        androidx.test.espresso.Espresso.pressBack()
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+        compose.waitForIdle()
         compose.onNodeWithTag("registration_cancel_dialog").assertDoesNotExist()
         assertEquals(RegistrationStatus.CONFIRMED, repo.state.value.registration("event-1", "bob")?.status)
         scrollClick("cancel_registration")
@@ -186,6 +189,7 @@ class MvpFlowTest {
         scrollClick("event_event-1")
         compose.onNodeWithText("Your status: confirmed", substring = true).performScrollTo().assertIsDisplayed()
         click("nav_profile")
+        click("nav_my-events"); scrollClick("open_inbox"); scrollClick("inbox_activity")
         compose.onNodeWithText("You're in! A place opened up: Badminton, anyone?").performScrollTo().assertIsDisplayed()
     }
 
@@ -210,7 +214,7 @@ class MvpFlowTest {
         assertEquals(listOf("emma"), repo.state.value.waitlist("event-1").map { it.userId })
     }
 
-    @Test fun normalEntryRequiresBoundMeetingInsteadOfBypassingTheScanner() {
+    @Test fun normalEntryUsesQrCheckInWithTextMeetingAddress() {
         scrollClick("login_alice")
         scrollClick("event_event-1")
         scrollClick("manage_event")
@@ -221,7 +225,9 @@ class MvpFlowTest {
         scrollClick("event_event-1")
         scrollClick("open_checkin")
         compose.onNodeWithTag("demo_checkin").assertDoesNotExist()
-        compose.onNodeWithTag("meeting_setup_status").assertTextEquals("The organizer has not set the meeting point. Try again later.")
+        compose.onNodeWithTag("participant_panel").assertIsDisplayed()
+        compose.onNodeWithTag("prototype_scan").assertIsEnabled()
+        compose.onNodeWithTag("meeting_setup_status").assertDoesNotExist()
         assertTrue(repo.state.value.checkIns.isEmpty())
     }
 
@@ -248,7 +254,9 @@ class MvpFlowTest {
         click("nav_my-events"); scrollClick("event_event-1")
         compose.onNodeWithText("Meet by the east gate").performScrollTo().assertIsDisplayed()
         click("nav_profile")
-        compose.onNodeWithText("Mark as read").performScrollTo().performClick()
+        click("nav_my-events"); scrollClick("open_inbox"); scrollClick("inbox_activity")
+        val notice = repo.state.value.notifications.single { it.userId == "bob" }
+        scrollClick("notification_open_${notice.id}")
         compose.waitUntil(10_000) { repo.state.value.notifications.single { it.userId == "bob" }.isRead }
         assertFalse(repo.state.value.notifications.single { it.userId == "emma" }.isRead)
     }

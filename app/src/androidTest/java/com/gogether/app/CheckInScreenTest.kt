@@ -83,6 +83,7 @@ class CheckInScreenTest {
     @Test fun successfulCheckInDisablesRepeatAndSurvivesWindowExpiry() {
         launch()
         button().performClick()
+        compose.waitForIdle()
         assertEquals(1, checkInCalls)
         compose.runOnIdle {
             state = state.copy(checkIns = listOf(CheckIn("check-1", event.id, "bob", time)))
@@ -109,7 +110,7 @@ class CheckInScreenTest {
         assertEquals(0, checkInCalls)
     }
 
-    @Test fun shortEventEndsDuringWindowAndExistingFeedbackEligibilityIsPreserved() {
+    @Test fun shortEventRequiresCheckInBeforeFeedbackAfterItsEnd() {
         state = state.copy(events = state.events.map {
             if (it.id == event.id) it.copy(endAt = event.startAt + 600_000) else it
         })
@@ -118,10 +119,14 @@ class CheckInScreenTest {
         compose.runOnIdle { time = event.startAt + 600_000 }
         status("Event ended")
         compose.onNodeWithTag("demo_checkin").assertDoesNotExist()
-        // The established feedback rule requires registration, not a check-in record.
+        compose.onNodeWithText("Submit feedback").assertDoesNotExist()
+        status("Only checked-in participants can leave feedback.")
+        compose.runOnIdle { state = state.copy(checkIns = listOf(CheckIn("valid", event.id, "bob", event.startAt))) }
         compose.onNodeWithText("Submit feedback").performScrollTo().assertIsNotEnabled()
         compose.onNodeWithText("4").performScrollTo().performClick()
+        compose.waitForIdle()
         compose.onNodeWithText("Submit feedback").performScrollTo().assertIsEnabled().performClick()
+        compose.waitForIdle()
         assertEquals(1, feedbackCalls)
     }
 
@@ -149,8 +154,10 @@ class CheckInScreenTest {
         time = event.endAt
         state = initial.copy(registrations = initial.registrations.filterNot { it.eventId == event.id && it.userId == "carol" } +
             initial.registrations.first { it.eventId == event.id && it.userId == "bob" }.copy(id = "carol-test", userId = "carol"))
+        state = state.copy(checkIns = listOf("bob", "carol").map { CheckIn("checked-$it", event.id, it, event.startAt) })
         launch()
         compose.onNodeWithText("4").performScrollTo().performClick()
+        compose.waitForIdle()
         compose.onNode(hasSetTextAction()).performScrollTo().performTextInput("The group was welcoming. I will add more later.")
         compose.runOnIdle { state = state.copy(currentUserId = "carol") }
         compose.onNodeWithText("Submit feedback").performScrollTo().assertIsNotEnabled()

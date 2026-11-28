@@ -76,7 +76,6 @@ fun EventDetailScreen(
             "${detailClock(event.startAt)} – ${detailClock(event.endAt)}")
         AppDivider()
         DetailFact("⌖", event.location, event.city)
-        if (!organizer && !active) MeetingMapButton("${event.city} ${event.location}")
         AppDivider()
         ParticipantsCard(event, state)
         DetailFact("♙", "$confirmed of ${event.capacity} spots taken",
@@ -115,7 +114,6 @@ fun EventDetailScreen(
 
         if (organizer || active) {
             InfoCard("Meeting point", "${displayTime(event.meetingAt ?: event.startAt)}\n${event.meetingLocation ?: event.location}\n${event.meetingNotes}")
-            MeetingMapButton("${event.city} ${event.meetingLocation ?: event.location}")
         }
         AnnouncementSection(event, state)
         PageActionButton(onClick = onQuestions, modifier = Modifier.fillMaxWidth().testTag("open_questions")) {
@@ -337,23 +335,3 @@ private fun detailDate(epoch: Long): String = Instant.ofEpochMilli(epoch)
 private fun detailClock(epoch: Long): String = Instant.ofEpochMilli(epoch)
     .atZone(ZoneId.systemDefault())
     .format(DateTimeFormatter.ofPattern("HH:mm"))
-
-@Composable
-fun MeetingMapButton(location: String) {
-    val context = LocalContext.current
-    var error by remember { mutableStateOf(false) }
-    PageActionButton(onClick = {
-        try {
-            context.startActivity(Intent(Intent.ACTION_VIEW,
-                "geo:0,0?q=${Uri.encode(location)}".toUri()))
-        } catch (_: ActivityNotFoundException) {
-            error = true
-        }
-    }, modifier = Modifier.fillMaxWidth()) {
-        Text("Open meeting location in Maps")
-    }
-    if (error) {
-        Text("No maps app is installed. Use the meeting address shown above.",
-            color = MaterialTheme.colorScheme.error)
-    }
-}

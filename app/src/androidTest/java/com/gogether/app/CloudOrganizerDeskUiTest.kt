@@ -39,7 +39,7 @@ class CloudOrganizerDeskUiTest {
     ))
     private var now by mutableLongStateOf(clock)
     private var showing by mutableStateOf(true)
-    private var code by mutableStateOf<String?>("GOGETHER-CLOUD-1|ui-layout-fixture-not-valid-for-check-in")
+    private var code by mutableStateOf<String?>("GOGETHER-CLOUD-2|ui-layout-fixture-not-valid-for-check-in")
     private var expires by mutableLongStateOf(clock + 30_000)
     private var meeting by mutableStateOf(true)
     private var loading by mutableStateOf(false)
@@ -73,7 +73,7 @@ class CloudOrganizerDeskUiTest {
 
     private val stationary = listOf("cloud_qr_slot", "cloud_attendance_preview", "cloud_meeting_details", "cloud_checkin_rules")
     private fun positions() = stationary.associateWith { compose.onNodeWithTag(it).getUnclippedBoundsInRoot() }
-    private fun tap(tag: String) = compose.onNodeWithTag(tag).performScrollTo().performClick()
+    private fun tap(tag: String) { compose.onNodeWithTag(tag).performScrollTo().performClick(); compose.waitForIdle() }
 
     @Test fun hideAndShowKeepEveryLowerSectionInPlaceAcrossSizes() {
         launch()
@@ -83,12 +83,14 @@ class CloudOrganizerDeskUiTest {
             val before = positions()
             if (w == 400) capture("01-organizer-code")
             compose.onNodeWithTag("cloud_hide_code").performClick()
+        compose.waitForIdle()
             compose.onNodeWithTag("cloud_qr").assertDoesNotExist()
             compose.onNodeWithTag("cloud_organizer_status").assertTextEquals("Check-in open")
             assertEquals("Hiding must preserve layout and scroll at ${w}dp", before, positions())
             if (w == 400) capture("02-organizer-hidden")
             // The replacement action remains in the same reserved slot. No new page or collapsed region.
             compose.onNodeWithTag("cloud_issue_code").performClick()
+        compose.waitForIdle()
             compose.onNodeWithTag("cloud_qr").assertExists()
             assertEquals("Showing must preserve layout and scroll at ${w}dp", before, positions())
             if (w == 840) capture("07-organizer-tablet")
@@ -118,28 +120,31 @@ class CloudOrganizerDeskUiTest {
         assertEquals(1, attendanceRequests)
     }
 
-    @Test fun meetingAndRulesOpenAndCloseWithoutChangingCodeOrBindingLocation() {
+    @Test fun meetingAndRulesKeepTextAddressAndCodeWithoutLocationActions() {
         launch()
         tap("cloud_meeting_details")
         compose.onNodeWithTag("cloud_meeting_sheet").assertIsDisplayed()
         compose.onNodeWithText(event.meetingNotes).assertIsDisplayed()
-        compose.onNodeWithTag("cloud_meeting_maps").assertIsDisplayed().assertHasClickAction()
-        compose.onNodeWithTag("cloud_update_meeting").assertIsDisplayed()
+        compose.onNodeWithTag("cloud_meeting_maps").assertDoesNotExist()
+        compose.onNodeWithTag("cloud_update_meeting").assertDoesNotExist()
         capture("04-meeting-point", modal = true)
         compose.onNodeWithTag("cloud_meeting_sheet_close").performClick()
+        compose.waitForIdle()
         assertTrue(showing)
         assertEquals(0, bindRequests)
         tap("cloud_checkin_rules")
         compose.onNodeWithTag("cloud_rules_sheet").assertIsDisplayed()
-        compose.onNodeWithText("Within 200 m of the confirmed meeting point.").assertIsDisplayed()
+        compose.onNodeWithText("Within 200 m of the confirmed meeting point.").assertDoesNotExist()
         capture("05-check-in-rules", modal = true)
         compose.onNodeWithTag("cloud_rules_done").assertIsDisplayed().performClick()
+        compose.waitForIdle()
         compose.onNodeWithTag("cloud_rules_sheet").assertDoesNotExist()
         assertTrue(showing)
         assertEquals(0, bindRequests)
         tap("cloud_meeting_details")
-        compose.onNodeWithTag("cloud_update_meeting").performClick()
-        assertEquals(1, bindRequests)
+        compose.onNodeWithTag("cloud_meeting_sheet_close").performClick()
+        compose.waitForIdle()
+        assertEquals(0, bindRequests)
         compose.onNodeWithTag("cloud_meeting_sheet").assertDoesNotExist()
     }
 
@@ -182,17 +187,20 @@ class CloudOrganizerDeskUiTest {
         var gate: CompletableDeferred<Unit>? = null
         var fail = false
         var allowIssue = false
+        var receipt: Map<String, Any?>? = null
         override suspend fun refresh() = Unit
         override suspend fun call(action: String, payload: Map<String, Any?>, requestId: String?): Map<String, Any?> {
             calls += action to (payload["eventId"] as? String)
             return when (action) {
-                "eventInfo" -> mapOf("serverNow" to clock, "meeting" to mapOf("lat" to 31.27, "lng" to 120.58))
+                "eventInfo" -> mapOf("serverNow" to clock, "checkInReady" to (receipt != null), "receipt" to receipt)
                 "reviews" -> mapOf("reviews" to emptyList<Any>())
                 "issueCheckInCode" -> {
                     check(allowIssue)
-                    check((payload["fix"] as? Map<*, *>)?.isNotEmpty() == true)
-                    mapOf("serverNow" to clock, "expiresAt" to clock + 30_000,
-                        "code" to "GOGETHER-CLOUD-1|isolated-ui-test|not-valid-for-check-in|${calls.size}")
+                    check("fix" !in payload)
+                    if (receipt == null) check(payload["confirmArrival"] == true)
+                    receipt = mapOf("checkedInAt" to clock)
+                    mapOf("serverNow" to clock, "expiresAt" to clock + 30_000, "receipt" to receipt,
+                        "code" to "GOGETHER-CLOUD-2|isolated-ui-test|not-valid-for-check-in|${calls.size}")
                 }
                 "attendance" -> {
                     gate?.await()
@@ -213,23 +221,22 @@ class CloudOrganizerDeskUiTest {
         GogetherRepository by local, CloudOperations by backend
 
     @Test fun normalEventEntryCanIssueHideAndReopenCodeAndReturnFromRosterAndReviews() {
-        val device = InstrumentationRegistry.getInstrumentation().uiAutomation
-        for (permission in listOf("ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION")) {
-            device.executeShellCommand("pm grant com.gogether.app android.permission.$permission").close()
-        }
         val backend = backend().apply { allowIssue = true }
         val repo = NetworkFixture(repository(), backend)
         compose.setContent { GogetherTheme { GogetherApp(repo) } }
         compose.onNodeWithTag("nav_my-events").performClick()
+        compose.waitForIdle()
         tap("personal_tab_CREATED")
         tap("event_${event.id}")
         tap("open_checkin")
         compose.onNodeWithTag("cloud_organizer_desk").assertExists()
-        tap("cloud_issue_code")
+        tap("cloud_confirm_arrival")
+        compose.onNodeWithText("Confirm and show code").performClick(); compose.waitForIdle()
         compose.waitUntil(25_000) { compose.onAllNodesWithTag("cloud_qr").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("cloud_hide_code").performScrollTo()
         val before = positions()
         compose.onNodeWithTag("cloud_hide_code").performClick()
+        compose.waitForIdle()
         compose.onNodeWithTag("cloud_qr").assertDoesNotExist()
         assertEquals(before, positions())
         val issued = backend.calls.count { it.first == "issueCheckInCode" }
@@ -247,6 +254,7 @@ class CloudOrganizerDeskUiTest {
         Espresso.pressBack()
         compose.onNodeWithTag("cloud_organizer_desk").assertExists()
         compose.onNodeWithContentDescription("Back").performClick()
+        compose.waitForIdle()
         compose.onNodeWithTag("open_checkin").assertExists()
         assertTrue(backend.calls.all { it.second == event.id })
         assertTrue(backend.calls.none { it.first == "submitCheckIn" || it.first == "bindMeeting" })
@@ -261,9 +269,11 @@ class CloudOrganizerDeskUiTest {
         compose.onNodeWithTag("cloud_attendance_count").assertTextEquals("4 of 6 checked in")
         capture("03-attendance")
         compose.onNodeWithTag("cloud_attendance_filter_waiting").performScrollTo().performClick()
+        compose.waitForIdle()
         compose.onNodeWithTag("cloud_attendee_finn").assertExists()
         compose.onNodeWithTag("cloud_attendee_bob").assertDoesNotExist()
         compose.onNodeWithTag("cloud_attendance_filter_all").performClick()
+        compose.waitForIdle()
         compose.onNodeWithTag("cloud_attendance_search").performTextInput("Bob")
         Espresso.closeSoftKeyboard()
         compose.onNodeWithTag("cloud_attendee_bob").assertExists()
@@ -275,6 +285,7 @@ class CloudOrganizerDeskUiTest {
         }
         val previousCalls = backend.calls.size
         compose.onNodeWithTag("cloud_attendance_refresh").performClick()
+        compose.waitForIdle()
         compose.onNodeWithTag("cloud_attendance_count").assertTextEquals("5 of 6 checked in")
         assertEquals("The roster refresh must not refresh unrelated content", listOf("attendance"), backend.calls.drop(previousCalls).map { it.first })
         Espresso.pressBack()
@@ -289,6 +300,7 @@ class CloudOrganizerDeskUiTest {
         compose.onNodeWithTag("cloud_attendance_count").assertTextEquals("4 of 6 checked in")
         compose.runOnIdle { backend.gate = CompletableDeferred(); backend.fail = true }
         compose.onNodeWithTag("cloud_attendance_refresh").performClick()
+        compose.waitForIdle()
         compose.onNodeWithTag("cloud_attendance_loading").assertExists()
         compose.onNodeWithTag("cloud_attendance_refresh").assertIsNotEnabled()
         compose.onNodeWithTag("cloud_attendance_count").assertTextEquals("4 of 6 checked in")
@@ -312,6 +324,7 @@ class CloudOrganizerDeskUiTest {
         compose.onNodeWithTag("cloud_attendee_bob").assertDoesNotExist()
         val before = backend.calls.count { it.first == "attendance" }
         compose.onNodeWithTag("cloud_tab_checkin").performClick()
+        compose.waitForIdle()
         compose.onNodeWithTag("cloud_participant_checkin").assertExists()
         assertEquals(before, backend.calls.count { it.first == "attendance" })
     }
@@ -326,6 +339,7 @@ class CloudOrganizerDeskUiTest {
         compose.onNodeWithTag("cloud_attendee_bob").assertExists()
         compose.runOnIdle { backend.gate = CompletableDeferred() }
         compose.onNodeWithTag("cloud_attendance_refresh").performClick()
+        compose.waitForIdle()
         compose.runOnIdle { backend.rows = listOf(mapOf("userId" to "zoe", "name" to "Zoe", "checkedInAt" to clock)); id = second.id }
         compose.onNodeWithTag("cloud_attendee_bob").assertDoesNotExist()
         compose.onNodeWithText(second.title).assertExists()

@@ -23,7 +23,7 @@ class LocalSnapshotStore(context: Context) {
 
         fun decode(raw: String): AppSnapshot {
             val root = JSONObject(raw)
-            require(root.getInt("version") in 1..3) { "This local event data version is not supported." }
+            require(root.getInt("version") in 1..SnapshotJson.CURRENT_VERSION) { "This local event data version is not supported." }
             if (root.getInt("version") >= 2) return SnapshotJson.decode(raw).copy(currentUserId = null)
             return AppSnapshot(
                 users = root.rows("users") { row -> User(row.getString("id"), row.getString("name"),

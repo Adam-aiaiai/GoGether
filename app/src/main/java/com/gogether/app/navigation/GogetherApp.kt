@@ -22,6 +22,7 @@ import com.gogether.app.core.data.cloud.CloudOperations
 import com.gogether.app.core.model.AppSnapshot
 import com.gogether.app.core.ui.*
 import com.gogether.app.feature.auth.*
+import com.gogether.app.feature.social.*
 import com.gogether.app.feature.checkin.*
 import com.gogether.app.feature.checkin.prototype.*
 import com.gogether.app.feature.coordination.*
@@ -36,9 +37,9 @@ import kotlinx.coroutines.launch
 fun GogetherApp(repository: GogetherRepository) {
     val source by repository.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val social = remember(repository) { RepositorySocialGateway(context, repository) }
     val attendanceStore = remember { PreferencesPrototypeStore(context.applicationContext) }
-    val bridge = remember(repository) { RegistrationAttendanceBridge({ repository.state.value }, attendanceStore,
-        elapsedNow = SystemClock::elapsedRealtime) }
+    val bridge = remember(repository) { RegistrationAttendanceBridge({ repository.state.value }, attendanceStore) }
     var attendanceRevision by remember { mutableIntStateOf(0) }
     DisposableEffect(context) {
         val preferences = context.getSharedPreferences("checkin_prototype_v1", Context.MODE_PRIVATE)
@@ -46,7 +47,8 @@ fun GogetherApp(repository: GogetherRepository) {
         preferences.registerOnSharedPreferenceChangeListener(listener)
         onDispose { preferences.unregisterOnSharedPreferenceChangeListener(listener) }
     }
-    val state = remember(source, attendanceRevision) { if (repository is CloudOperations) source else bridge.withAttendance(source) }
+    ObserveSocialChanges { attendanceRevision++ }
+    val state = remember(source, attendanceRevision) { if (repository is CloudOperations) source else social.projectRatings(social.projectNotifications(bridge.withAttendance(source))) }
     val auth: AuthViewModel = viewModel(factory = RepositoryViewModel.factory { AuthViewModel(repository) })
     val busy by auth.busy.collectAsStateWithLifecycle()
     val snackbars = remember { SnackbarHostState() }
@@ -63,13 +65,13 @@ fun GogetherApp(repository: GogetherRepository) {
         }
     } else {
         // Changing profiles removes all old navigation/form state; only repository data is shared.
-        key(state.currentUserId) { SignedInApp(repository, state, auth, snackbars) }
+        key(state.currentUserId) { CompositionLocalProvider(LocalSocialGateway provides social, LocalSocialRevision provides state.notifications.hashCode(), LocalEventRatings provides state.eventRatings) { SignedInApp(repository, state, auth, snackbars, social) } }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth: AuthViewModel, snackbars: SnackbarHostState) {
+private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth: AuthViewModel, snackbars: SnackbarHostState, social: RepositorySocialGateway) {
     val nav = rememberNavController()
     val explore: ExploreViewModel = viewModel(key = "explore-${state.currentUserId}", factory = RepositoryViewModel.factory { ExploreViewModel(repository) })
     val eventsVm: EventViewModel = viewModel(
@@ -77,7 +79,7 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
         factory = RepositoryViewModel.factory { EventViewModel(repository) },
     )
     val registration: RegistrationViewModel = viewModel(key = "registration-${state.currentUserId}", factory = RepositoryViewModel.factory { RegistrationViewModel(repository) })
-    val coordination: CoordinationViewModel = viewModel(key = "coordination-${state.currentUserId}", factory = RepositoryViewModel.factory { CoordinationViewModel(repository) })
+    val coordination: CoordinationViewModel = viewModel(key = "coordination-${state.currentUserId}", factory = RepositoryViewModel.factory { CoordinationViewModel(repository,social::markRead,social::markAllRead) })
     val profile: ProfileViewModel = viewModel(key = "profile-${state.currentUserId}",
         factory = RepositoryViewModel.factory { ProfileViewModel(repository) })
     val profileBusy by profile.busy.collectAsStateWithLifecycle()
@@ -94,7 +96,7 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
     val route = entry?.destination?.route ?: "explore"
     var selectedRoot by rememberSaveable { mutableStateOf("explore") }
     LaunchedEffect(route) { if (route in AppTopLevelRoutes) selectedRoot = route }
-    val subpage = route.contains("{eventId}") || route == "edit-profile" || route == "notifications" || route == "profile-history"
+    val subpage = route.contains("{eventId}") || route == "edit-profile" || route == "notifications" || route == "profile-history" || route.startsWith("conversation/")
     val scope = rememberCoroutineScope()
     listOf(eventsVm, registration, coordination, profile).forEach { vm ->
         LaunchedEffect(vm) {
@@ -121,7 +123,7 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
                     }
                 }
             }
-            if (subpage && !route.startsWith("check-in") && route !in setOf("edit-profile", "notifications")) {
+            if (subpage && !route.startsWith("conversation/") && !route.startsWith("check-in") && route !in setOf("edit-profile", "notifications")) {
                 AppPageHeader(title = when {
                     route == "profile-history" -> "Activity history"
                     route == "notifications" -> "Notifications"
@@ -137,6 +139,7 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
         bottomBar = {
             if (!route.startsWith("check-in")) {
                 AppBottomNavigation(selectedRoute = route.takeIf { it in AppTopLevelRoutes } ?: selectedRoot,
+                    unreadCount = state.unreadNotificationCount,
                     onNavigate = { destination ->
                         if (route != destination) {
                             if (destination == "explore") {
@@ -164,12 +167,17 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
             composable("notifications") {
                 InboxContent(state, coordinationBusy, coordination::read, coordination::readAll,
                     { nav.navigate("event/$it") }, { nav.popBackStack("explore", false) },
-                    { eventId, questionId -> nav.navigate("questions/$eventId?questionId=$questionId") }, back = { nav.popBackStack() })
+                    { eventId, questionId -> nav.navigate("questions/$eventId?questionId=$questionId") }, back = { nav.popBackStack() },
+                    openConversation = { nav.navigate("conversation/${android.net.Uri.encode(it)}") })
+            }
+            composable("conversation/{contentId}", arguments=listOf(navArgument("contentId") { type=NavType.StringType })) { entry ->
+                SocialThread(social,entry.arguments?.getString("contentId").orEmpty()) { nav.popBackStack() }
             }
             composable("profile") {
                 ProfileScreen(state, now, authBusy, repository.accountMode, repository.storageDescription,
-                    { nav.navigate("edit-profile") }, auth::login, auth::logout, { nav.navigate("event/$it") }, { nav.navigate("profile-history") })
+                    { nav.navigate("edit-profile") }, auth::login, auth::logout, { nav.navigate("event/$it") }, { nav.navigate("profile-history") }, { nav.navigate("social-settings") })
             }
+            composable("social-settings") { SocialSettingsScreen(state) { nav.popBackStack() } }
             composable("profile-history") {
                 ProfileHistoryScreen(state, now) { nav.navigate("event/$it") }
             }
@@ -191,9 +199,8 @@ private fun SignedInApp(repository: GogetherRepository, state: AppSnapshot, auth
                 val id = backStack.arguments?.getString("eventId").orEmpty()
                 val event = state.event(id)
                 if (event == null) MissingEvent { nav.popBackStack("explore", false) }
-                else QuestionsScreen(event, state, now, coordinationBusy, backStack.arguments?.getString("questionId"),
-                    { text, saved -> coordination.ask(id, text, saved) },
-                    { questionId, text, saved -> coordination.answer(questionId, text, saved) })
+                else SocialQuestionsScreen(event, state, now, coordinationBusy,
+                    { text, saved -> coordination.ask(id, text, saved) })
             }
             composable("manage/{eventId}", arguments = listOf(navArgument("eventId") { type = NavType.StringType })) { backStack ->
                 val id = backStack.arguments?.getString("eventId").orEmpty()

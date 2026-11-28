@@ -34,21 +34,26 @@ object CloudDto {
         RegistrationStatus.valueOf(v.text("status")), v.number("joinedAt"), v.number("updatedAt"), v.number("queueOrder"))
     fun feedback(v: Map<String, Any?>) = Feedback(v.text("id"), v.text("eventId"), v.text("userId"),
         v.number("rating").toInt(), v.text("comment", ""), v.number("createdAt"))
+    fun ratingSummary(v:Map<String,Any?>) = EventRatingSummary(v.number("ratingSum").toInt(),v.number("reviewCount").toInt())
     fun snapshot(v: Map<String, Any?>, uid: String): AppSnapshot {
         require(v.text("currentUserId") == uid) { "The server returned a different account. Sign in again." }
         val result = AppSnapshot(users = v.rows("users").map(::user), currentUserId = uid,
             events = v.rows("events").map(::event), registrations = v.rows("registrations").map(::registration),
             checkIns = v.rows("checkIns").map { CheckIn(it.text("id"), it.text("eventId"), it.text("userId"),
-                it.number("checkedInAt"), CheckInStatus.valueOf(it.text("status", "QR_RECORDED"))) },
+                it.number("checkedInAt"), CheckInStatus.valueOf(it.text("status", "QR_RECORDED")), it.optionalText("registrationKey")) },
             notifications = v.rows("notifications").map { Notification(it.text("id"), it.text("userId"), it.text("eventId"),
                 NotificationType.valueOf(it.text("type")), it.text("content"), it.number("createdAt"), it.flag("isRead"),
-                it.optionalText("announcementId"), it.optionalText("questionId")) },
+                it.optionalText("announcementId"), it.optionalText("questionId"), it.optionalText("contentId"),
+                it.optionalText("rootId"), it.optionalText("actorName"), it.text("actorAvatarUri", "")) },
+            eventRatings = v.rows("eventRatings").associate { it.text("eventId") to ratingSummary(it) },
             feedback = v.rows("feedback").map(::feedback),
             announcements = v.rows("announcements").map { Announcement(it.text("id"), it.text("eventId"), it.text("authorId"),
                 it.text("content"), it.number("createdAt")) },
             questions = v.rows("questions").map { EventQuestion(it.text("id"), it.text("eventId"), it.text("authorId"),
                 it.text("content"), it.number("createdAt"), it.optionalText("answer"), it.optionalText("answeredBy"),
-                (it["answeredAt"] as? Number)?.toLong()) })
+                (it["answeredAt"] as? Number)?.toLong(), it.rows("replyHistory").map { reply ->
+                    QuestionReply(reply.text("id"), reply.text("authorId"), reply.text("content"), reply.number("createdAt"))
+                }) })
         require(result.currentUser != null) { "Your account profile is unavailable. Retry the connection." }
         require(result.notifications.all { it.userId == uid }) { "Unexpected notification ownership." }
         return result

@@ -15,8 +15,10 @@ enum class Gender(val label: String, val symbol: String) {
     UNDISCLOSED("Prefer not to say", ""), WOMAN("Woman", "♀"), MAN("Man", "♂"), NON_BINARY("Non-binary", "⚧")
 }
 const val DefaultSignature = "Good moments start with getting together."
-enum class CheckInStatus { DEMO_RECORDED, QR_RECORDED }
-enum class NotificationType { PROMOTED, EVENT_CANCELLED, ANNOUNCEMENT, MEETING_UPDATED, EVENT_UPDATED, QUESTION_ASKED, QUESTION_ANSWERED }
+enum class CheckInStatus { DEMO_RECORDED, QR_RECORDED, HOST_CONFIRMED }
+enum class NotificationType { PROMOTED, EVENT_CANCELLED, ANNOUNCEMENT, MEETING_UPDATED, EVENT_UPDATED, QUESTION_ASKED, QUESTION_ANSWERED, QUESTION_REPLIED, REVIEW_POSTED, REVIEW_REPLIED;
+    val isInteraction: Boolean get() = this in setOf(QUESTION_ASKED, QUESTION_ANSWERED, QUESTION_REPLIED, REVIEW_POSTED, REVIEW_REPLIED)
+}
 enum class FeedbackStatus { SUBMITTED }
 
 data class User(
@@ -55,16 +57,22 @@ data class Event(
 data class Registration(
     val id: String, val eventId: String, val userId: String, val status: RegistrationStatus,
     val joinedAt: Long, val updatedAt: Long, val queueOrder: Long,
-)
+) {
+    /** queueOrder changes on every rejoin, including rejoins within the same millisecond. */
+    val attendanceKey: String get() = "$id:$queueOrder"
+}
 data class CheckIn(
     val id: String, val eventId: String, val userId: String, val checkedInAt: Long,
     val status: CheckInStatus = CheckInStatus.DEMO_RECORDED,
+    val registrationKey: String? = null,
 )
 data class Notification(
     val id: String, val userId: String, val eventId: String, val type: NotificationType,
     val content: String, val createdAt: Long, val isRead: Boolean = false,
     val announcementId: String? = null,
     val questionId: String? = null,
+    val contentId: String? = null, val rootId: String? = null,
+    val actorName: String? = null, val actorAvatarUri: String = "",
 )
 data class Feedback(
     val id: String, val eventId: String, val userId: String, val rating: Int,
@@ -72,11 +80,13 @@ data class Feedback(
 )
 data class Announcement(val id: String, val eventId: String, val authorId: String,
     val content: String, val createdAt: Long)
-/** A public event question with one official organizer answer, which may be revised. */
+data class QuestionReply(val id: String, val authorId: String, val content: String, val createdAt: Long)
+/** Legacy answer fields remain readable; new organizer answers also keep independent history. */
 data class EventQuestion(
     val id: String, val eventId: String, val authorId: String,
     val content: String, val createdAt: Long,
     val answer: String? = null, val answeredBy: String? = null, val answeredAt: Long? = null,
+    val replyHistory: List<QuestionReply> = emptyList(),
 )
 
 data class MeetingUpdate(val meetingAt: Long, val location: String, val notes: String)
@@ -105,7 +115,9 @@ data class AppSnapshot(
     val sessionError: String? = null,
     val announcements: List<Announcement> = emptyList(),
     val questions: List<EventQuestion> = emptyList(),
+    val eventRatings: Map<String,EventRatingSummary> = emptyMap(),
 ) {
+    val unreadNotificationCount: Int get() = notifications.count { it.userId == currentUserId && !it.isRead }
     val currentUser: User? get() = users.find { it.id == currentUserId }
     fun event(id: String) = events.find { it.id == id }
     fun registration(eventId: String, userId: String? = currentUserId) =
@@ -117,4 +129,12 @@ data class AppSnapshot(
         it.eventId == eventId && it.status == RegistrationStatus.WAITLISTED
     }.sortedBy { it.queueOrder }
     fun userName(id: String) = users.find { it.id == id }?.displayName ?: "Demo user"
+    fun activeCheckIn(eventId: String, userId: String? = currentUserId): CheckIn? {
+        val event = event(eventId) ?: return null
+        if (event.status == EventStatus.CANCELLED) return null
+        val registration = registration(eventId, userId)?.takeIf { it.status == RegistrationStatus.CONFIRMED } ?: return null
+        return checkIns.lastOrNull { it.eventId == eventId && it.userId == userId &&
+            (it.registrationKey?.let { key -> key == registration.attendanceKey }
+                ?: (it.checkedInAt >= registration.joinedAt)) }
+    }
 }

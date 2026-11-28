@@ -21,7 +21,7 @@ data class PrototypeUiState(
     val session: PrototypeSession? = null,
     val code: PrototypeCode? = null,
     val scanned: PrototypeCode? = null,
-    val candidate: PositionFix? = null,
+    val creatingMeeting: Boolean = false,
     val receipt: PrototypeReceipt? = null,
     val busy: Boolean = false,
     val message: String = "Choose an action.",
@@ -31,7 +31,6 @@ data class PrototypeUiState(
     val history: List<PrototypeHistoryEntry> = emptyList(),
     val notice: PrototypeNotice? = null,
     val scanStage: ParticipantScanStage = ParticipantScanStage.READY,
-    val locationRetryAvailable: Boolean = false,
     val pendingSubmission: CheckInAttempt? = null,
     val participantSession: PrototypeSession? = null,
     val ownerUserId: String? = null,
@@ -47,7 +46,6 @@ data class PrototypeUiState(
 class PrototypeViewModel(
     val actor: String,
     private val backend: PrototypeCheckInBackend,
-    private val position: PositionSource,
     latestReceipt: PrototypeReceipt? = null,
     private val now: () -> Long = System::currentTimeMillis,
     entry: CheckInEntry = CheckInEntry.General,
@@ -67,7 +65,7 @@ class PrototypeViewModel(
         if (entry is CheckInEntry.Activity) backend.hostedSession(actor, entry.session) else backend.hostedSession(actor)
     } else null
     private val initialHistory = if (authorized) backend.history(actor) else emptyList()
-    private val ownLatest = latestReceipt?.takeIf { authorized && it.userId == actor }
+    private val ownLatest = latestReceipt?.takeIf { authorized && it.userId == actor && registrations.isCurrentReceipt(it) }
     private val initialParticipant = (entry as? CheckInEntry.Activity)?.session
         ?: initialHistory.find { it.session.id == ownLatest?.sessionId }?.session
         ?: initialHistory.firstOrNull()?.session
@@ -102,7 +100,7 @@ class PrototypeViewModel(
         if (!mutableState.value.identityExpired) mutableState.value = change(mutableState.value)
     }
 
-    /** A changed identity invalidates this whole instance, including delayed camera/location callbacks. */
+    /** A changed identity invalidates this whole instance, including delayed camera callbacks. */
     fun refreshIdentity(): Boolean {
         if (state.value.identityExpired) return false
         if (identity.currentUserId() == actor) return true
@@ -139,7 +137,7 @@ class PrototypeViewModel(
     fun beginScan(general: Boolean = false): Long? {
         if (!refreshIdentity() || state.value.busy || pendingScan != null) return null
         if (!general && state.value.pendingSubmission != null) { resolveCheckIn(); return null }
-        update { it.copy(scanned = null, locationRetryAvailable = false) }
+        update { it.copy(scanned = null) }
         if (general) {
             entryGeneration++
             update { it.copy(entry = CheckInEntry.General, participantSession = null, receipt = null,
@@ -148,7 +146,8 @@ class PrototypeViewModel(
         }
         val target = if (general) CheckInEntry.General else (state.value.entry as? CheckInEntry.Activity)
             ?: state.value.participantSession?.let { CheckInEntry.Activity(it) } ?: CheckInEntry.General
-        return (++scanSequence).also { pendingScan = PendingCheckInScan(it, target, entryGeneration) }
+        return (++scanSequence).also { pendingScan = PendingCheckInScan(it, target, entryGeneration,
+            registrations.registrationKey((target as? CheckInEntry.Activity)?.session?.id, actor)) }
     }
 
     fun abandonScan() { pendingScan = null }
@@ -161,14 +160,16 @@ class PrototypeViewModel(
         val closed = backend.isCheckInClosed(session)
         val valid = runCatching { backend.activityInfo(session) }.isSuccess
         if (closed || !valid) stopDisplaying()
-        update { it.copy(registration = registrations.status(session.id, actor),
+        val records = backend.history(actor)
+        val currentReceipt = records.find { it.session == session }?.receipt
+        update { it.copy(receipt = currentReceipt, history = records, registration = registrations.status(session.id, actor),
             participants = registrations.participants(session.id), cancelled = cancelled, checkInClosed = closed,
             message = if (!valid) "Event details have changed. Go back and reopen the event." else it.message) }
     }
 
     fun dismissNotice(id: Long) { update { if (it.notice?.id == id) it.copy(notice = null) else it } }
 
-    /** Independent of QR/location work; a failed refresh keeps the last successful snapshot. */
+    /** Independent of QR work; a failed refresh keeps the last successful snapshot. */
     fun refreshAttendance(session: PrototypeSession) {
         if (!refreshIdentity()) return
         if (!isOrganizer(session)) {
@@ -221,7 +222,6 @@ class PrototypeViewModel(
     }
 
     fun message(text: String) { if (!refreshIdentity()) return; update { it.copy(message = text,
-        locationRetryAvailable = false,
         notice = if (isOrganizer(it.session)) it.notice else null,
         scanStage = if (isOrganizer(it.session)) it.scanStage else ParticipantScanStage.ATTENTION) } }
 
@@ -239,47 +239,37 @@ class PrototypeViewModel(
         }
     }
 
-    fun locateMeeting() {
-        if (state.value.entry is CheckInEntry.Activity) return message("Use the meeting point from this event. Do not create a replacement event.")
+    fun prepareMeeting() {
+        if (state.value.entry is CheckInEntry.Activity) return message("Open this event's check-in page.")
         stopDisplaying()
-        runOperation {
-            message("Locating the test meeting point…")
-            val fix = position.locate()
-            currentCoroutineContext().ensureActive()
-            if (!refreshIdentity()) return@runOperation
-            update { it.copy(candidate = fix, message = "Confirm your current location as the fixed test meeting point.") }
-        }
+        update { it.copy(creatingMeeting = true) }
     }
-    fun dismissMeeting() { update { it.copy(candidate = null) } }
+    fun dismissMeeting() { update { it.copy(creatingMeeting = false) } }
     fun confirmMeeting() = runOperation {
         stopAttendance()
-        require(state.value.entry !is CheckInEntry.Activity) { "You cannot create another event from this event's check-in page." }
-        val fix = requireNotNull(state.value.candidate) { "Locate the meeting point first." }
-        update { it.copy(candidate = null) }
-        val session = backend.createMeeting(actor, fix)
+        require(state.value.entry !is CheckInEntry.Activity) { "Open this event's check-in page." }
+        val session = backend.createMeeting(actor)
         seenCheckIns.clear()
-        update { it.copy(session = session, candidate = null, code = null, cancelled = false,
-            notice = null,
-            attendees = emptyList(), attendance = AttendanceLoadState(),
-            history = backend.history(actor),
-            message = "Meeting point saved. The event starts in 10 minutes; you can try check-in now.") }
+        update { it.copy(session = session, creatingMeeting = false, code = null, cancelled = false,
+            notice = null, attendees = emptyList(), attendance = AttendanceLoadState(),
+            history = backend.history(actor), message = "Event ready. Confirm your arrival to display the code.") }
     }
 
     fun showCode() {
         if (!refreshIdentity() || state.value.busy) return
         stopDisplaying()
-        val session = state.value.session ?: return message("Confirm the test meeting point first.")
+        val session = state.value.session ?: return message("Open the event first.")
         val generation = displayGeneration
         displaying = viewModelScope.launch {
             try {
                 while (true) {
-                    update { it.copy(code = null, busy = true, message = "Checking the organizer's location…") }
-                    val fix = position.locate()
+                    update { it.copy(code = null, busy = true, message = "Preparing your check-in code…") }
                     currentCoroutineContext().ensureActive()
                     if (!refreshIdentity()) return@launch
-                    val code = backend.issue(actor, session, fix)
+                    val code = backend.issue(actor, session)
                     update { it.copy(code = code, busy = false,
-                        message = "Location verified. Participants can now scan your code.") }
+                        history = backend.history(actor), receipt = backend.history(actor).find { record -> record.session == session }?.receipt,
+                        message = "Your arrival is confirmed. Participants can now scan your code.") }
                     delay(PrototypePolicy.REFRESH_MS)
                 }
             } catch (e: CancellationException) { throw e }
@@ -296,7 +286,7 @@ class PrototypeViewModel(
         pendingScan = null
         if (state.value.pendingSubmission != null) { resolveCheckIn(); return }
         val target = ticket?.entry ?: state.value.entry
-        update { it.copy(scanned = null, notice = null, locationRetryAvailable = false,
+        update { it.copy(scanned = null, notice = null,
             scanStage = ParticipantScanStage.READY, message = "") }
         // Closing the camera is navigation, not a failed check-in. Keep the existing activity/receipt.
         if (raw == null) return
@@ -321,23 +311,20 @@ class PrototypeViewModel(
                 receipt = it.receipt?.takeIf { receipt -> receipt.userId == actor && receipt.sessionId == code.session.id },
                 registration = registrations.status(code.session.id, actor), participants = registrations.participants(code.session.id),
                 history = backend.history(actor), scanStage = ParticipantScanStage.VERIFYING,
-                message = "Event recognized. Getting your precise location…") }
+                message = "Event recognized. Checking your registration…") }
             runOperation(scanOperation = true) {
-                val fix = try { position.locate() }
-                catch (e: CancellationException) { throw e }
-                catch (e: Exception) {
-                    currentCoroutineContext().ensureActive()
-                    if (refreshIdentity()) update { it.copy(locationRetryAvailable = true) }
-                    throw e
-                }
                 currentCoroutineContext().ensureActive()
                 if (!refreshIdentity()) return@runOperation
-                update { it.copy(message = "Checking distance, registration and check-in time…") }
-                val attempt = CheckInAttempt(UUID.randomUUID().toString(), actor, code.session)
+                val currentKey = requireNotNull(registrations.registrationKey(code.session.id, actor)) { "Your place is no longer confirmed." }
+                require(ticket == null || ticket.entry is CheckInEntry.General || ticket.registrationKey == currentKey) {
+                    "Your registration changed while scanning. Scan again."
+                }
+                update { it.copy(message = "Checking registration and check-in time…") }
+                val attempt = CheckInAttempt(UUID.randomUUID().toString(), actor, code.session, currentKey)
                 pendingSubmissions.save(attempt)
-                update { it.copy(pendingSubmission = attempt, locationRetryAvailable = false) }
+                update { it.copy(pendingSubmission = attempt) }
                 try {
-                    val receipt = withTimeout(10_000) { submissions.submit(attempt, raw, fix) }
+                    val receipt = withTimeout(10_000) { submissions.submit(attempt, raw) }
                     currentCoroutineContext().ensureActive()
                     if (refreshIdentity()) completeCheckIn(attempt, receipt)
                 } catch (_: TimeoutCancellationException) { resolveAttempt(attempt) }
@@ -353,15 +340,6 @@ class PrototypeViewModel(
         } catch (e: IllegalArgumentException) { message(e.message ?: "Invalid QR code.") }
     }
 
-    /** Only a failed location acquisition may reuse a code, with all checks performed again. */
-    fun retryLocation() {
-        if (!refreshIdentity() || state.value.busy || pendingScan != null) return
-        val current = state.value
-        val code = current.scanned ?: return
-        if (!current.locationRetryAvailable || current.participantSession != code.session) return
-        receiveScan(PrototypeCodeCodec.encode(code))
-    }
-
     fun resolveCheckIn() {
         if (!refreshIdentity() || state.value.busy) return
         val attempt = state.value.pendingSubmission ?: return
@@ -374,8 +352,14 @@ class PrototypeViewModel(
     private suspend fun resolveAttempt(attempt: CheckInAttempt) {
         currentCoroutineContext().ensureActive()
         if (!refreshIdentity() || state.value.pendingSubmission != attempt) return
+        if (attempt.registrationKey != registrations.registrationKey(attempt.session.id, actor) || attempt.registrationKey == null) {
+            pendingSubmissions.remove(attempt)
+            update { it.copy(pendingSubmission = null, receipt = null, scanStage = ParticipantScanStage.ATTENTION,
+                message = "Your registration changed. Scan again for your current place.") }
+            return
+        }
         update { it.copy(scanStage = ParticipantScanStage.RESOLVING, scanned = null,
-            locationRetryAvailable = false, message = "Checking your previous check-in. Please wait…") }
+            message = "Checking your previous check-in. Please wait…") }
         try {
             val result = withTimeout(10_000) { submissions.resolve(attempt) }
             currentCoroutineContext().ensureActive()
@@ -405,6 +389,13 @@ class PrototypeViewModel(
     private fun completeCheckIn(attempt: CheckInAttempt, receipt: PrototypeReceipt) {
         require(receipt.userId == actor && receipt.sessionId == attempt.session.id) { "The check-in result does not match this account or event." }
         if (state.value.pendingSubmission != attempt || state.value.participantSession != attempt.session) return
+        if (attempt.registrationKey == null || attempt.registrationKey != registrations.registrationKey(attempt.session.id, actor) ||
+            !registrations.isCurrentReceipt(receipt) || backend.isCancelled(attempt.session)) {
+            pendingSubmissions.remove(attempt)
+            update { it.copy(pendingSubmission = null, receipt = null, scanStage = ParticipantScanStage.ATTENTION,
+                message = "This check-in belongs to an earlier registration. Scan again.") }
+            return
+        }
         // A confirmed reply remains useful even if a separate history refresh fails.
         val records = runCatching { backend.history(actor) }.getOrDefault(state.value.history)
         val previous = records.find { it.session == attempt.session }
@@ -413,7 +404,7 @@ class PrototypeViewModel(
             .sortedByDescending { it.session.startAt }
         pendingSubmissions.remove(attempt)
         update { it.copy(receipt = receipt, scanned = null, history = updated, pendingSubmission = null,
-            locationRetryAvailable = false, scanStage = ParticipantScanStage.SUCCESS,
+            scanStage = ParticipantScanStage.SUCCESS,
             notice = PrototypeNotice(++noticeSequence, "Checked in successfully"), message = "Check-in successful. Your record is confirmed.") }
     }
 
@@ -437,7 +428,7 @@ class PrototypeViewModel(
         stopDisplaying()
         runOperation {
             backend.cancel(actor, requireNotNull(state.value.session))
-            update { it.copy(cancelled = true, notice = null, history = backend.history(actor), message = "Event cancelled. Previously issued codes may remain valid for up to 30 seconds.") }
+            update { it.copy(cancelled = true, notice = null, history = backend.history(actor), message = "Event cancelled. Check-in is closed.") }
         }
     }
     fun stopDisplaying() {
@@ -451,7 +442,7 @@ class PrototypeViewModel(
         stopDisplaying()
         operationGeneration++
         operation?.cancel()
-        update { it.copy(busy = false, candidate = null, scanned = null, notice = null, locationRetryAvailable = false,
+        update { it.copy(busy = false, creatingMeeting = false, scanned = null, notice = null,
             scanStage = if (it.pendingSubmission != null) ParticipantScanStage.ATTENTION
                 else if (it.scanStage == ParticipantScanStage.VERIFYING) ParticipantScanStage.READY else it.scanStage,
             message = if (it.pendingSubmission != null) "Your last check-in is unconfirmed. Check its status first." else it.message) }

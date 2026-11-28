@@ -24,7 +24,7 @@ class FeedbackLayoutTest {
     }
     @get:Rule val compose = createComposeRule()
     private val time = 1_800_000_000_000L
-    private val session = PrototypeSession(java.util.UUID.randomUUID().toString(), MeetingPoint(31.27, 120.74), time - 7_200_000, time)
+    private val session = PrototypeSession(java.util.UUID.randomUUID().toString(), time - 7_200_000, time)
     private var record by mutableStateOf(PrototypeHistoryEntry(session, PrototypeReceipt(session.id, "bob", session.startAt), null, false))
     private var busy by mutableStateOf(false)
     private var submissions = 0

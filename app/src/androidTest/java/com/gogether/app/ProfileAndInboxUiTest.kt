@@ -144,7 +144,7 @@ class ProfileAndInboxUiTest {
         tap("inbox_interactions")
         tap("notification_open_reply")
         compose.waitUntil(5000) { repo.state.value.notifications.first { it.id == "reply" }.isRead }
-        compose.onNodeWithTag("question_question-profile").assertExists()
+        compose.onNodeWithTag("social_item_question-profile").assertExists()
         compose.onNodeWithContentDescription("Back").performClick()
         tap("read_all")
         compose.waitUntil(5000) { repo.state.value.notifications.filter { it.userId == "alice" }.all { it.isRead } }

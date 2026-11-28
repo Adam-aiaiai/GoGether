@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -94,7 +95,8 @@ internal fun ProfileAvatar(user: User, modifier: Modifier = Modifier, size: andr
 
 @Composable
 internal fun InterestLabel(text: String, modifier: Modifier = Modifier, selected: Boolean = true, onClick: (() -> Unit)? = null) {
-    Surface(modifier.then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+    Surface(modifier.then(if (onClick != null) Modifier.selectable(selected = selected,
+        role = androidx.compose.ui.semantics.Role.Checkbox, onClick = onClick) else Modifier),
         shape = RoundedCornerShape(10.dp), color = if (selected) AppUi.SelectedTag else ProfileGray) {
         Box(Modifier.heightIn(min = 32.dp).padding(horizontal = 9.dp, vertical = 7.dp), contentAlignment = Alignment.Center) {
             Text(text, fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium,
@@ -105,7 +107,7 @@ internal fun InterestLabel(text: String, modifier: Modifier = Modifier, selected
 }
 
 @Composable
-internal fun ProfileActivityRow(event: Event, open: () -> Unit) {
+internal fun ProfileActivityRow(event: Event, rating: com.gogether.app.core.model.EventRatingSummary? = null, open: () -> Unit) {
     Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).clickable(onClick = open)
         .testTag("history_${event.id}").padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -118,6 +120,7 @@ internal fun ProfileActivityRow(event: Event, open: () -> Unit) {
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(displayTime(event.startAt), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        com.gogether.app.core.ui.EventRatingBadge(rating,event.id)
         Text("›", fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

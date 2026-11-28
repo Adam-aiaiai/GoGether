@@ -33,16 +33,16 @@ class FeedbackPrivacyUiTest {
     @get:Rule val compose = createComposeRule()
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
     private val time = 1_800_000_000_000L
-    private val session = PrototypeSession(UUID.randomUUID().toString(), MeetingPoint(31.27, 120.74), time - 7_200_000, time)
+    private val session = PrototypeSession(UUID.randomUUID().toString(), time - 7_200_000, time)
     private val store = PreferencesPrototypeStore(context)
     private val prefs = context.getSharedPreferences("checkin_prototype_v1", 0)
     private var selectedUris = emptyList<Uri>()
     private val createdUris = mutableListOf<Uri>()
     private var actor by mutableStateOf("bob")
-    private var records by mutableStateOf(listOf(PrototypeHistoryEntry(session, null, null, false)))
+    private var records by mutableStateOf(listOf(PrototypeHistoryEntry(session, PrototypeReceipt(session.id, actor, session.startAt), null, false)))
     private var message by mutableStateOf("")
     private var failSubmission = false
-    private val backend = LocalPrototypeBackend(store, { time }, { 0 })
+    private val backend = LocalPrototypeBackend(store, { time })
     private val registry = object : ActivityResultRegistry() {
         @Suppress("UNCHECKED_CAST")
         override fun <I, O> onLaunch(requestCode: Int, contract: ActivityResultContract<I, O>, input: I, options: ActivityOptionsCompat?) {
@@ -74,7 +74,7 @@ class FeedbackPrivacyUiTest {
     }
 
     private fun launch(scale: Float = 1f, systemPicker: Boolean = false): StateRestorationTester {
-        listOf("alice", "bob", "carol").forEach { store.rememberSession(it, session) }
+        listOf("alice", "bob", "carol").forEach { store.rememberAttendedSession(it, session) }
         val restoration = StateRestorationTester(compose)
         restoration.setContent {
             val owner = if (systemPicker) requireNotNull(LocalActivityResultRegistryOwner.current) else object : ActivityResultRegistryOwner {
@@ -129,9 +129,9 @@ class FeedbackPrivacyUiTest {
             assertTrue(saved.details.anonymous)
             assertEquals(FeedbackVisibility.ORGANIZER_ONLY, saved.details.visibility)
             assertTrue(backend.reviews("carol", session).isEmpty())
-            assertEquals("Anonymous participant", backend.reviews("alice", session).single().authorName)
+            assertEquals("Anonymous participant 01", backend.reviews("alice", session).single().authorName)
             find("feedback_privacy_saved").assertTextEquals("Organizer only")
-            compose.onNodeWithText("Anonymous participant (you)").assertExists()
+            compose.onNodeWithText("Anonymous participant 01 (you)").assertExists()
             capture("feedback-private-saved.png")
         } finally { cleanup() }
     }
@@ -161,7 +161,7 @@ class FeedbackPrivacyUiTest {
 
     @Test fun organizerSeesAnonymousPrivateFeedbackAndParticipantsOnlySeePublicReviews() {
         try {
-            listOf("alice", "bob", "carol").forEach { store.rememberSession(it, session) }
+            listOf("alice", "bob", "carol").forEach { store.rememberAttendedSession(it, session) }
             backend.submitFeedback("bob", session.id, 3, "Please make the meeting point easier to find.",
                 FeedbackDetails(anonymous = true, visibility = FeedbackVisibility.ORGANIZER_ONLY))
             backend.submitFeedback("carol", session.id, 5, "Everyone was really welcoming.")
@@ -169,13 +169,13 @@ class FeedbackPrivacyUiTest {
             compose.setContent { GogetherTheme {
                 ActivityReviewsScreen(actor, session, backend.reviews(actor, session), false, "", {}, {})
             } }
-            compose.onNodeWithText("Anonymous participant").assertIsDisplayed()
+            compose.onNodeWithText("Anonymous participant 01").assertIsDisplayed()
             compose.onNodeWithText("Please make the meeting point easier to find.").assertExists()
             compose.onNodeWithText("Bob").assertDoesNotExist()
             compose.onNodeWithText("Organizer only").assertExists()
             capture("feedback-organizer-reviews.png")
             compose.runOnIdle { actor = "carol" }
-            compose.onNodeWithText("Anonymous participant").assertDoesNotExist()
+            compose.onNodeWithText("Anonymous participant 01").assertDoesNotExist()
             compose.onNodeWithText("Please make the meeting point easier to find.").assertDoesNotExist()
             compose.onNodeWithText("Carol (you)").assertIsDisplayed()
             compose.onNodeWithText("Everyone was really welcoming.").assertIsDisplayed()

@@ -40,4 +40,18 @@ class QuestionsPersistenceTest {
         assertEquals(original, SnapshotJson.decode(json.toString()))
         assertTrue(SnapshotJson.decode(json.toString()).questions.isEmpty())
     }
+    @Test fun multipleLegacyAnswersRetainHistoryAcrossSnapshotReaders(): Unit = runBlocking {
+        val repo=FakeGogetherRepository()
+        repo.login("bob").getOrThrow();repo.askQuestion("event-1","Will there be spare equipment?").getOrThrow()
+        val id=repo.state.value.questions.single().id
+        repo.login("alice").getOrThrow();repo.answerQuestion(id,"Yes, bring your own if possible.").getOrThrow()
+        repo.answerQuestion(id,"We also have two spare rackets.").getOrThrow()
+        val original=repo.state.value
+        val fileRoundTrip=SnapshotJson.decode(SnapshotJson.encode(original))
+        val prefsRoundTrip=LocalSnapshotStore.decode(LocalSnapshotStore.encode(original))
+        assertEquals(2,fileRoundTrip.questions.single().replyHistory.size)
+        assertEquals(fileRoundTrip.questions,prefsRoundTrip.questions)
+        assertEquals(original.questions.single().replyHistory.map {it.id},fileRoundTrip.questions.single().replyHistory.map {it.id})
+    }
+
 }

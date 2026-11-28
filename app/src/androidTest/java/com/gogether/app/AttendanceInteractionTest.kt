@@ -22,7 +22,7 @@ import java.util.Locale
 class AttendanceInteractionTest {
     @get:Rule val compose = createComposeRule()
     private val now = 1_800_000_000_000L
-    private val session = PrototypeSession("f23e4af8-b3ed-49ef-a7ee-d7c1cf2bf317", MeetingPoint(31.27, 120.74),
+    private val session = PrototypeSession("f23e4af8-b3ed-49ef-a7ee-d7c1cf2bf317",
         now + 600_000, now + 7_800_000)
     private var state by mutableStateOf(PrototypeUiState(session = session,
         attendance = AttendanceLoadState(session, loaded = true, updatedAt = now),

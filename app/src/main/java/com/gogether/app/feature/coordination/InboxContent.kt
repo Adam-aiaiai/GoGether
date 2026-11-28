@@ -22,15 +22,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gogether.app.core.model.*
 import com.gogether.app.core.ui.*
-import com.gogether.app.feature.profile.ProfileAvatar
+import com.gogether.app.feature.profile.ParticipantAvatar
 import kotlinx.coroutines.launch
 
-internal fun Notification.isInteraction() = type == NotificationType.QUESTION_ASKED || type == NotificationType.QUESTION_ANSWERED
+internal fun Notification.isInteraction() = type.isInteraction
 
 @Composable
 fun InboxContent(state: AppSnapshot, busy: Boolean, read: (String) -> Unit,
     readAll: () -> Unit, openEvent: (String) -> Unit, explore: () -> Unit = {},
-    openQuestion: ((String, String) -> Unit)? = null, back: (() -> Unit)? = null) {
+    openQuestion: ((String, String) -> Unit)? = null, back: (() -> Unit)? = null, openConversation: ((String) -> Unit)? = null) {
     val all = state.notifications.filter { it.userId == state.currentUserId }.sortedByDescending { it.createdAt }
     val pager = rememberPagerState(pageCount = { 2 })
     val scope = rememberCoroutineScope()
@@ -56,7 +56,7 @@ fun InboxContent(state: AppSnapshot, busy: Boolean, read: (String) -> Unit,
                     Column(Modifier.fillMaxWidth().padding(top = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(if (page == 0) "No interactions yet" else "No activity updates yet", fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold)
-                        Text(if (page == 0) "Questions and replies will appear here." else "Changes to your activities will appear here.",
+                        Text(if (page == 0) "Questions, reviews and replies will appear here." else "Changes to your activities will appear here.",
                             Modifier.padding(top = 8.dp), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         TextButton(explore) { Text("Explore activities", fontSize = 12.sp) }
                     }
@@ -64,7 +64,8 @@ fun InboxContent(state: AppSnapshot, busy: Boolean, read: (String) -> Unit,
                 items(notices, key = { it.id }) { notification ->
                     NotificationRow(notification, state, !busy) {
                         if (!notification.isRead) read(notification.id)
-                        if (notification.questionId != null && openQuestion != null) openQuestion(notification.eventId, notification.questionId)
+                        if (notification.contentId != null && openConversation != null) openConversation(notification.contentId)
+                        else if (notification.questionId != null && openQuestion != null) openQuestion(notification.eventId, notification.questionId)
                         else openEvent(notification.eventId)
                     }
                 }
@@ -75,10 +76,7 @@ fun InboxContent(state: AppSnapshot, busy: Boolean, read: (String) -> Unit,
 
 @Composable
 private fun NotificationRow(notice: Notification, state: AppSnapshot, enabled: Boolean, open: () -> Unit) {
-    val question = state.questions.find { it.id == notice.questionId }
-    val authorId = if (notice.type == NotificationType.QUESTION_ASKED) question?.authorId else question?.answeredBy
-    val author = state.users.find { it.id == authorId }
-    val title = if (notice.isInteraction()) author?.displayName ?: "Activity conversation" else when (notice.type) {
+    val title = if (notice.isInteraction()) notice.actorName ?: "Activity conversation" else when (notice.type) {
         NotificationType.PROMOTED -> "Your place is confirmed"
         NotificationType.EVENT_CANCELLED -> "Activity cancelled"
         NotificationType.ANNOUNCEMENT -> "Organizer announcement"
@@ -92,7 +90,7 @@ private fun NotificationRow(notice: Notification, state: AppSnapshot, enabled: B
         Box(Modifier.width(7.dp).padding(top = 7.dp), contentAlignment = Alignment.TopCenter) {
             if (!notice.isRead) Box(Modifier.size(6.dp).background(Color(0xFFEF534B), CircleShape).testTag("unread_${notice.id}"))
         }
-        if (notice.isInteraction() && author != null) ProfileAvatar(author.copy(showGender = false), size = 38.dp)
+        if (notice.isInteraction() && notice.actorAvatarUri.isNotBlank()) ParticipantAvatar(title, notice.actorAvatarUri, Modifier.size(38.dp))
         Column(Modifier.weight(1f).testTag("notification_${notice.id}"), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(title, Modifier.weight(1f), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,

@@ -32,7 +32,7 @@ class AttendanceEntryNavigationTest {
             endAt = if (status == EventStatus.COMPLETED) time + 7_800_000 else time - 600_000,
         )
         val repo = FakeGogetherRepository(seed.copy(currentUserId = "alice", events = listOf(event)), { time })
-        recordId = RegistrationAttendanceBridge({ repo.state.value }, store, elapsedNow = { 0 }).key(event)
+        recordId = RegistrationAttendanceBridge({ repo.state.value }, store).key(event)
         return repo
     }
 
@@ -48,7 +48,7 @@ class AttendanceEntryNavigationTest {
     private fun openManagement(repo: FakeGogetherRepository) {
         compose.setContent { GogetherTheme { GogetherApp(repo) } }
         compose.onNodeWithTag("nav_profile").performClick()
-        compose.onNodeWithTag("event_event-1").performScrollTo().performClick()
+        compose.onNodeWithTag("history_event-1").performScrollTo().performClick()
         compose.onNodeWithTag("manage_event").performScrollTo().performClick()
         compose.onNodeWithTag("manage_attendance").performScrollTo().performClick()
     }
@@ -73,11 +73,10 @@ class AttendanceEntryNavigationTest {
         assertNull(store.feedback(recordId!!, "alice"))
         Espresso.pressBack()
         compose.onNodeWithTag("open_checkin").performScrollTo().performClick()
-        compose.waitUntil(10_000) { compose.onAllNodesWithTag("feedback_submit").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithText("Write a review").assertIsDisplayed()
-        compose.onNodeWithText("Attendance record").assertDoesNotExist()
-        compose.onNodeWithTag("history_detail").performScrollToNode(hasTestTag("feedback_comment"))
-        compose.onNodeWithTag("feedback_comment").assertTextContains(draft.comment)
+        compose.onNodeWithTag("feedback_submit").assertDoesNotExist()
+        compose.onNodeWithTag("history_detail").performScrollToNode(hasText("You did not check in. A valid check-in is required to review this event."))
+        compose.onNodeWithText("You did not check in. A valid check-in is required to review this event.").assertIsDisplayed()
+        assertEquals(draft, drafts.load("alice", recordId!!))
         assertNull(store.feedback(recordId!!, "alice"))
     }
 

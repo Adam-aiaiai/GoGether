@@ -21,7 +21,7 @@ fun MyEventsScreen(state: AppSnapshot, now: Long, openInbox: () -> Unit = {},
     Page {
         SectionTitle("Your plans", "Upcoming activities, waitlists and past experiences.")
         PageActionButton(onClick = openInbox, modifier = Modifier.fillMaxWidth().testTag("open_inbox")) {
-            Text("Notifications · ${state.notifications.count { it.userId == state.currentUserId && !it.isRead }} unread")
+            Text("Notifications · ${state.unreadNotificationCount} unread")
         }
         @Suppress("DEPRECATION")
         AppScrollableTabRow(selectedTabIndex = tab.ordinal) {
@@ -41,7 +41,7 @@ fun MyEventsScreen(state: AppSnapshot, now: Long, openInbox: () -> Unit = {},
             Text(if (tab == PersonalEventTab.CREATED) "Create an activity" else "Explore activities")
         }
         events.forEach { event ->
-            EventCard(event, state, { openEvent(event.id) }, now)
+            EventCard(event, state, { openEvent(event.id) }, now, showRating = tab == PersonalEventTab.HISTORY)
             Text(participationSummary(state, event, now), style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.testTag("participation_${event.id}"))
         }

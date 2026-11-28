@@ -23,6 +23,7 @@ internal fun ActivityReviewsScreen(actor: String, session: PrototypeSession, rev
         })
         Column(Modifier.padding(horizontal = 20.dp).padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(activity?.title ?: "Event details unavailable", style = MaterialTheme.typography.titleMedium)
+            activity?.sourceEventId?.let {com.gogether.app.core.ui.EventRatingOverview(it)}
             Text(if (activity?.organizerId == actor) "Public reviews and feedback shared with you" else "Public reviews and your own feedback",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -33,10 +34,14 @@ internal fun ActivityReviewsScreen(actor: String, session: PrototypeSession, rev
         } else if (!busy && reviews.isEmpty()) Text("No reviews to show yet", Modifier.padding(vertical = 24.dp))
         LazyColumn(Modifier.weight(1f).testTag("activity_reviews_list"), contentPadding = PaddingValues(20.dp),
             verticalArrangement = Arrangement.spacedBy(50.dp)) {
+            item { activity?.sourceEventId?.let { com.gogether.app.feature.social.DeletedReviewThreads(it) } }
             itemsIndexed(reviews) { index, review ->
+                Column {
                 SavedReviewItem(review.authorName, review.own, review.rating, review.comment, review.createdAt,
-                    review.details, Modifier.testTag("activity_review_$index"), avatarUri = review.avatarUri) {
+                    review.details, Modifier.testTag("activity_review_$index"), avatarUri = review.avatarUri, anonymousName = review.authorName, organizer = review.organizer) {
                     FeedbackPhotoStrip(review.details.photos, actor, session.id, showHeader = false)
+                }
+                if (review.id.isNotBlank()) com.gogether.app.feature.social.SocialContentActions(review.id, refresh)
                 }
             }
         }

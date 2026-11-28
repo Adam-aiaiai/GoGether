@@ -116,7 +116,7 @@ fun EventImage(imageUri: String, contentDescription: String, modifier: Modifier 
 }
 
 @Composable
-fun EventCard(event: Event, state: AppSnapshot, onClick: () -> Unit, now: Long = System.currentTimeMillis()) {
+fun EventCard(event: Event, state: AppSnapshot, onClick: () -> Unit, now: Long = System.currentTimeMillis(), showRating: Boolean = false) {
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth().testTag("event_${event.id}"),
         shape = AppUi.CardShape, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
         Column {
@@ -139,7 +139,10 @@ fun EventCard(event: Event, state: AppSnapshot, onClick: () -> Unit, now: Long =
                         color = MaterialTheme.colorScheme.primary)
                 }
             }
-            Text(event.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                Text(event.title, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                if(showRating) EventRatingBadge(state.eventRatings[event.id],event.id)
+            }
             Text("⌖ ${event.location}   ⚉ ${state.confirmed(event.id).size}/${event.capacity} joined",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)

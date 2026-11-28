@@ -108,6 +108,7 @@ class FeedbackPhotoStore(private val context: Context, private val activities: C
         if (viewer == owner) return true
         val store = PreferencesPrototypeStore(context)
         val review = store.feedback(sessionId, owner) ?: return false
+        if (store.isBlocked(viewer, owner)) return false
         val session = store.sessions(owner).find { it.id == sessionId }
         val organizer = session?.let { runCatching {
             val info = if (activities === LegacyCheckInActivities) store.activityInfo(sessionId) ?: activities.activity(it) else activities.activity(it)

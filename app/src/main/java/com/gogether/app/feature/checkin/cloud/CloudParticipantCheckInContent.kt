@@ -45,7 +45,7 @@ internal fun CloudParticipantCheckInContent(
     organizerName: String,
     registration: RegistrationStatus?,
     now: Long,
-    meetingReady: Boolean,
+    checkInReady: Boolean,
     checkedInAt: Long?,
     loading: Boolean,
     hasInformation: Boolean,
@@ -69,7 +69,7 @@ internal fun CloudParticipantCheckInContent(
     }
     val window = CheckInWindow.state(event, now)
     val confirmed = registration == RegistrationStatus.CONFIRMED
-    val ready = hasInformation && !loading && meetingReady && confirmed &&
+    val ready = hasInformation && !loading && checkInReady && confirmed &&
         window == CheckInWindowState.OPEN && !pending && !unreadableAttempt
     val title = when {
         checkedInAt != null -> "You're checked in"
@@ -83,7 +83,7 @@ internal fun CloudParticipantCheckInContent(
         !confirmed -> "A confirmed place is required"
         window == CheckInWindowState.NOT_STARTED -> "Check-in opens soon"
         window == CheckInWindowState.EXPIRED -> "Check-in has closed"
-        !meetingReady -> "Waiting for the organizer"
+        !checkInReady -> "Waiting for the organizer"
         busy -> "Checking your request"
         else -> "Ready to check in"
     }
@@ -99,7 +99,7 @@ internal fun CloudParticipantCheckInContent(
         !confirmed -> "Only confirmed participants can check in."
         window == CheckInWindowState.NOT_STARTED -> "You can scan from ${checkInDate(CheckInWindow.opensAt(event), "d MMM, HH:mm")}."
         window == CheckInWindowState.EXPIRED -> "Ask the organizer if you need help with your attendance."
-        !meetingReady -> "The organizer needs to confirm the meeting point first."
+        !checkInReady -> "The organizer needs to confirm arrival and display the code."
         else -> "$participantName, your place is confirmed. Scan the code on your organizer's phone."
     }
 
@@ -145,7 +145,7 @@ internal fun CloudParticipantCheckInContent(
                     AppDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .5f))
                     Text("Check-in window  ${checkInDate(CheckInWindow.opensAt(event), "HH:mm")}–${checkInDate(CheckInWindow.closesAt(event).coerceAtMost(event.endAt), "HH:mm")}",
                         style = MaterialTheme.typography.bodyMedium)
-                    Text("Be within 200 m of the meeting point. Location is checked when you scan.",
+                    Text("Scan the organizer's latest code during the check-in window.",
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (message.isNotBlank()) {
@@ -204,25 +204,12 @@ private fun MeetingSummary(event: Event) {
 
 @Composable
 internal fun MeetingActions(event: Event, notesColor: Color = MaterialTheme.colorScheme.onSurfaceVariant) {
-    val context = LocalContext.current
-    var mapError by remember { mutableStateOf(false) }
     var showNotes by rememberSaveable(event.id) { mutableStateOf(false) }
-    val address = event.meetingLocation ?: event.location
-    Column {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            TextButton(onClick = {
-                mapError = false
-                try { context.startActivity(Intent(Intent.ACTION_VIEW, "geo:0,0?q=${Uri.encode("${event.city} $address")}".toUri())) }
-                catch (_: ActivityNotFoundException) { mapError = true }
-            }, modifier = Modifier.testTag("cloud_checkin_directions"), contentPadding = PaddingValues(end = 12.dp)) { Text("Directions") }
-            if (event.meetingNotes.isNotBlank()) TextButton(onClick = { showNotes = !showNotes },
-                contentPadding = PaddingValues(start = 12.dp), modifier = Modifier.testTag("cloud_checkin_meeting_notes")) {
-                Text(if (showNotes) "Hide notes" else "Meeting notes")
-            }
+    if (event.meetingNotes.isNotBlank()) Column {
+        TextButton(onClick = { showNotes = !showNotes }, modifier = Modifier.testTag("cloud_checkin_meeting_notes")) {
+            Text(if (showNotes) "Hide notes" else "Meeting notes")
         }
         if (showNotes) Text(event.meetingNotes, style = MaterialTheme.typography.bodyMedium, color = notesColor)
-        if (mapError) Text("No maps app is installed. Use the meeting address above.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
     }
 }
 

@@ -47,10 +47,15 @@ internal fun AttendancePanel(state: PrototypeUiState, session: PrototypeSession,
     searchOpen: Boolean, refresh: () -> Unit, dismissSearch: () -> Unit) {
     val matches = state.attendance.session == session
     val load = if (matches) state.attendance else AttendanceLoadState(session)
-    val people = if (matches) state.attendees else emptyList()
+    val allPeople = if (matches) state.attendees else emptyList()
+    val people = allPeople.filterNot { it.organizer }
     val header: @Composable () -> Unit = {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
+                allPeople.firstOrNull { it.organizer }?.let { host ->
+                    Text("Organizer · ${host.name} · " + if (host.checkedInAt == null) "Arrival not confirmed" else "Arrival confirmed",
+                        style = MaterialTheme.typography.labelSmall, modifier = Modifier.testTag("organizer_attendance"))
+                }
                 Text(if (load.loaded) "${people.size} participants, ${people.count { it.checkedInAt != null }} checked in"
                     else "Attendance", style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.testTag("attendance_summary"))

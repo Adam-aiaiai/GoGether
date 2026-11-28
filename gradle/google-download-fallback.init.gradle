@@ -1,0 +1,10 @@
+// Optional per-run fallback to Google's alternate download host; no dependency versions change.
+settingsEvaluated { settings ->
+    [settings.pluginManagement.repositories, settings.dependencyResolutionManagement.repositories].each { repositories ->
+        repositories.withType(org.gradle.api.artifacts.repositories.MavenArtifactRepository).configureEach { repository ->
+            if (repository.url.host == 'dl.google.com') {
+                repository.setUrl(repository.url.toString().replace('https://dl.google.com/', 'https://dl-ssl.google.com/'))
+            }
+        }
+    }
+}

@@ -24,7 +24,7 @@ class PrototypeHistoryTest {
     }
     @get:Rule val compose = createComposeRule()
     private val start = 1_800_000_000_000L
-    private val session = PrototypeSession(UUID.randomUUID().toString(), MeetingPoint(31.27, 120.74), start, start + 60_000)
+    private val session = PrototypeSession(UUID.randomUUID().toString(), start, start + 60_000)
     private fun entry(receipt: Boolean = true, cancelled: Boolean = false) = PrototypeHistoryEntry(session,
         if (receipt) PrototypeReceipt(session.id, "bob", start) else null, null, cancelled)
     private fun capture(name: String) {
@@ -69,7 +69,7 @@ class PrototypeHistoryTest {
     @Test fun failedSubmissionKeepsInputAndAccountSwitchClearsTheDetail() {
         var actor by mutableStateOf("bob")
         var message by mutableStateOf("")
-        var records by mutableStateOf(listOf(entry(false)))
+        var records by mutableStateOf(listOf(entry()))
         compose.setContent { GogetherTheme {
             PrototypeHistoryScreen(actor, records, session.endAt, false, message, {}, { _, _, _, _ -> message = "Could not save. Please try again." })
         } }
@@ -89,7 +89,7 @@ class PrototypeHistoryTest {
 
     @Test fun crossingEndTimeEnablesReviewButCancellationRemovesIt() {
         var now by mutableStateOf(session.endAt - 1)
-        var records by mutableStateOf(listOf(entry(false)))
+        var records by mutableStateOf(listOf(entry()))
         compose.setContent { GogetherTheme { PrototypeHistoryScreen("bob", records, now, false, "", {}, { _, _, _, _ -> }) } }
         compose.onNodeWithTag("history_${session.id}").performClick()
         compose.onNodeWithTag("feedback_submit").assertDoesNotExist()
@@ -104,17 +104,17 @@ class PrototypeHistoryTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val prefs = context.getSharedPreferences("checkin_prototype_v1", 0)
         var clock = start
-        val fix = PositionFix(requireNotNull(session.meeting), 10.0, 0)
+
         val code = PrototypeCodeCodec.encode(PrototypeCode(session, clock, clock + 30_000))
-        fun service() = LocalPrototypeBackend(PreferencesPrototypeStore(context), { clock }, { 0 })
+        fun service() = LocalPrototypeBackend(PreferencesPrototypeStore(context), { clock })
         val pool = Executors.newFixedThreadPool(4)
         try {
-            val attempts = pool.invokeAll((1..8).map { Callable { runCatching { service().submit("bob", code, fix) }.isSuccess } })
+            val attempts = pool.invokeAll((1..8).map { Callable { runCatching { service().submit("bob", code) }.isSuccess } })
             assertEquals(1, attempts.count { it.get() })
             val first = service().history("bob").single { it.session.id == session.id }
             assertNotNull(first.receipt)
             assertTrue(service().history("carol").none { it.session.id == session.id })
-            assertThrows(IllegalArgumentException::class.java) { service().submit("bob", code, fix) }
+            assertThrows(IllegalArgumentException::class.java) { service().submit("bob", code) }
             clock = session.endAt
             val details = FeedbackDetails(5, 0, 4, listOf("welcoming", "more_guidance"))
             val reviews = pool.invokeAll((1..8).map { Callable { runCatching { service().submitFeedback("bob", session.id, 4, "Great game\n\"I had a great time\" 🏸", details) }.isSuccess } })

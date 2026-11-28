@@ -24,7 +24,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gogether.app.core.data.GogetherRepository
 import com.gogether.app.core.model.EventStatus
 import com.gogether.app.core.ui.*
-import com.gogether.app.feature.event.MeetingMapButton
 import kotlinx.coroutines.launch
 
 /** Normal event entry uses the same live C repository as ParticipantsCard. */
@@ -52,61 +51,16 @@ fun RepositoryCheckInScreen(repository: GogetherRepository, eventId: String, now
     val context = LocalContext.current
     val store = remember { PreferencesPrototypeStore(context.applicationContext) }
     val bridge = remember(repository, store) {
-        RegistrationAttendanceBridge({ repository.state.value }, store, elapsedNow = SystemClock::elapsedRealtime)
+        RegistrationAttendanceBridge({ repository.state.value }, store)
     }
-    var revision by remember { mutableIntStateOf(0) }
-    val session = remember(event, revision) { bridge.session(event) }
-    val scope = rememberCoroutineScope()
-    var busy by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf("") }
-    var candidate by remember { mutableStateOf<PositionFix?>(null) }
-    fun locate() {
-        if (busy) return
-        busy = true
-        scope.launch {
-            try { candidate = AndroidPositionSource(context).locate() }
-            catch (e: kotlinx.coroutines.CancellationException) { throw e }
-            catch (e: Exception) { message = e.message ?: "Could not get your location. Try again." }
-            finally { busy = false }
-        }
-    }
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) locate()
-        else message = "Precise location permission is required to confirm the meeting point."
-    }
+    val session = remember(event) { bridge.session(event) }
     if (bridge.hasEnded(event, now) || event.status == EventStatus.CANCELLED) {
         key(actor, event.id) { RepositoryFeedbackScreen(repository, bridge, event, actor, now, back,
             initialAttendance = attendanceOnly) }
         return
     }
-    if (session == null) {
-        Page {
-            AppBackButton(back)
-            SectionTitle("Meetup and check-in", event.title)
-            Text("${displayTime(event.meetingAt ?: event.startAt)}\n${event.city} ${event.meetingLocation ?: event.location}")
-            if (event.meetingNotes.isNotBlank()) Text(event.meetingNotes)
-            MeetingMapButton("${event.city} ${event.meetingLocation ?: event.location}")
-            Text(if (event.status == EventStatus.CANCELLED) "This event has been cancelled."
-                else if (event.organizerId == actor) "Once you arrive, confirm your location as this event's fixed meeting point."
-                else "The organizer has not set the meeting point. Try again later.", Modifier.testTag("meeting_setup_status"))
-            if (event.organizerId == actor && event.status == EventStatus.OPEN) PageActionButton(
-                onClick = { permission.launch(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION)) },
-                enabled = !busy, modifier = Modifier.fillMaxWidth().testTag("bind_meeting")) {
-                Text(if (busy) "Getting location…" else "Set meeting point here")
-            }
-            if (message.isNotBlank()) Text(message)
-        }
-        candidate?.let { fix -> CheckInActionDialog(title = "Confirm meeting point",
-            description = "${event.title}\n${event.city} ${event.meetingLocation ?: event.location}\nUse your current location as the fixed meeting point. Check-in requires being within 200 m. Event times and registrations will stay the same.",
-            action = "Confirm", onDismiss = { candidate = null }, onConfirm = {
-                runCatching { bridge.prepare(actor, eventId, fix) }.onSuccess { revision++ }
-                    .onFailure { message = it.message ?: "Could not save. Please try again." }
-                candidate = null
-            }) }
-        return
-    }
     val model: PrototypeViewModel = viewModel(key = "ce:$actor:$session", factory = RepositoryViewModel.factory {
-        PrototypeViewModel(actor, bridge.backend, AndroidPositionSource(context), entry = CheckInEntry.Activity(session),
+        PrototypeViewModel(actor, bridge.backend, entry = CheckInEntry.Activity(session),
             identity = CheckInIdentitySource { repository.state.value.currentUserId }, registrations = bridge,
             pendingSubmissions = PreferencesPendingCheckInStore(context))
     })

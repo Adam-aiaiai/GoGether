@@ -43,4 +43,16 @@ class CloudDtoTest {
         assertEquals("Two spares", encoded["spareEquipment"])
         assertEquals("covers/u/image", encoded["imageUri"])
     }
+    @Test fun legacyAnswerAndNewReplyHistorySurviveCloudSnapshotDecoding() {
+        val first = mapOf("id" to "answer-q", "authorId" to "host", "content" to "First", "createdAt" to 2L)
+        val second = mapOf("id" to "r2", "authorId" to "host", "content" to "Second", "createdAt" to 3.0)
+        val question = mapOf("id" to "q", "eventId" to "e", "authorId" to "account-a", "content" to "Question", "createdAt" to 1L,
+            "answer" to "Second", "answeredBy" to "host", "answeredAt" to 3L, "replyHistory" to listOf(first, second))
+        fun decode(q: Map<String, Any>) = CloudDto.snapshot(mapOf("currentUserId" to "account-a", "users" to listOf(own()), "questions" to listOf(q)), "account-a").questions.single()
+        assertEquals(listOf(QuestionReply("answer-q", "host", "First", 2), QuestionReply("r2", "host", "Second", 3)), decode(question).replyHistory)
+        assertEquals("Second", decode(question).answer)
+        assertTrue(decode(question - "replyHistory").replyHistory.isEmpty())
+        assertEquals("Second", decode(question - "replyHistory").answer)
+    }
+
 }

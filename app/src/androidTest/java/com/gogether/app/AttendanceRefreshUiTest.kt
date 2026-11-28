@@ -24,7 +24,7 @@ import java.util.UUID
 class AttendanceRefreshUiTest {
     @get:Rule val compose = createComposeRule()
     private val time = 1_800_000_000_000L
-    private val session = PrototypeSession("f23e4af8-b3ed-49ef-a7ee-d7c1cf2bf317", MeetingPoint(31.27, 120.74), time, time + 60_000)
+    private val session = PrototypeSession("f23e4af8-b3ed-49ef-a7ee-d7c1cf2bf317", time, time + 60_000)
     private var state by mutableStateOf(PrototypeUiState(ownerUserId = "alice", session = session,
         code = PrototypeCode(session, time, time + 30_000), attendance = AttendanceLoadState(session, loading = true)))
     private fun launch(now: Long = time, refresh: (PrototypeSession) -> Unit = {}) {
@@ -139,7 +139,7 @@ class AttendanceRefreshUiTest {
                 rememberSession("alice", old)
                 save(PrototypeReceipt(old.id, "bob", time))
             }
-            val reopened = LocalPrototypeBackend(PreferencesPrototypeStore(context), { old.endAt + 1 }, { 0 })
+            val reopened = LocalPrototypeBackend(PreferencesPrototypeStore(context), { old.endAt + 1 })
             assertTrue(reopened.history("alice").any { it.session == old })
             assertEquals(time, reopened.attendance("alice", old).single { it.userId == "bob" }.checkedInAt)
             assertThrows(IllegalArgumentException::class.java) { reopened.attendance("bob", old) }

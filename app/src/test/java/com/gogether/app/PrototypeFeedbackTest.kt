@@ -8,7 +8,7 @@ import org.junit.Test
 class PrototypeFeedbackTest {
     @Test fun optionalDetailsAreValidatedAndPreservedWithoutChangingOverallScore() {
         val session = session()
-        backend().rememberCode("bob", raw(session))
+        backend().submit("bob", raw(session))
         time = session.endAt
         val details = FeedbackDetails(5, 3, 4, listOf("welcoming", "more_guidance"),
             positiveComment = "Friendly teammates.", improvementComment = "More warm-up time.")
@@ -25,17 +25,17 @@ class PrototypeFeedbackTest {
     }
 
     private var time = 1_800_000_000_000L
-    private val fix = PositionFix(MeetingPoint(31.27, 120.74), 10.0, 0)
+
     private val store = MemoryPrototypeStore()
-    private fun backend() = LocalPrototypeBackend(store, { time }, { 0 })
-    private val host = LocalPrototypeBackend(MemoryPrototypeStore(), { time }, { 0 })
-    private fun session() = host.createMeeting("alice", fix)
-    private fun raw(session: PrototypeSession) = PrototypeCodeCodec.encode(host.issue("alice", session, fix))
+    private fun backend() = LocalPrototypeBackend(store, { time })
+    private val host = LocalPrototypeBackend(MemoryPrototypeStore(), { time })
+    private fun session() = host.createMeeting("alice")
+    private fun raw(session: PrototypeSession) = PrototypeCodeCodec.encode(host.issue("alice", session))
 
     @Test fun scanThenEndThenReviewSurvivesRecreatingBackend() {
         val session = session()
         val service = backend()
-        service.submit("bob", raw(session), fix)
+        service.submit("bob", raw(session))
         time = session.endAt
         val result = service.submitFeedback("bob", session.id, 4, "  The meeting instructions were clear.  ")
         assertEquals("The meeting instructions were clear.", result.comment)
@@ -46,21 +46,21 @@ class PrototypeFeedbackTest {
         assertThrows(IllegalArgumentException::class.java) { backend().submitFeedback("bob", session.id, 5, "I enjoyed the event and would join again.") }
     }
 
-    @Test fun reviewsOpenExactlyAtEndAndPreserveExistingNoCheckInRequirement() {
+    @Test fun reviewsOpenExactlyAtEndForCheckedInParticipants() {
         val session = session()
         val service = backend()
-        service.rememberCode("bob", raw(session))
+        service.submit("bob", raw(session))
         time = session.endAt - 1
         assertThrows(IllegalArgumentException::class.java) { service.submitFeedback("bob", session.id, 3, "") }
         time++
         service.submitFeedback("bob", session.id, 3, "")
-        assertNull(service.history("bob").single().receipt)
+        assertNotNull(service.history("bob").single().receipt)
         assertEquals("", service.history("bob").single().feedback!!.comment)
     }
 
     @Test fun cancelledUnknownAndOtherUsersEventsCannotBeReviewed() {
         val session = session()
-        backend().rememberCode("bob", raw(session))
+        backend().submit("bob", raw(session))
         time = session.endAt
         assertTrue(backend().history("carol").isEmpty())
         assertThrows(IllegalArgumentException::class.java) { backend().submitFeedback("carol", session.id, 5, "") }
@@ -74,7 +74,7 @@ class PrototypeFeedbackTest {
 
     @Test fun ratingAndCommentValidationAllowsRetryWithoutWritingBadData() {
         val session = session()
-        backend().rememberCode("bob", raw(session))
+        backend().submit("bob", raw(session))
         time = session.endAt
         for (rating in listOf(0, 6)) assertThrows(IllegalArgumentException::class.java) {
             backend().submitFeedback("bob", session.id, rating, "")
@@ -87,7 +87,7 @@ class PrototypeFeedbackTest {
 
     @Test fun conflictingMetadataCannotRewriteAnExistingEventsEndTime() {
         val session = session()
-        backend().rememberCode("bob", raw(session))
+        backend().submit("bob", raw(session))
         val altered = session.copy(endAt = session.startAt + 1)
         val alteredCode = PrototypeCode(altered, time, time + 30_000)
         assertThrows(IllegalArgumentException::class.java) {
@@ -99,7 +99,7 @@ class PrototypeFeedbackTest {
     @Test fun separateBackendInstancesCannotWriteDuplicateCheckInsOrReviews() = runBlocking {
         val session = session()
         val code = raw(session)
-        val checkIns = (1..8).map { async(Dispatchers.Default) { runCatching { backend().submit("bob", code, fix) }.isSuccess } }.awaitAll()
+        val checkIns = (1..8).map { async(Dispatchers.Default) { runCatching { backend().submit("bob", code) }.isSuccess } }.awaitAll()
         assertEquals(1, checkIns.count { it })
         time = session.endAt
         val reviews = (1..8).map { async(Dispatchers.Default) { runCatching { backend().submitFeedback("bob", session.id, 4, "") }.isSuccess } }.awaitAll()

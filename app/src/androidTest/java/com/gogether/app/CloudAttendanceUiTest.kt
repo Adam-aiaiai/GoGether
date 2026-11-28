@@ -17,7 +17,7 @@ import java.util.UUID
 
 class CloudAttendanceUiTest {
     @get:Rule val compose=createComposeRule()
-    private class Backend(private val clock:Long):CloudOperations {
+    private class Backend(private val clock:Long,private val checkedInAt:Long):CloudOperations {
         override val storage:FirebaseStorage get()=error("No image operation in this test")
         override val sync=MutableStateFlow(CloudSyncState())
         var fail=true
@@ -26,7 +26,7 @@ class CloudAttendanceUiTest {
         var last:Map<String,Any?>?=null
         override suspend fun refresh()=Unit
         override suspend fun call(action:String,payload:Map<String,Any?>,requestId:String?):Map<String,Any?> = when(action) {
-            "eventInfo" -> mapOf("serverNow" to clock,"meeting" to null,"receipt" to null,"ownFeedback" to own)
+            "eventInfo" -> mapOf("serverNow" to clock,"checkInReady" to true,"receipt" to mapOf("checkedInAt" to checkedInAt),"ownFeedback" to own)
             "attendance" -> mapOf("attendees" to listOf(mapOf("userId" to "bob","name" to "Bob cloud","checkedInAt" to clock)))
             "reviews" -> mapOf("reviews" to emptyList<Any>())
             "submitFeedback" -> {
@@ -41,12 +41,12 @@ class CloudAttendanceUiTest {
     private fun seed(actor:String):Pair<AppSnapshot,Event> {
         val now=System.currentTimeMillis();val base=DemoData.create(now)
         val event=base.event("event-history")!!.copy(id="cloud-ui-${UUID.randomUUID()}",organizerId="alice")
-        val registrations=base.registrations.filter{it.eventId=="event-history"}.map{it.copy(eventId=event.id)}
+        val registrations=base.registrations.filter{it.eventId=="event-history"}.map{it.copy(eventId=event.id,joinedAt=event.startAt-60_000,updatedAt=event.startAt-60_000)}
         return base.copy(currentUserId=actor,events=listOf(event),registrations=registrations) to event
     }
 
     @Test fun endedOrganizerEntryShowsServerRosterDirectly() {
-        val (state,event)=seed("alice");val repo=FakeGogetherRepository(state);val backend=Backend(System.currentTimeMillis())
+        val (state,event)=seed("alice");val repo=FakeGogetherRepository(state);val backend=Backend(System.currentTimeMillis(),event.startAt+60_000)
         compose.setContent{GogetherTheme{CloudCheckInScreen(repo,backend,event.id,System.currentTimeMillis(),{},attendanceOnly=true)}}
         compose.onNodeWithTag("cloud_attendance_count").performScrollTo().assertTextEquals("1 of 1 checked in")
         compose.onNodeWithText("Bob cloud").performScrollTo().assertIsDisplayed()
@@ -54,7 +54,7 @@ class CloudAttendanceUiTest {
     }
 
     @Test fun reviewFailureKeepsDraftThenSuccessfulRetryShowsCloudRecord() {
-        val (state,event)=seed("bob");val repo=FakeGogetherRepository(state);val backend=Backend(System.currentTimeMillis())
+        val (state,event)=seed("bob");val repo=FakeGogetherRepository(state);val backend=Backend(System.currentTimeMillis(),event.startAt+60_000)
         compose.setContent{GogetherTheme{CloudCheckInScreen(repo,backend,event.id,System.currentTimeMillis(),{})}}
         compose.onNodeWithTag("feedback_rating_5").performScrollTo().performClick()
         compose.onNodeWithTag("cloud_feedback_comment").performScrollTo().performTextReplacement("Cloud draft survives failure")
@@ -66,11 +66,13 @@ class CloudAttendanceUiTest {
         compose.reviewNode("feedback_anonymous").performScrollTo().performClick()
         compose.reviewNode("feedback_visibility_ORGANIZER_ONLY").performClick()
         compose.reviewNode("cloud_submit_feedback").performClick()
+        compose.waitForIdle()
         compose.waitUntil(5000){backend.submissions==1}
         compose.onNodeWithTag("cloud_feedback_comment").assertTextContains("Cloud draft survives failure")
         assertNull(backend.own)
         compose.runOnIdle{backend.fail=false}
         compose.reviewNode("cloud_submit_feedback").performClick()
+        compose.waitForIdle()
         compose.waitUntil(5000){backend.own!=null}
         compose.onNodeWithTag("cloud_feedback_saved").performScrollTo().assertIsDisplayed()
         val details=backend.last!!["details"] as Map<*,*>

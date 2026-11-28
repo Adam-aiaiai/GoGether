@@ -10,7 +10,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import com.gogether.app.core.model.*
 import com.gogether.app.core.ui.*
-import com.gogether.app.feature.event.MeetingMapButton
 import com.gogether.app.feature.checkin.CheckInWindowCard
 
 @Composable
@@ -28,7 +27,7 @@ fun ManagementScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
         if (!LocalPageHeaderProvided.current) SectionTitle("Manage your plan", event.title)
         else Text(event.title, style = MaterialTheme.typography.titleLarge)
         StatusPill(event.statusAt(now).name.lowercase())
-        InfoCard("At a glance", "${state.confirmed(event.id).size} / ${event.capacity} confirmed\n${state.waitlist(event.id).size} waitlisted\n${state.checkIns.count { it.eventId == event.id }} checked in")
+        InfoCard("At a glance", "${state.confirmed(event.id).size} / ${event.capacity} confirmed\n${state.waitlist(event.id).size} waitlisted\n${state.confirmed(event.id).count { it.userId != event.organizerId && state.activeCheckIn(event.id, it.userId) != null }} participants checked in")
         InfoCard("Event schedule", "${displayTime(event.startAt)} – ${displayTime(event.endAt)}\n${event.city} · ${event.location}\n${event.notes}")
         attendance?.let { open -> PageActionButton(onClick = open, modifier = Modifier.fillMaxWidth().testTag("manage_attendance")) {
             Text("View check-in and attendance")
@@ -45,7 +44,6 @@ fun ManagementScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
             append("\nBring: ${event.requiredItems.ifBlank { "Nothing specific" }}")
             append("\nSpare equipment: ${event.spareEquipment.ifBlank { "None listed" }}")
         })
-        MeetingMapButton("${event.city} ${event.meetingLocation ?: event.location}")
         PageActionButton(onClick = reuse, enabled = !busy,
             modifier = Modifier.fillMaxWidth().testTag("reuse_event")) {
             Text("Reuse as a new event")
@@ -54,9 +52,11 @@ fun ManagementScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
             PageActionButton(onClick = edit, enabled = !busy,
                 modifier = Modifier.fillMaxWidth().testTag("edit_event")) { Text("Edit event") }
         }
+        InfoCard("${state.userName(event.organizerId)} · Organizer",
+            if (state.activeCheckIn(event.id, event.organizerId) != null) "Arrival confirmed" else "Arrival not yet confirmed")
         Text("Confirmed participants", style = MaterialTheme.typography.titleLarge)
-        state.confirmed(event.id).forEach { registration ->
-            val checked = state.checkIns.any { it.eventId == event.id && it.userId == registration.userId }
+        state.confirmed(event.id).filter { it.userId != event.organizerId }.forEach { registration ->
+            val checked = state.activeCheckIn(event.id, registration.userId) != null
             InfoCard(state.userName(registration.userId),
                 (if (registration.userId == event.organizerId) "Organizer · " else "") + if (checked) "Checked in" else "Confirmed")
         }

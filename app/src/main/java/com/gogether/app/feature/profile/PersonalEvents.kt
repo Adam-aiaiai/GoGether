@@ -27,7 +27,7 @@ fun personalEvents(state: AppSnapshot, tab: PersonalEventTab, now: Long): List<E
 fun participationSummary(state: AppSnapshot, event: Event, now: Long): String {
     val userId = state.currentUserId ?: return ""
     val registration = state.registration(event.id, userId)
-    val attendance = state.checkIns.find { it.eventId == event.id && it.userId == userId }
+    val attendance = state.activeCheckIn(event.id, userId)
     val feedback = state.feedback.find { it.eventId == event.id && it.userId == userId }
     val status = when {
         event.status == EventStatus.CANCELLED -> "Cancelled by organizer"
@@ -41,7 +41,8 @@ fun participationSummary(state: AppSnapshot, event: Event, now: Long): String {
     return buildList {
         add(status)
         if (event.organizerId == userId) add("Organizer")
-        if (attendance != null) add(if (attendance.status == CheckInStatus.DEMO_RECORDED) "Demo check-in recorded" else "Checked in")
+        if (event.statusAt(now) == EventStatus.COMPLETED && attendance == null && event.status != EventStatus.CANCELLED) add(if (event.organizerId == userId) "Arrival not confirmed" else "Not checked in")
+        if (attendance != null) add(if (event.organizerId == userId) "Arrival confirmed" else if (attendance.status == CheckInStatus.DEMO_RECORDED) "Demo check-in recorded" else "Checked in")
         if (feedback != null) add("Your rating: ${feedback.rating}/5")
     }.joinToString(" · ")
 }

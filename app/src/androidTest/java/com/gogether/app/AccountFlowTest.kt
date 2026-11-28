@@ -182,7 +182,11 @@ class ConnectedAccountFormTest {
         compose.waitUntil(5_000) { repo.state.value.currentUserId == "verified-test-id" }
         compose.awaitAccountSnackbar()
         compose.onNodeWithTag("nav_profile").performClick()
-        compose.onNodeWithText("student@example.com").assertExists()
+        compose.onNodeWithText("Test student").assertExists()
+        assertEquals("student@example.com", repo.state.value.currentUser?.email)
+        assertEquals(UserStatus.ACCOUNT, repo.state.value.currentUser?.status)
+        compose.onNodeWithTag("profile_account_menu").performClick()
+        compose.onNodeWithTag("logout").assertExists()
         compose.onNodeWithTag("switch_alice").assertDoesNotExist()
     }
 }

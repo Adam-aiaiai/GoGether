@@ -18,7 +18,14 @@ class GogetherApplication : Application() {
             LocalSnapshotStore(this)::load,
         )
         try {
-            FakeGogetherRepository(initial = store.load(), store = store)
+            val social = com.gogether.app.feature.social.LocalSocialStore(this)
+            val loaded = store.load()
+            val maintainerId = com.gogether.app.feature.social.LocalSocialStore.MAINTAINER
+            val initial = if (loaded.users.any { it.id == maintainerId }) loaded else loaded.copy(users = loaded.users +
+                com.gogether.app.core.model.User(maintainerId, "Project maintainer (Demo)", emptySet(), System.currentTimeMillis()))
+            FakeGogetherRepository(initial = initial, store = store,
+                registrationBlocked = { host, user -> social.load().registrationBlocked(host, user) },
+                interactionBlocked = { a, b -> social.load().blocked(a, b) }, contentDeleted = { it in social.load().deleted })
         } catch (_: Exception) {
             // Preserve an unreadable save instead of overwriting it with fresh demo data.
             FakeGogetherRepository(storageDescription =

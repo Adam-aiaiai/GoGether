@@ -10,7 +10,7 @@ import java.io.IOException
 @OptIn(ExperimentalCoroutinesApi::class)
 class CheckInSubmissionRecoveryTest {
     private val time = 1_800_000_000_000L
-    private val session = PrototypeSession("f23e4af8-b3ed-49ef-a7ee-d7c1cf2bf317", MeetingPoint(31.27, 120.74),
+    private val session = PrototypeSession("f23e4af8-b3ed-49ef-a7ee-d7c1cf2bf317",
         time + 600_000, time + 7_800_000)
     private val raw = PrototypeCodeCodec.encode(PrototypeCode(session, time, time + 30_000))
     private fun scenario(block: suspend TestScope.() -> Unit) = runTest {
@@ -25,18 +25,17 @@ class CheckInSubmissionRecoveryTest {
         var locations = 0
         val store = MemoryPrototypeStore()
         val journal = MemoryPendingCheckInStore()
-        val backend = LocalPrototypeBackend(store, { clock }, { 0 })
-        val receipt = PrototypeReceipt(session.id, "bob", time)
+        val backend = LocalPrototypeBackend(store, { clock })
+        val receipt = PrototypeReceipt(session.id, "bob", time, "initial:${session.id}:bob")
         var send: suspend (CheckInAttempt) -> PrototypeReceipt = { receipt }
         var query: suspend (CheckInAttempt) -> CheckInResolution = { CheckInResolution.Unknown }
         val source = object : CheckInSubmissionSource {
-            override suspend fun submit(attempt: CheckInAttempt, raw: String, fix: PositionFix): PrototypeReceipt {
+            override suspend fun submit(attempt: CheckInAttempt, raw: String): PrototypeReceipt {
                 submits++; return send(attempt)
             }
             override suspend fun resolve(attempt: CheckInAttempt): CheckInResolution { queries++; return query(attempt) }
         }
-        fun model(pending: PendingCheckInStore = journal) = PrototypeViewModel("bob", backend,
-            PositionSource { locations++; PositionFix(requireNotNull(session.meeting), 10.0, 0) }, now = { clock },
+        fun model(pending: PendingCheckInStore = journal) = PrototypeViewModel("bob", backend, now = { clock },
             entry = CheckInEntry.Activity(session), identity = CheckInIdentitySource { user },
             submissions = source, pendingSubmissions = pending)
     }
@@ -70,7 +69,7 @@ class CheckInSubmissionRecoveryTest {
         assertEquals(1, f.submits)
         f.send = { f.store.save(f.receipt); f.receipt }
         model.receiveScan(raw); runCurrent()
-        assertEquals(2, f.submits); assertEquals(2, f.locations)
+        assertEquals(2, f.submits);
         assertEquals(ParticipantScanStage.SUCCESS, model.state.value.scanStage)
     }
 
@@ -84,7 +83,7 @@ class CheckInSubmissionRecoveryTest {
         assertNull(model.state.value.notice)
         assertNull(model.beginScan())
         model.resolveCheckIn(); model.receiveScan(raw); runCurrent()
-        assertEquals(1, f.submits); assertEquals(1, f.locations); assertEquals(2, f.queries)
+        assertEquals(1, f.submits); assertEquals(2, f.queries)
         assertEquals(attempt, model.state.value.pendingSubmission)
         f.clock = session.endAt + 100_000
         f.query = { CheckInResolution.Saved(f.receipt) }
@@ -146,7 +145,7 @@ class CheckInSubmissionRecoveryTest {
         f.query = { CheckInResolution.Saved(f.receipt) }
         restored.resolveCheckIn(); runCurrent()
         assertEquals(ParticipantScanStage.SUCCESS, restored.state.value.scanStage)
-        assertEquals(1, f.locations); assertEquals(1, f.submits)
+        assertEquals(1, f.submits)
         assertNull(f.journal.get("bob", session.id))
     }
 
@@ -204,7 +203,7 @@ class CheckInSubmissionRecoveryTest {
         model.receiveScan(raw); runCurrent()
         val pending = model.state.value.pendingSubmission
         val other = session.copy(id = "414f1652-7e75-4d90-9cd7-c42f3665623a")
-        f.send = { f.receipt.copy(sessionId = it.session.id) }
+        f.send = { f.receipt.copy(sessionId = it.session.id, registrationKey = it.registrationKey) }
         model.receiveScan(PrototypeCodeCodec.encode(PrototypeCode(other, time, time + 30_000)), model.beginScan(general = true))
         runCurrent()
         assertEquals(other.id, model.state.value.receipt?.sessionId)

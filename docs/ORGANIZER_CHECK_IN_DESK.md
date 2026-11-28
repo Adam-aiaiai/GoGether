@@ -1,5 +1,7 @@
 # Organizer check-in desk
 
+> 本文记录此前集成／原型版本。当前签到、定位移除和评价资格以 [第一阶段规则](PHASE1_ATTENDANCE.md) 为准。
+
 The connected organizer route now separates the QR desk from the full attendance list. The event-detail and management entry points still use `RepositoryCheckInScreen`, which routes connected repositories to `CloudCheckInScreen`.
 
 ## Interface

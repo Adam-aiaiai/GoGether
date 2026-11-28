@@ -117,7 +117,7 @@ class AbdFlowTest {
         }
         compose.setContent { GogetherTheme { GogetherApp(repo) } }
         click("event_event-1")
-        compose.onAllNodesWithText("Open meeting location in Maps").assertCountEquals(1)
+        compose.onAllNodesWithText("Open meeting location in Maps").assertCountEquals(0)
         compose.onNodeWithText("Bring your student card").performScrollTo().assertIsDisplayed()
         compose.onAllNodesWithText("Bring your student card").assertCountEquals(1)
         compose.onNodeWithText("Earlier AB announcement").performScrollTo().assertIsDisplayed()
@@ -127,7 +127,7 @@ class AbdFlowTest {
         compose.onNodeWithText("Bring your student card").assertExists()
         capture("inbox")
         click("nav_profile"); click("switch_finn"); click("event_event-1")
-        compose.onAllNodesWithText("Open meeting location in Maps").assertCountEquals(1)
+        compose.onAllNodesWithText("Open meeting location in Maps").assertCountEquals(0)
         compose.onNodeWithText("Bring your student card").assertDoesNotExist()
         compose.onNodeWithText("Earlier AB announcement").assertDoesNotExist()
         click("nav_my-events"); click("open_inbox")

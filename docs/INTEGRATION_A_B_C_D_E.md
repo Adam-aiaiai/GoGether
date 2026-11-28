@@ -1,5 +1,7 @@
 # ABCDE 本地集成
 
+> 本文记录此前集成／原型版本。当前签到、定位移除和评价资格以 [第一阶段规则](PHASE1_ATTENDANCE.md) 为准。
+
 日期：2026-11-20。工作分支：`integration/member-a-b-c-d-e`。本轮仅本地合并，不推送 GitHub，也不修改来源分支或 main。
 
 2026-11-20 D 后续补充：本地活动问答与活动变更通知已实现，入口、权限和本轮测试见 [D 实现记录](MEMBER_D_QA_NOTIFICATIONS.md)。以下保留初次整合记录。

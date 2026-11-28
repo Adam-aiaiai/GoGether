@@ -12,23 +12,17 @@ class RegistrationAttendanceBridge(
     private val snapshot: () -> AppSnapshot,
     private val store: PrototypeStore,
     private val now: () -> Long = System::currentTimeMillis,
-    private val elapsedNow: () -> Long,
 ) : CheckInRegistrationSource, CheckInActivitySource {
     fun key(event: Event): String = UUID.nameUUIDFromBytes(
         "gogether-ce-v1:${event.id}:${event.createdAt}".toByteArray(Charsets.UTF_8)).toString()
 
     private fun event(key: String?) = snapshot().events.find { key(it) == key }
     private fun meetingName(event: Event) = "${event.city} ${event.meetingLocation ?: event.location}"
-    fun session(event: Event): PrototypeSession? = store.activityInfo(key(event))?.takeIf {
-        it.organizerId == event.organizerId && it.meetingName == meetingName(event)
-    }?.session?.takeIf { it.meeting != null && it.startAt == event.startAt && it.endAt == event.endAt }
-    private fun recordSession(event: Event): PrototypeSession? {
-        val stored = store.activityInfo(key(event))
-        return PrototypeSession(key(event), stored?.session?.meeting?.takeIf { stored.meetingName == meetingName(event) }, event.startAt, event.endAt)
-    }
+    fun session(event: Event): PrototypeSession = PrototypeSession(key(event), event.startAt, event.endAt)
+    private fun recordSession(event: Event): PrototypeSession = session(event)
     fun hasEnded(event: Event, time: Long) = event.status == EventStatus.COMPLETED || time >= event.endAt
 
-    /** Feedback does not require GPS or prior check-in. This record cannot issue a QR credential. */
+    /** Open a saved event record; submission separately requires a current valid check-in. */
     fun prepareFeedback(actor: String, eventId: String): PrototypeSession {
         requireActor(actor)
         val event = requireNotNull(snapshot().event(eventId)) { "Event not found." }
@@ -60,7 +54,7 @@ class RegistrationAttendanceBridge(
         val event = event(activityId) ?: return emptyList()
         val state = snapshot()
         return state.confirmed(event.id).sortedBy { it.queueOrder }.map {
-            PrototypeAttendee(it.userId, state.userName(it.userId), avatarUri = avatarUri(it.userId))
+            PrototypeAttendee(it.userId, state.userName(it.userId), avatarUri = avatarUri(it.userId), organizer = it.userId == event.organizerId)
         }
     }
     override fun activity(session: PrototypeSession): CheckInActivityInfo {
@@ -77,19 +71,25 @@ class RegistrationAttendanceBridge(
     override fun isCatalogActivity(session: PrototypeSession) = runCatching { activity(session) }.isSuccess
     override fun avatarUri(userId: String) = snapshot().users.find { it.id == userId }?.avatarUri.orEmpty()
 
-    /** B currently supplies a text address. Only this event's organizer may fix its GPS point.
-     * We keep B's ID, owner and times; this never invents a new ten-minute Demo activity.
-     */
-    fun prepare(actor: String, eventId: String, fix: PositionFix): PrototypeSession {
+    /** Prepare the event record; arrival is confirmed only when a code is successfully issued. */
+    fun prepare(actor: String, eventId: String): PrototypeSession {
         requireActor(actor)
         val event = requireNotNull(snapshot().event(eventId)) { "Event not found." }
-        require(event.organizerId == actor) { "Only this event's organizer can set the meeting point." }
-        require(event.status == EventStatus.OPEN && now() < event.endAt) { "This event is closed. The meeting point cannot be set." }
-        validatePosition(fix, elapsedNow())
-        session(event)?.let { return it }
-        val session = PrototypeSession(key(event), fix.point, event.startAt, event.endAt)
-        rememberRecord(actor, session)
-        return session
+        require(event.organizerId == actor) { "Only this event's organizer can prepare check-in." }
+        require(event.status == EventStatus.OPEN && now() < event.endAt) { "This event is closed." }
+        return session(event).also { rememberRecord(actor, it) }
+    }
+
+    override fun registrationKey(activityId: String?, userId: String): String? = event(activityId)?.let {
+        snapshot().registration(it.id, userId)?.takeIf { r -> r.status == RegistrationStatus.CONFIRMED }?.attendanceKey
+    }
+    override fun isCurrentReceipt(receipt: PrototypeReceipt): Boolean {
+        val event = event(receipt.sessionId) ?: return false
+        if (event.status == EventStatus.CANCELLED) return false
+        val registration = snapshot().registration(event.id, receipt.userId)
+            ?.takeIf { it.status == RegistrationStatus.CONFIRMED } ?: return false
+        return receipt.registrationKey?.let { it == registration.attendanceKey }
+            ?: (receipt.checkedInAt >= registration.joinedAt)
     }
 
     private fun requireActor(actor: String) {
@@ -97,21 +97,21 @@ class RegistrationAttendanceBridge(
     }
     private fun requireOpen(session: PrototypeSession) {
         activity(session)
-        requireNotNull(session.meeting) { "The check-in meeting point has not been set." }
         require(session(event(session.id)!!) == session) { "The meeting point or event time has changed. Ask the organizer for a new code." }
         require(event(session.id)?.status == EventStatus.OPEN) { "This event is cancelled or completed. Check-in is closed." }
     }
     private val liveStore = object : PrototypeStore by store {
         override fun isCancelled(id: String) = event(id)?.status == EventStatus.CANCELLED || store.isCancelled(id)
     }
-    private val local = LocalPrototypeBackend(liveStore, now, elapsedNow, this, this,
+    private val local = LocalPrototypeBackend(liveStore, now, this, this,
         completed = { event(it.id)?.status == EventStatus.COMPLETED },
-        userName = { id -> snapshot().users.find { it.id == id }?.displayName ?: "Participant" }, userAvatar = ::avatarUri)
+        userName = { id -> snapshot().users.find { it.id == id }?.displayName ?: "Participant" }, userAvatar = ::avatarUri,
+        receiptLookup = { id, actor -> event(id)?.let { receipt(it, actor) } })
 
     /** Local trusted boundary only. No network synchronization or signed tokens are claimed. */
     val backend: PrototypeCheckInBackend = object : PrototypeCheckInBackend by local {
-        override fun isCheckInClosed(session: PrototypeSession) = session.meeting == null || event(session.id)?.let { session(it) != session } != false || event(session.id)?.status != EventStatus.OPEN ||
-            !isCatalogActivity(session) || local.isCancelled(session)
+        override fun isCheckInClosed(session: PrototypeSession) = event(session.id)?.let { session(it) != session } != false || event(session.id)?.status != EventStatus.OPEN ||
+            !isCatalogActivity(session) || now() >= session.endAt || local.isCancelled(session)
         override fun hostedSession(actor: String): PrototypeSession? {
             requireActor(actor)
             return snapshot().events.filter { it.organizerId == actor }.mapNotNull(::session).maxByOrNull { it.startAt }
@@ -123,48 +123,45 @@ class RegistrationAttendanceBridge(
         override fun history(actor: String): List<PrototypeHistoryEntry> {
             requireActor(actor)
             snapshot().events.filter { it.organizerId == actor || status(key(it), actor) == CheckInRegistration.CONFIRMED }
-                .mapNotNull { event -> session(event) ?: recordSession(event).takeIf { hasEnded(event, now()) } }
+                .map(::session)
                 .forEach { rememberRecord(actor, it) }
             return local.history(actor).filter { isCatalogActivity(it.session) }.map { record ->
                 val event = requireNotNull(event(record.session.id))
-                val previous = snapshot().feedback.find { it.eventId == event.id && it.userId == actor }
+                val previous = snapshot().feedback.find { it.eventId == event.id && it.userId == actor && !store.isDeleted(com.gogether.app.feature.social.LocalSocialStore.legacyReviewId(it.id)) }
                 record.copy(receipt = record.receipt ?: receipt(event, actor),
                     feedback = record.feedback ?: previous?.let {
-                        PrototypeFeedback(record.session.id, actor, it.rating, it.comment, it.createdAt)
+                        PrototypeFeedback(record.session.id, actor, it.rating, it.comment, it.createdAt, publicId=com.gogether.app.feature.social.LocalSocialStore.legacyReviewId(it.id))
                     })
             }
         }
-        override fun issue(actor: String, session: PrototypeSession, fix: PositionFix): PrototypeCode {
+        override fun issue(actor: String, session: PrototypeSession): PrototypeCode {
             requireActor(actor); requireOpen(session)
-            return local.issue(actor, session, fix)
+            return synchronized(LocalDataLock.monitor) { local.issue(actor, session) }
         }
         override fun rememberCode(actor: String, raw: String): PrototypeSession {
             requireActor(actor); validateCurrentCode(raw)
             return local.rememberCode(actor, raw)
         }
-        override fun submit(actor: String, raw: String, fix: PositionFix): PrototypeReceipt = synchronized(LocalDataLock.monitor) {
+        override fun submit(actor: String, raw: String, registrationKey: String?): PrototypeReceipt = synchronized(LocalDataLock.monitor) {
             requireActor(actor); validateCurrentCode(raw)
             val event = requireNotNull(event(PrototypeCodeCodec.decode(raw).session.id))
-            require(snapshot().checkIns.none { it.eventId == event.id && it.userId == actor }) { "You are already checked in." }
-            local.submit(actor, raw, fix)
+            require(receipt(event, actor) == null) { "You are already checked in." }
+            local.submit(actor, raw, registrationKey)
         }
         override fun attendance(actor: String, session: PrototypeSession): List<PrototypeAttendee> {
             requireActor(actor)
             require(activity(session).organizerId == actor) { "Only the organizer can view attendance." }
             val event = requireNotNull(event(session.id))
-            // Preserve actual attendance even if C later removes a confirmed registration.
-            val checked = snapshot().users.mapNotNull { user ->
-                receipt(event, user.id)?.let { PrototypeAttendee(user.id, user.displayName, it.checkedInAt, user.avatarUri) }
+            return participants(session.id).map { person ->
+                person.copy(checkedInAt = receipt(event, person.userId)?.checkedInAt,
+                    organizer = person.userId == event.organizerId)
             }
-            return (participants(session.id).map { person ->
-                person.copy(checkedInAt = receipt(event, person.userId)?.checkedInAt)
-            } + checked).distinctBy { it.userId }
         }
         override fun submitFeedback(actor: String, sessionId: String, rating: Int, comment: String,
             details: FeedbackDetails): PrototypeFeedback = synchronized(LocalDataLock.monitor) {
             requireActor(actor)
             val event = requireNotNull(event(sessionId)) { "Event not found." }
-            require(snapshot().feedback.none { it.eventId == event.id && it.userId == actor }) { "You have already reviewed this event." }
+            require(snapshot().feedback.none { it.eventId == event.id && it.userId == actor && !store.isDeleted(com.gogether.app.feature.social.LocalSocialStore.legacyReviewId(it.id)) }) { "You have already reviewed this event." }
             history(actor)
             local.submitFeedback(actor, sessionId, rating, comment, details)
         }
@@ -173,17 +170,17 @@ class RegistrationAttendanceBridge(
             val current = local.reviews(actor, session)
             val info = activity(session)
             val savedUsers = store.feedbackForSession(session.id).map { it.userId }.toSet()
-            val older = snapshot().feedback.filter { it.eventId == info.sourceEventId && it.userId !in savedUsers }
+            val older = snapshot().feedback.filter { it.eventId == info.sourceEventId && it.userId !in savedUsers && !store.isDeleted(com.gogether.app.feature.social.LocalSocialStore.legacyReviewId(it.id)) && !store.isBlocked(actor,it.userId) }
                 .mapNotNull { old -> PrototypeFeedback(session.id, old.userId, old.rating, old.comment, old.createdAt)
-                    .visibleTo(actor, info.organizerId, snapshot().users.find { it.id == old.userId }?.displayName ?: "Participant", avatarUri(old.userId)) }
+                    .visibleTo(actor, info.organizerId, snapshot().users.find { it.id == old.userId }?.displayName ?: "Participant", avatarUri(old.userId))?.copy(id=com.gogether.app.feature.social.LocalSocialStore.legacyReviewId(old.id)) }
             return (current + older).sortedByDescending { it.createdAt }
         }
         override fun cancel(actor: String, session: PrototypeSession) {
             requireActor(actor)
             throw IllegalArgumentException("Cancel from event management to update registrations and the waitlist together.")
         }
-        override fun createMeeting(actor: String, fix: PositionFix): PrototypeSession =
-            throw IllegalArgumentException("Set the meeting point from an event.")
+        override fun createMeeting(actor: String): PrototypeSession =
+            throw IllegalArgumentException("Open check-in from an event.")
     }
 
     private fun validateCurrentCode(raw: String) {
@@ -194,18 +191,20 @@ class RegistrationAttendanceBridge(
         }
     }
 
-    fun receipt(event: Event, userId: String): PrototypeReceipt? = store.receipt(key(event), userId)
-        ?: snapshot().checkIns.find { it.eventId == event.id && it.userId == userId }
-            ?.let { PrototypeReceipt(key(event), userId, it.checkedInAt) }
+    fun receipt(event: Event, userId: String): PrototypeReceipt? = store.receipt(key(event), userId)?.takeIf(::isCurrentReceipt)
+        ?: snapshot().activeCheckIn(event.id, userId)?.let {
+            PrototypeReceipt(key(event), userId, it.checkedInAt, it.registrationKey, it.status == CheckInStatus.HOST_CONFIRMED)
+        }
 
     /** Read-only projection for the original management UI. Feedback stays in E's privacy layer. */
     fun withAttendance(state: AppSnapshot): AppSnapshot = state.copy(checkIns =
-        (state.checkIns + state.events.flatMap { event -> state.users.mapNotNull { user ->
-            store.receipt(key(event), user.id)?.let {
-                CheckIn("ce:${it.sessionId}:${it.userId}", event.id, user.id, it.checkedInAt, CheckInStatus.QR_RECORDED)
+        (state.checkIns.filter { state.activeCheckIn(it.eventId, it.userId) == it } + state.events.flatMap { event -> state.users.mapNotNull { user ->
+            receipt(event, user.id)?.let {
+                CheckIn("ce:${it.sessionId}:${it.userId}", event.id, user.id, it.checkedInAt,
+                    if (it.organizer) CheckInStatus.HOST_CONFIRMED else CheckInStatus.QR_RECORDED, it.registrationKey)
             }
         } }).distinctBy { it.eventId to it.userId },
-        feedback = (state.feedback + state.events.mapNotNull { event ->
+        feedback = (state.feedback.filterNot { store.isDeleted(com.gogether.app.feature.social.LocalSocialStore.legacyReviewId(it.id)) } + state.events.mapNotNull { event ->
             val actor = state.currentUserId ?: return@mapNotNull null
             val info = store.activityInfo(key(event)) ?: return@mapNotNull null
             if (info.organizerId != event.organizerId || info.sourceEventId != event.id) return@mapNotNull null

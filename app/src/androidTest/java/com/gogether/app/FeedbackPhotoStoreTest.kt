@@ -16,7 +16,7 @@ import java.util.UUID
 
 class FeedbackPhotoStoreTest {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
-    private val session = PrototypeSession(UUID.randomUUID().toString(), MeetingPoint(31.27, 120.74), 1_000, 2_000)
+    private val session = PrototypeSession(UUID.randomUUID().toString(), 1_000, 2_000)
     private val prefs get() = context.getSharedPreferences("checkin_prototype_v1", 0)
     private val photos get() = FeedbackPhotoStore(context)
     private val imported = mutableListOf<Pair<String, String>>()
@@ -37,8 +37,8 @@ class FeedbackPhotoStoreTest {
             assertTrue(photos.canRead(id, "bob", session.id))
             assertFalse(photos.canRead(id, "alice", session.id)) // Drafts are not shared.
             val store = PreferencesPrototypeStore(context)
-            listOf("alice", "bob", "carol").forEach { store.rememberSession(it, session) }
-            val service = LocalPrototypeBackend(store, { session.endAt }, { 0 })
+            listOf("alice", "bob", "carol").forEach { store.rememberAttendedSession(it, session) }
+            val service = LocalPrototypeBackend(store, { session.endAt })
             val details = FeedbackDetails(anonymous = true, visibility = FeedbackVisibility.ORGANIZER_ONLY, photos = listOf(id))
             service.submitFeedback("bob", session.id, 4, "Sharing a few photos with the organizer.", details)
             assertEquals(details, PreferencesPrototypeStore(context).feedback(session.id, "bob")!!.details)
@@ -51,7 +51,7 @@ class FeedbackPhotoStoreTest {
             photos.removeDraft(id, "bob", session.id) // A submitted image must not be removed by draft cleanup.
             assertNotNull(photos.bitmap(id, "bob", session.id))
             assertTrue(service.reviews("carol", session).isEmpty())
-            assertEquals("Anonymous participant", service.reviews("alice", session).single().authorName)
+            assertEquals("Anonymous participant 01", service.reviews("alice", session).single().authorName)
         } finally { cleanup() }
     }
 
@@ -59,8 +59,8 @@ class FeedbackPhotoStoreTest {
         try {
             val id = add()
             val store = PreferencesPrototypeStore(context)
-            listOf("bob", "carol").forEach { store.rememberSession(it, session) }
-            val service = LocalPrototypeBackend(store, { session.endAt }, { 0 })
+            listOf("bob", "carol").forEach { store.rememberAttendedSession(it, session) }
+            val service = LocalPrototypeBackend(store, { session.endAt })
             assertThrows(IllegalArgumentException::class.java) {
                 service.submitFeedback("carol", session.id, 5, "", FeedbackDetails(photos = listOf(id)))
             }

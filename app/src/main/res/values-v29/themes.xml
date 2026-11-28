@@ -1,0 +1,5 @@
+<resources>
+    <style name="Theme.Gogether" parent="Theme.Gogether.Base">
+        <item name="android:forceDarkAllowed">false</item>
+    </style>
+</resources>

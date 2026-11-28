@@ -76,14 +76,18 @@ class CloudParticipantCheckInUiTest {
         assertEquals(rootBounds.center.x, scanBounds.center.x, 1f)
         compose.onNodeWithTag("cloud_scan_checkin").assertWidthIsEqualTo(288.dp).assertHeightIsEqualTo(52.dp)
         compose.onNodeWithTag("cloud_scan_checkin").assertIsDisplayed().assertIsEnabled().performClick()
+        compose.waitForIdle()
         assertEquals(1, scans)
         compose.onNodeWithText("Location verified").assertDoesNotExist()
-        compose.onNodeWithText("Be within 200 m of the meeting point. Location is checked when you scan.").assertIsDisplayed()
+        compose.onNodeWithText("Be within 200 m of the meeting point. Location is checked when you scan.").assertDoesNotExist()
         capture("bob-ready.png")
         compose.onNodeWithTag("cloud_checkin_meeting_notes").performClick()
+        compose.waitForIdle()
         compose.onNodeWithText(event.meetingNotes).performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("cloud_checkin_meeting_notes").performClick()
+        compose.waitForIdle()
         compose.onNodeWithTag("cloud_tab_reviews").performScrollTo().performClick()
+        compose.waitForIdle()
         assertEquals(1, reviews)
         compose.runOnIdle { receipt = clock }
         compose.onNodeWithTag("cloud_checkin_event").assertTextEquals(event.title)
@@ -98,6 +102,7 @@ class CloudParticipantCheckInUiTest {
         assertEquals(scanBounds.center.x, doneBounds.center.x, 1f)
         capture("bob-success.png")
         compose.onNodeWithTag("cloud_checkin_done").performClick()
+        compose.waitForIdle()
         compose.onNodeWithTag("cloud_checkin_result").assertDoesNotExist()
         compose.onNodeWithTag("cloud_participant_checkin").assertIsDisplayed()
         compose.onNodeWithTag("cloud_checkin_receipt").performScrollTo().assertIsDisplayed()
@@ -109,11 +114,13 @@ class CloudParticipantCheckInUiTest {
         assertEquals(doneBounds.height, resultBounds.height, 1f)
         assertEquals(doneBounds.center.x, resultBounds.center.x, 1f)
         compose.onNodeWithTag("cloud_checkin_view_result").performClick()
+        compose.waitForIdle()
         compose.onNodeWithTag("cloud_checkin_result").assertIsDisplayed()
         Espresso.pressBack()
         compose.onNodeWithTag("cloud_checkin_result").assertDoesNotExist()
         assertEquals(0, backs)
         compose.onNodeWithTag("cloud_checkin_back").performClick()
+        compose.waitForIdle()
         assertEquals(1, backs)
     }
 
@@ -121,6 +128,7 @@ class CloudParticipantCheckInUiTest {
         launch(width = 320, height = 568, fontScale = 1.5f)
         compose.onNodeWithTag("cloud_scan_checkin").assertIsDisplayed()
         compose.onNodeWithTag("cloud_checkin_meeting_notes").performScrollTo().performClick()
+        compose.waitForIdle()
         compose.onNodeWithText(event.meetingNotes).performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("cloud_participant_status").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("cloud_scan_checkin").assertIsDisplayed()
@@ -131,6 +139,7 @@ class CloudParticipantCheckInUiTest {
         launch(width = 640, height = 360)
         compose.onNodeWithTag("cloud_scan_checkin").assertIsDisplayed()
         compose.onNodeWithTag("cloud_checkin_back").assertIsDisplayed().performClick()
+        compose.waitForIdle()
         assertEquals(1, backs)
         compose.onNodeWithTag("cloud_participant_status").performScrollTo().assertIsDisplayed()
     }
@@ -143,8 +152,10 @@ class CloudParticipantCheckInUiTest {
         compose.onNodeWithTag("cloud_checkin_event").performScrollTo().assertTextEquals(event.title)
         compose.onNodeWithTag("cloud_result_meeting").performScrollTo().assertTextContains(event.meetingLocation!!, substring = true)
         compose.onNodeWithTag("cloud_checkin_meeting_notes").performScrollTo().performClick()
+        compose.waitForIdle()
         compose.onNodeWithText(event.meetingNotes).performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("cloud_checkin_done").performScrollTo().assertIsDisplayed().performClick()
+        compose.waitForIdle()
         compose.onNodeWithTag("cloud_checkin_view_result").assertIsDisplayed()
         assertEquals(0, backs)
     }
@@ -154,6 +165,7 @@ class CloudParticipantCheckInUiTest {
         launch(width = 640, height = 360)
         compose.onNodeWithTag("cloud_checkin_receipt").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("cloud_checkin_done").performScrollTo().performClick()
+        compose.waitForIdle()
         compose.onNodeWithTag("cloud_checkin_view_result").assertIsDisplayed()
         compose.onNodeWithTag("cloud_scan_checkin").assertDoesNotExist()
         assertEquals(0, backs)
@@ -164,11 +176,13 @@ class CloudParticipantCheckInUiTest {
         val restorer = StateRestorationTester(compose)
         launch(restorer = restorer)
         compose.onNodeWithTag("cloud_checkin_result_back").performClick()
+        compose.waitForIdle()
         restorer.emulateSavedInstanceStateRestore()
         compose.onNodeWithTag("cloud_checkin_result").assertDoesNotExist()
         compose.onNodeWithTag("cloud_checkin_receipt").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("cloud_scan_checkin").assertDoesNotExist()
         compose.onNodeWithTag("cloud_checkin_view_result").performClick()
+        compose.waitForIdle()
         compose.onNodeWithTag("cloud_checkin_done").assertIsDisplayed()
         assertEquals(clock, receipt)
         assertEquals(0, backs)
@@ -180,6 +194,7 @@ class CloudParticipantCheckInUiTest {
         launch()
         compose.onNodeWithTag("cloud_result_meeting").assertTextContains(event.location, substring = true)
         compose.onNodeWithTag("cloud_checkin_done").performClick()
+        compose.waitForIdle()
         compose.runOnIdle { event = event.copy(id = "another-event", title = "Weekend study circle") }
         compose.onNodeWithTag("cloud_checkin_result").assertIsDisplayed()
         compose.onNodeWithTag("cloud_checkin_event").assertTextEquals("Weekend study circle")
@@ -191,6 +206,7 @@ class CloudParticipantCheckInUiTest {
         compose.onNodeWithTag("cloud_scan_checkin").assertIsNotEnabled()
         compose.runOnIdle { loading = false; message = "Connection unavailable. Please try again." }
         compose.onNodeWithTag("cloud_checkin_retry_load").assertIsDisplayed().performClick()
+        compose.waitForIdle()
         assertEquals(1, refreshes)
         compose.onNodeWithTag("cloud_scan_checkin").assertDoesNotExist()
         compose.runOnIdle { information = true; meeting = false; message = "" }
@@ -206,7 +222,9 @@ class CloudParticipantCheckInUiTest {
         launch()
         compose.onNodeWithTag("cloud_scan_checkin").assertDoesNotExist()
         compose.onNodeWithTag("cloud_resolve_checkin").assertIsDisplayed().performClick()
+        compose.waitForIdle()
         compose.onNodeWithTag("cloud_retry_checkin").assertIsDisplayed().performClick()
+        compose.waitForIdle()
         assertEquals(1, resolutions); assertEquals(1, retries)
         compose.runOnIdle { busy = true }
         compose.onNodeWithTag("cloud_resolve_checkin").assertIsNotEnabled()
@@ -248,7 +266,7 @@ class CloudParticipantCheckInUiTest {
             "eventInfo" -> {
                 requests++
                 if (fail) error("Connection unavailable. Please try again.")
-                mapOf("serverNow" to clock, "meeting" to mapOf("latitude" to 31.27), "receipt" to receipt, "ownFeedback" to null)
+                mapOf("serverNow" to clock, "checkInReady" to true, "receipt" to receipt, "ownFeedback" to null)
             }
             "reviews" -> mapOf("reviews" to emptyList<Any>())
             else -> error("Unexpected action: $action")
@@ -272,10 +290,13 @@ class CloudParticipantCheckInUiTest {
         compose.onNodeWithTag("cloud_scan_checkin").assertIsEnabled()
         compose.runOnIdle { backend.receipt = mapOf("checkedInAt" to clock) }
         compose.onNodeWithTag("cloud_checkin_refresh").performClick()
+        compose.waitForIdle()
         compose.onNodeWithTag("cloud_checkin_receipt").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("cloud_scan_checkin").assertDoesNotExist()
         compose.onNodeWithTag("cloud_checkin_done").performScrollTo().performClick()
+        compose.waitForIdle()
         compose.onNodeWithTag("cloud_checkin_refresh").performClick()
+        compose.waitForIdle()
         compose.onNodeWithTag("cloud_checkin_result").assertDoesNotExist()
         compose.onNodeWithTag("cloud_checkin_view_result").assertIsDisplayed()
         compose.runOnIdle { backend.receipt = null; runBlocking { repo.login("carol").getOrThrow() } }
@@ -283,8 +304,10 @@ class CloudParticipantCheckInUiTest {
         compose.onNodeWithTag("cloud_checkin_receipt").assertDoesNotExist()
         compose.onNodeWithTag("cloud_scan_checkin").assertIsNotEnabled()
         compose.onNodeWithTag("cloud_tab_reviews").performScrollTo().performClick()
+        compose.waitForIdle()
         // Reviews now have an independent page and return to the caller, not an old tab.
         compose.onNodeWithContentDescription("Back").performClick()
+        compose.waitForIdle()
         compose.runOnIdle {
             assertEquals(1, reviewBacks)
             screenGeneration++ // Re-enter check-in through its normal entry point.
@@ -302,6 +325,7 @@ class CloudParticipantCheckInUiTest {
         compose.onNodeWithTag("cloud_checkin_retry_load").assertIsDisplayed()
         compose.runOnIdle { backend.fail = false }
         compose.onNodeWithTag("cloud_checkin_retry_load").performClick()
+        compose.waitForIdle()
         compose.onNodeWithTag("cloud_scan_checkin").assertIsDisplayed().assertIsEnabled()
         assertTrue(backend.requests >= 2)
     }

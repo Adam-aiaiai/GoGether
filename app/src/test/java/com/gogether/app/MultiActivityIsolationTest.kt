@@ -13,9 +13,9 @@ class MultiActivityIsolationTest {
     private val b = scenario.aliceSecond
     private val c = scenario.carolEvent
     private val store = MemoryPrototypeStore().also(scenario::seed)
-    private val backend = LocalPrototypeBackend(store, { now }, { 0 }, scenario.registrations, scenario.activities)
-    private fun fix(session: PrototypeSession) = PositionFix(requireNotNull(session.meeting), 10.0, 0)
-    private fun code(session: PrototypeSession) = PrototypeCodeCodec.encode(backend.issue(scenario.activities.activity(session).organizerId, session, fix(session)))
+    private val backend = LocalPrototypeBackend(store, { now }, scenario.registrations, scenario.activities)
+
+    private fun code(session: PrototypeSession) = PrototypeCodeCodec.encode(backend.issue(scenario.activities.activity(session).organizerId, session))
 
     @Test fun eachOrganizerCanIssueAndViewOnlyTheirOwnActivities() {
         assertEquals(a, backend.hostedSession("alice", a))
@@ -25,9 +25,10 @@ class MultiActivityIsolationTest {
         listOf(a, b, c).forEach { session ->
             val owner = scenario.activities.activity(session).organizerId
             assertEquals(session, PrototypeCodeCodec.decode(code(session)).session)
-            assertEquals(scenario.registrations.participants(session.id), backend.attendance(owner, session))
+            assertEquals(scenario.registrations.participants(session.id).map { it.userId }, backend.attendance(owner, session).map { it.userId })
+            assertNotNull(backend.attendance(owner, session).single { it.organizer }.checkedInAt)
             val other = if (owner == "alice") "carol" else "alice"
-            assertThrows(IllegalArgumentException::class.java) { backend.issue(other, session, fix(session)) }
+            assertThrows(IllegalArgumentException::class.java) { backend.issue(other, session) }
             assertThrows(IllegalArgumentException::class.java) { backend.attendance(other, session) }
         }
         assertThrows(IllegalArgumentException::class.java) { backend.attendance("", a) }
@@ -37,33 +38,35 @@ class MultiActivityIsolationTest {
         assertEquals(CheckInRegistration.CONFIRMED, scenario.registrations.status(a.id, "bob"))
         assertEquals(CheckInRegistration.WAITLISTED, scenario.registrations.status(b.id, "bob"))
         assertEquals(CheckInRegistration.NONE, scenario.registrations.status(c.id, "alice"))
-        backend.submit("bob", code(a), fix(a))
-        assertThrows(IllegalArgumentException::class.java) { backend.submit("bob", code(a), fix(a)) }
-        assertThrows(IllegalArgumentException::class.java) { backend.submit("bob", code(b), fix(b)) }
-        backend.submit("bob", code(c), fix(c))
-        assertThrows(IllegalArgumentException::class.java) { backend.submit("alice", code(c), fix(c)) }
-        assertEquals(listOf("bob"), backend.attendance("alice", a).filter { it.checkedInAt != null }.map { it.userId })
-        assertTrue(backend.attendance("alice", b).all { it.checkedInAt == null })
-        assertEquals(listOf("bob"), backend.attendance("carol", c).filter { it.checkedInAt != null }.map { it.userId })
+        backend.submit("bob", code(a))
+        assertThrows(IllegalArgumentException::class.java) { backend.submit("bob", code(a)) }
+        assertThrows(IllegalArgumentException::class.java) { backend.submit("bob", code(b)) }
+        backend.submit("bob", code(c))
+        assertThrows(IllegalArgumentException::class.java) { backend.submit("alice", code(c)) }
+        assertEquals(listOf("bob"), backend.attendance("alice", a).filter { it.checkedInAt != null && !it.organizer }.map { it.userId })
+        assertTrue(backend.attendance("alice", b).filterNot { it.organizer }.all { it.checkedInAt == null })
+        assertEquals(listOf("bob"), backend.attendance("carol", c).filter { it.checkedInAt != null && !it.organizer }.map { it.userId })
         assertEquals(setOf(a.id, c.id), backend.history("bob").filter { it.receipt != null }.map { it.session.id }.toSet())
     }
 
     @Test fun unknownIdsConflictingSnapshotsAndWrongLocationsCannotCreateRecords() {
         val unknown = a.copy(id = UUID.randomUUID().toString())
-        val changed = a.copy(meeting = c.meeting)
+        val changed = a.copy(startAt = a.startAt + 1)
         listOf(unknown, changed).forEach { session ->
             val raw = PrototypeCodeCodec.encode(PrototypeCode(session, now, now + 30_000))
             assertThrows(IllegalArgumentException::class.java) { backend.rememberCode("bob", raw) }
-            assertThrows(IllegalArgumentException::class.java) { backend.submit("bob", raw, fix(session)) }
+            assertThrows(IllegalArgumentException::class.java) { backend.submit("bob", raw) }
             assertThrows(IllegalArgumentException::class.java) { backend.attendance("alice", session) }
             assertThrows(IllegalArgumentException::class.java) { backend.reviews("bob", session) }
         }
-        assertThrows(IllegalArgumentException::class.java) { backend.submit("bob", code(c), fix(a)) }
         assertTrue(store.receipts.isEmpty())
         assertTrue(scenario.registrations.participants(unknown.id).isEmpty())
     }
 
     @Test fun privateAndAnonymousReviewsUseThisOrganizerNotTheAccountNameAlice() {
+        backend.submit("bob", code(a))
+        backend.submit("bob", code(c))
+        backend.submit("david", code(c))
         now = a.endAt
         // An associated history record does not grant organizational privileges or registration.
         store.rememberSession("alice", c)
@@ -89,8 +92,9 @@ class MultiActivityIsolationTest {
         assertTrue(backend.isCancelled(c))
         assertFalse(backend.isCancelled(a))
         assertFalse(backend.isCancelled(b))
-        backend.submit("bob", code(a), fix(a))
-        assertThrows(IllegalArgumentException::class.java) { backend.issue("carol", c, fix(c)) }
+        backend.submit("bob", code(a))
+        assertThrows(IllegalArgumentException::class.java) { backend.issue("carol", c) }
+        backend.submit("david", code(b))
         now = b.endAt
         backend.submitFeedback("david", b.id, 4, "The board games were a lot of fun.")
         assertThrows(IllegalArgumentException::class.java) { backend.submitFeedback("bob", a.id, 4, "Looking forward to the rest of the games.") }

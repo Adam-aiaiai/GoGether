@@ -11,13 +11,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import com.gogether.app.core.model.*
 import com.gogether.app.core.ui.*
-import com.gogether.app.feature.event.MeetingMapButton
 
 @Composable
 fun CheckInScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
                   checkIn: () -> Unit, feedback: (Int, String) -> Unit) {
     val confirmed = state.registration(event.id)?.status == RegistrationStatus.CONFIRMED
-    val checkedIn = state.checkIns.find { it.eventId == event.id && it.userId == state.currentUserId }
+    val checkedIn = state.activeCheckIn(event.id)
     val eligibility = checkInEligibility(event, state, now)
     var rating by rememberSaveable(event.id, state.currentUserId) { mutableIntStateOf(0) }
     var comment by rememberSaveable(event.id, state.currentUserId) { mutableStateOf("") }
@@ -26,7 +25,6 @@ fun CheckInScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
     Page {
         SectionTitle(if (ended) "How was your plan?" else "See you there", event.title)
         InfoCard("Meeting point", "${displayTime(event.meetingAt ?: event.startAt)}\n${event.city} · ${event.meetingLocation ?: event.location}\n${event.meetingNotes.ifBlank { event.notes }}")
-        MeetingMapButton("${event.city} ${event.meetingLocation ?: event.location}")
         CheckInWindowCard(event, now)
         InfoCard(eligibility.title,
             if (eligibility == CheckInEligibility.ALREADY_CHECKED_IN && checkedIn != null)
@@ -36,6 +34,7 @@ fun CheckInScreen(event: Event, state: AppSnapshot, now: Long, busy: Boolean,
             when {
                 submitted != null -> InfoCard("Thanks for sharing", "Your rating: ${submitted.rating} / 5\n${submitted.comment}")
                 !confirmed -> InfoCard("Feedback for participants", "Only confirmed participants can leave feedback.")
+                checkedIn == null -> InfoCard("Check-in required", "Only checked-in participants can leave feedback.")
                 else -> {
                     Text("Your rating", style = MaterialTheme.typography.titleLarge)
                     Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {

@@ -14,8 +14,8 @@ class MultiActivityViewModelTest {
     private val b = fixtures.aliceSecond
     private val c = fixtures.carolEvent
     private val store = MemoryPrototypeStore().also(fixtures::seed)
-    private fun backend(clock: Long = time) = LocalPrototypeBackend(store, { clock }, { 0 }, fixtures.registrations, fixtures.activities)
-    private fun fix(session: PrototypeSession) = PositionFix(requireNotNull(session.meeting), 10.0, 0)
+    private fun backend(clock: Long = time) = LocalPrototypeBackend(store, { clock }, fixtures.registrations, fixtures.activities)
+
     private fun raw(session: PrototypeSession) = PrototypeCodeCodec.encode(PrototypeCode(session, time, time + 30_000))
     private fun test(block: suspend TestScope.() -> Unit) = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
@@ -23,7 +23,7 @@ class MultiActivityViewModelTest {
     }
 
     @Test fun carolHostsHerOwnActivityAndBecomesParticipantWhenEnteringAlicesActivity() = test {
-        val model = PrototypeViewModel("carol", backend(), PositionSource { fix(c) }, now = { time },
+        val model = PrototypeViewModel("carol", backend(), now = { time },
             entry = CheckInEntry.Activity(c), registrations = fixtures.registrations)
         assertEquals(c, model.state.value.session)
         assertNull(model.state.value.participantSession)
@@ -42,7 +42,7 @@ class MultiActivityViewModelTest {
 
     @Test fun bobCannotUseASecondEventsCodeOrCarryReceiptIntoWaitlistedEvent() = test {
         var locations = 0
-        val model = PrototypeViewModel("bob", backend(), PositionSource { locations++; fix(c) }, now = { time },
+        val model = PrototypeViewModel("bob", backend(), now = { time },
             entry = CheckInEntry.Activity(a), registrations = fixtures.registrations)
         model.receiveScan(raw(c), model.beginScan()); runCurrent()
         assertTrue(model.state.value.message.contains("another event"))
@@ -56,7 +56,7 @@ class MultiActivityViewModelTest {
         assertNull(model.state.value.notice)
         assertEquals(CheckInRegistration.WAITLISTED, model.state.value.registration)
         model.receiveScan(raw(b), model.beginScan()); runCurrent()
-        assertEquals(1, locations)
+        assertEquals(0, locations)
         assertTrue(model.state.value.message.contains("waitlisted"))
         assertEquals(setOf(c.id), store.receipts.values.map { it.sessionId }.toSet())
     }
@@ -64,7 +64,7 @@ class MultiActivityViewModelTest {
     @Test fun delayedRosterFromEarlierActivityCannotOverwriteNewRosterOrEmitNotice() = test {
         val old = CompletableDeferred<List<PrototypeAttendee>>()
         var calls = 0
-        val model = PrototypeViewModel("alice", backend(), PositionSource { fix(a) }, now = { time },
+        val model = PrototypeViewModel("alice", backend(), now = { time },
             entry = CheckInEntry.Activity(a), registrations = fixtures.registrations,
             attendanceSource = AttendanceSource { _, session ->
                 calls++
@@ -85,10 +85,12 @@ class MultiActivityViewModelTest {
     }
 
     @Test fun changingActivityClearsPrivateReviewResultBeforeAnotherLoad() = test {
+        backend().submit("bob", raw(a))
+        backend().submit("bob", raw(c))
         val backend = backend(a.endAt)
         backend.submitFeedback("bob", a.id, 4, "The badminton session could use a longer warm-up.", FeedbackDetails(visibility = FeedbackVisibility.ORGANIZER_ONLY))
         backend.submitFeedback("bob", c.id, 3, "A slower pace would make the run more enjoyable.", FeedbackDetails(visibility = FeedbackVisibility.ORGANIZER_ONLY))
-        val model = PrototypeViewModel("carol", backend, PositionSource { fix(c) }, now = { a.endAt },
+        val model = PrototypeViewModel("carol", backend, now = { a.endAt },
             entry = CheckInEntry.Activity(c), registrations = fixtures.registrations)
         model.loadReviews(c); runCurrent()
         assertEquals("A slower pace would make the run more enjoyable.", model.state.value.reviews.single().comment)

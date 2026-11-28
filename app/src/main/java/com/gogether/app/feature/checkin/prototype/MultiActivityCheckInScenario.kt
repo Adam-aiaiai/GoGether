@@ -2,9 +2,9 @@ package com.gogether.app.feature.checkin.prototype
 
 /** Reusable E integration fixtures. Explicitly injected; never seeded into B/C's real data. */
 class MultiActivityCheckInScenario(startAt: Long) {
-    val aliceFirst = PrototypeSession("759190b8-4368-4cb9-9069-f13012941df1", MeetingPoint(31.27, 120.74), startAt, startAt + 7_200_000)
-    val aliceSecond = PrototypeSession("759190b8-4368-4cb9-9069-f13012941df2", MeetingPoint(31.28, 120.74), startAt, startAt + 3_600_000)
-    val carolEvent = PrototypeSession("759190b8-4368-4cb9-9069-f13012941df3", MeetingPoint(31.29, 120.74), startAt, startAt + 5_400_000)
+    val aliceFirst = PrototypeSession("759190b8-4368-4cb9-9069-f13012941df1", startAt, startAt + 7_200_000)
+    val aliceSecond = PrototypeSession("759190b8-4368-4cb9-9069-f13012941df2", startAt, startAt + 3_600_000)
+    val carolEvent = PrototypeSession("759190b8-4368-4cb9-9069-f13012941df3", startAt, startAt + 5_400_000)
     val sessions = listOf(aliceFirst, aliceSecond, carolEvent)
     val activities = MockActivityCatalog(listOf(
         CheckInActivityInfo(aliceFirst, "alice", "Badminton Meetup", "Sports Hall East Entrance"),

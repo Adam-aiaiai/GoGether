@@ -16,7 +16,7 @@ class FeedbackDraftStoreTest {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
     private val prefs = context.getSharedPreferences("checkin_prototype_v1", 0)
     private val ids = List(2) { UUID.randomUUID().toString() }
-    private val session = PrototypeSession(ids[0], MeetingPoint(31.27, 120.74), 1000, 2000)
+    private val session = PrototypeSession(ids[0], 1000, 2000)
     private val actors = listOf("bob", "carol", "bob.with/separators")
     private val photos = FeedbackPhotoStore(context)
     private val drafts = FeedbackDraftStore(context)
@@ -59,11 +59,11 @@ class FeedbackDraftStoreTest {
 
     @Test fun failedSubmissionRetainsDraftSuccessfulSubmissionClearsItAndLateSaveCannotRestoreIt(): Unit = runBlocking {
         val keep = image(); val remove = image()
-        store.rememberSession("bob", session)
+        store.rememberAttendedSession("bob", session)
         val draft = FeedbackDraft(4, "I will add a few more thoughts later.", FeedbackDetails(photos = listOf(keep, remove),
             positiveComment = "Clear instructions.", improvementComment = "More time to practise."))
         drafts.save("bob", session.id, draft)
-        val backend = LocalPrototypeBackend(store, { session.endAt }, { 0 })
+        val backend = LocalPrototypeBackend(store, { session.endAt })
         assertThrows(IllegalArgumentException::class.java) { backend.submitFeedback("bob", session.id, 0, "") }
         assertEquals(draft, drafts.load("bob", session.id))
         backend.submitFeedback("bob", session.id, 4, draft.comment, draft.details.copy(photos = listOf(keep)))

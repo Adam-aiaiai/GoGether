@@ -10,6 +10,9 @@ class RegistrationEngine(
     initial: AppSnapshot = AppSnapshot(),
     private val now: () -> Long = System::currentTimeMillis,
     private val newId: () -> String = { UUID.randomUUID().toString() },
+    private val registrationBlocked: (String, String) -> Boolean = { _, _ -> false },
+    private val interactionBlocked: (String, String) -> Boolean = { _, _ -> false },
+    private val contentDeleted: (String) -> Boolean = { false },
 ) {
     var snapshot: AppSnapshot = initial
         private set
@@ -91,7 +94,7 @@ class RegistrationEngine(
                 }
         }
         val promotable = if (updatedEvent.acceptsRegistration(time)) {
-            snapshot.waitlist(eventId).take((draft.capacity - confirmedCount).coerceAtLeast(0))
+            snapshot.waitlist(eventId).filterNot { registrationBlocked(actor, it.userId) }.take((draft.capacity - confirmedCount).coerceAtLeast(0))
         } else emptyList()
         val promotedIds = promotable.mapTo(mutableSetOf()) { it.id }
         snapshot = snapshot.copy(
@@ -114,6 +117,7 @@ class RegistrationEngine(
         require(event.status == EventStatus.OPEN) { "This event is ${event.status.name.lowercase()}." }
         require(time < event.startAt && time < event.endAt) { "This event has already started or ended." }
         require(time < event.registrationDeadline) { "Registration has closed." }
+        require(!registrationBlocked(event.organizerId, actor)) { "The organizer has restricted new registrations from this account." }
         val existing = snapshot.registration(eventId, actor)
         require(existing?.status !in ACTIVE) { "You already have a place or a waitlist entry." }
         val status = if (snapshot.confirmed(eventId).size < event.capacity)
@@ -137,7 +141,7 @@ class RegistrationEngine(
         val registration = snapshot.registration(eventId, actor)
         require(registration?.status in ACTIVE) { "There is no active registration to cancel." }
         val promoted = if (registration?.status == RegistrationStatus.CONFIRMED && event.acceptsRegistration(time))
-            snapshot.waitlist(eventId).firstOrNull() else null
+            snapshot.waitlist(eventId).firstOrNull { !registrationBlocked(event.organizerId, it.userId) } else null
         val updated = snapshot.registrations.map {
             when (it.id) {
                 registration?.id -> it.copy(status = RegistrationStatus.CANCELLED, updatedAt = time)
@@ -178,7 +182,9 @@ class RegistrationEngine(
         val time = now()
         val eligibility = checkInEligibility(event, snapshot, time, actor)
         require(eligibility == CheckInEligibility.READY) { eligibility.message }
-        val checkIn = CheckIn(newId(), eventId, actor, time)
+        require(actor != event.organizerId) { "Confirm your arrival when showing the check-in code." }
+        val checkIn = CheckIn(newId(), eventId, actor, time,
+            registrationKey = snapshot.registration(eventId, actor)!!.attendanceKey)
         snapshot = snapshot.copy(checkIns = snapshot.checkIns + checkIn)
         return checkIn
     }
@@ -203,6 +209,7 @@ class RegistrationEngine(
         val time = now()
         require(event.statusAt(time) == EventStatus.OPEN) { "Questions are closed for this event." }
         require(actor != event.organizerId) { "Use an announcement to share information as the organizer." }
+        require(!interactionBlocked(actor, event.organizerId)) { "This interaction is blocked." }
         val text = content.trim()
         require(text.length in 1..100) { "Write a question of 1–100 characters." }
         require(snapshot.questions.none { it.eventId == eventId && it.authorId == actor && it.content == text }) {
@@ -211,23 +218,28 @@ class RegistrationEngine(
         val question = EventQuestion(newId(), eventId, actor, text, time)
         snapshot = snapshot.copy(questions = snapshot.questions + question,
             notifications = snapshot.notifications + Notification(newId(), event.organizerId, eventId,
-                NotificationType.QUESTION_ASKED, "New question about ${event.title}: $text", time, questionId = question.id))
+                NotificationType.QUESTION_ASKED, "New question about ${event.title}: $text", time, questionId = question.id, contentId = question.id, rootId = question.id))
     }
 
     fun answerQuestion(actor: String, questionId: String, content: String) {
         val question = requireNotNull(snapshot.questions.find { it.id == questionId }) { "Question not found." }
         val event = requireOrganizer(actor, question.eventId)
+        require(!interactionBlocked(actor, question.authorId) && !contentDeleted(question.id)) { "This conversation is unavailable." }
         val time = now()
         require(event.statusAt(time) == EventStatus.OPEN) { "Replies are closed for this event." }
         val text = content.trim()
         require(text.length in 1..100) { "Write an answer of 1–100 characters." }
         if (question.answer == text) return
-        val answered = question.copy(answer = text, answeredBy = actor, answeredAt = time)
+        val history = question.replyHistory.ifEmpty { question.answer?.let {
+            listOf(QuestionReply("answer-${question.id}", question.answeredBy ?: event.organizerId, it, question.answeredAt ?: question.createdAt))
+        } ?: emptyList() }
+        val reply = QuestionReply(if(history.isEmpty()) "answer-${question.id}" else newId(), actor, text, time)
+        val answered = question.copy(answer = text, answeredBy = actor, answeredAt = time, replyHistory = history + reply)
         snapshot = snapshot.copy(questions = snapshot.questions.map { if (it.id == questionId) answered else it },
             notifications = snapshot.notifications + Notification(newId(), question.authorId, event.id,
                 NotificationType.QUESTION_ANSWERED,
                 "${if (question.answer == null) "Organizer answered" else "Organizer updated an answer"}: ${event.title}\n$text",
-                time, questionId = question.id))
+                time, questionId = question.id, contentId = reply.id, rootId = question.id))
     }
 
     fun updateMeeting(actor: String, eventId: String, update: MeetingUpdate) {
@@ -270,10 +282,14 @@ class RegistrationEngine(
         require(event.status == EventStatus.COMPLETED ||
             (event.status == EventStatus.OPEN && now() >= event.endAt)) { "Feedback opens after the event ends." }
         require(snapshot.registration(eventId, actor)?.status == RegistrationStatus.CONFIRMED) { "Join this event to leave feedback." }
+        require(snapshot.activeCheckIn(eventId, actor) != null) { "Check in at this event before leaving a review." }
         require(rating in 1..5 && comment.length <= 100) { "Choose 1–5 stars and use up to 100 characters." }
-        require(snapshot.feedback.none { it.eventId == eventId && it.userId == actor }) { "Feedback has already been submitted." }
+        require(snapshot.feedback.none { it.eventId == eventId && it.userId == actor && !contentDeleted(com.gogether.app.feature.social.LocalSocialStore.legacyReviewId(it.id)) }) { "Feedback has already been submitted." }
         val feedback = Feedback(newId(), eventId, actor, rating, comment.trim(), now())
-        snapshot = snapshot.copy(feedback = snapshot.feedback + feedback)
+        val contentId = com.gogether.app.feature.social.LocalSocialStore.legacyReviewId(feedback.id)
+        val notices = if(actor == event.organizerId || interactionBlocked(actor,event.organizerId)) emptyList() else listOf(
+            Notification(newId(),event.organizerId,event.id,NotificationType.REVIEW_POSTED,"Reviewed your event.",feedback.createdAt,contentId=contentId,rootId=contentId))
+        snapshot = snapshot.copy(feedback = snapshot.feedback + feedback, notifications = snapshot.notifications + notices)
         return feedback
     }
 

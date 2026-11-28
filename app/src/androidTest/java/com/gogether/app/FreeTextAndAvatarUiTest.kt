@@ -95,7 +95,7 @@ class FreeTextAndAvatarUiTest {
     }
     @Test fun reviewUsesImportedAvatarAndAnonymousReviewNeverLoadsIt() {
         val avatar = importAvatar()
-        val session = PrototypeSession(UUID.randomUUID().toString(), MeetingPoint(31.27, 120.74), now - 7200000, now)
+        val session = PrototypeSession(UUID.randomUUID().toString(), now - 7200000, now)
         launch { ActivityReviewsScreen("alice", session, listOf(
             VisibleFeedback("Bob", false, false, 4, "Friendly group and clear directions.", now, FeedbackDetails(), avatar),
             VisibleFeedback("Private name", true, false, 5, "A welcoming group for beginners.", now - 60000,

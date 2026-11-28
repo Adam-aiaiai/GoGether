@@ -16,7 +16,7 @@ import java.util.UUID
 class CheckInEntryUiTest {
     @get:Rule val compose = createComposeRule()
     private val now = 1_800_000_000_000L
-    private val session = PrototypeSession(UUID.randomUUID().toString(), MeetingPoint(31.27, 120.74), now, now + 3_600_000)
+    private val session = PrototypeSession(UUID.randomUUID().toString(), now, now + 3_600_000)
 
     @After fun removeOnlyThisTestsDrafts() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
@@ -45,7 +45,9 @@ class CheckInEntryUiTest {
             PrototypeScreen(actor, state, session.endAt, {}, {}, {}, {}, {}, {}, {}, {})
         } }
         compose.onNodeWithTag("prototype_scan").performClick()
+        compose.waitForIdle()
         compose.onNodeWithTag("feedback_rating_4").performScrollTo().performClick()
+        compose.waitForIdle()
         compose.onNodeWithTag("history_detail").performScrollToNode(hasTestTag("feedback_comment"))
         compose.onNodeWithTag("feedback_comment").performScrollTo().performTextInput("I enjoyed meeting everyone. I will finish this review later.")
         compose.runOnIdle { actor = "carol" }
@@ -63,8 +65,11 @@ class CheckInEntryUiTest {
                 {}, {}, {}, {}, {}, {}, {}, {}, selectActivity = { selected = it })
         } }
         compose.onNodeWithTag("open_history").performClick()
+        compose.waitForIdle()
         compose.onNodeWithTag("history_${session.id}").performClick()
+        compose.waitForIdle()
         compose.onNodeWithTag("history_open_checkin").performScrollTo().performClick()
+        compose.waitForIdle()
         assertEquals(session, selected)
         compose.onNodeWithTag("history_screen").assertDoesNotExist()
     }
@@ -77,9 +82,12 @@ class CheckInEntryUiTest {
                 now, {}, {}, {}, { currentCalls++ }, {}, {}, {}, {}, scanOther = { generalCalls++ })
         } }
         compose.onNodeWithTag("prototype_scan").performClick()
+        compose.waitForIdle()
         assertEquals(1, currentCalls)
         compose.onNodeWithTag("participant_help").performClick()
+        compose.waitForIdle()
         compose.onNodeWithTag("participant_scan_other").performScrollTo().performClick()
+        compose.waitForIdle()
         assertEquals(1, generalCalls)
         assertEquals(1, currentCalls)
     }

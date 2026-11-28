@@ -23,8 +23,8 @@ class AbcdeIntegrationTest {
             metadata[info.session.id] = info; data.updateLinkedActivity(info)
         }
     }
-    private val bridge = RegistrationAttendanceBridge({ repo.state.value }, store, { now }, { 1000 })
-    private val fix = PositionFix(MeetingPoint(31.2, 120.6), 5.0, 1000)
+    private val bridge = RegistrationAttendanceBridge({ repo.state.value }, store, { now })
+
     private fun draft(e: Event) = EventDraft(e.title, e.category, e.description, e.startAt, e.location,
         e.city, e.capacity, e.registrationDeadline, e.notes, e.endAt, e.experienceRequirement,
         e.beginnerGuidance, e.requiredItems, e.spareEquipment, e.imageUri, e.meetingAt, e.meetingLocation, e.meetingNotes)
@@ -35,44 +35,49 @@ class AbcdeIntegrationTest {
         assertEquals(RegistrationStatus.CONFIRMED, repo.state.value.registration(event.id, "emma")!!.status)
         assertTrue(repo.state.value.notifications.any { it.userId == "emma" && it.type == NotificationType.PROMOTED })
         repo.postAnnouncement(event.id, "Meet at the east entrance.").getOrThrow()
-        val session = bridge.prepare("alice", event.id, fix)
-        val code = PrototypeCodeCodec.encode(bridge.backend.issue("alice", session, fix))
+        val session = bridge.prepare("alice", event.id)
+        val code = PrototypeCodeCodec.encode(bridge.backend.issue("alice", session))
         repo.login("emma").getOrThrow()
         repo.updateProfile("Emma Parker", setOf(Category.SPORTS)).getOrThrow()
-        bridge.backend.submit("emma", code, fix)
+        bridge.backend.submit("emma", code)
         repo.login("alice").getOrThrow()
         val person = bridge.backend.attendance("alice", session).single { it.userId == "emma" }
         assertEquals("Emma Parker", person.name); assertNotNull(person.checkedInAt)
         assertEquals(5, bridge.participants(session.id).size)
-        assertEquals(1, bridge.withAttendance(repo.state.value).checkIns.size)
+        assertEquals(2, bridge.withAttendance(repo.state.value).checkIns.size)
     }
 
     @Test fun meetingEditInvalidatesOldCodeAndRebindingKeepsAttendance() = runTest {
-        val first = bridge.prepare("alice", "event-1", fix)
-        val oldCode = PrototypeCodeCodec.encode(bridge.backend.issue("alice", first, fix))
-        repo.login("bob").getOrThrow(); bridge.backend.submit("bob", oldCode, fix)
+        val first = bridge.prepare("alice", "event-1")
+        val oldCode = PrototypeCodeCodec.encode(bridge.backend.issue("alice", first))
+        repo.login("bob").getOrThrow(); bridge.backend.submit("bob", oldCode)
         repo.login("alice").getOrThrow()
+        now += 1
         repo.updateMeeting("event-1", MeetingUpdate(now + 100_000, "East entrance", "Meet by the sign.")).getOrThrow()
-        assertNull(bridge.session(repo.state.value.event("event-1")!!))
-        assertThrows(IllegalArgumentException::class.java) { bridge.backend.issue("alice", first, fix) }
-        val movedFix = fix.copy(point = MeetingPoint(31.21, 120.61))
-        val second = bridge.prepare("alice", "event-1", movedFix)
+        assertEquals(first, bridge.session(repo.state.value.event("event-1")!!))
+        assertEquals(first, bridge.backend.issue("alice", first).session)
+
+        val second = bridge.prepare("alice", "event-1")
         assertEquals(first.id, second.id)
         assertTrue(bridge.backend.activityInfo(second).meetingName.contains("East entrance"))
         repo.login("carol").getOrThrow()
-        assertThrows(IllegalArgumentException::class.java) { bridge.backend.submit("carol", oldCode, fix) }
+        assertThrows(IllegalArgumentException::class.java) { bridge.backend.submit("carol", oldCode) }
         repo.login("alice").getOrThrow()
-        val newCode = PrototypeCodeCodec.encode(bridge.backend.issue("alice", second, movedFix))
-        repo.login("carol").getOrThrow(); bridge.backend.submit("carol", newCode, movedFix)
+        val newCode = PrototypeCodeCodec.encode(bridge.backend.issue("alice", second))
+        repo.login("carol").getOrThrow(); bridge.backend.submit("carol", newCode)
         repo.login("alice").getOrThrow()
-        assertEquals(setOf("bob", "carol"), bridge.backend.attendance("alice", second).filter { it.checkedInAt != null }.map { it.userId }.toSet())
+        assertEquals(setOf("bob", "carol"), bridge.backend.attendance("alice", second).filter { it.checkedInAt != null && !it.organizer }.map { it.userId }.toSet())
     }
 
     @Test fun timeEditRetainsRecordKeyAndFullPrivateReviewProjectsOnlyOwnRating() = runTest {
-        val first = bridge.prepare("alice", "event-1", fix)
+        val first = bridge.prepare("alice", "event-1")
         val e = repo.state.value.event("event-1")!!
         repo.updateEvent(e.id, draft(e).copy(startAt = e.startAt + 60_000, endAt = e.endAt + 60_000)).getOrThrow()
-        assertThrows(IllegalArgumentException::class.java) { bridge.backend.issue("alice", first, fix) }
+        assertThrows(IllegalArgumentException::class.java) { bridge.backend.issue("alice", first) }
+        val updatedSession = bridge.prepare("alice", e.id)
+        val qr = PrototypeCodeCodec.encode(bridge.backend.issue("alice", updatedSession))
+        repo.login("bob").getOrThrow()
+        bridge.backend.submit("bob", qr)
         now = e.endAt + 60_000
         repo.login("bob").getOrThrow()
         val current = bridge.prepareFeedback("bob", e.id)

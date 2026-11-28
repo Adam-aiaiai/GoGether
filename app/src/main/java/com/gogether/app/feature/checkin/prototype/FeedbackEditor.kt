@@ -54,8 +54,11 @@ internal data class ReviewEventSummary(val title: String, val organizer: String,
 internal fun FeedbackEditor(scopeKey: String, summary: ReviewEventSummary, draft: FeedbackDraft,
     busy: Boolean, draftError: String, message: String, update: (FeedbackDraft) -> Unit,
     retryDraft: () -> Unit, submit: () -> Unit, back: () -> Unit, reviews: () -> Unit,
-    modifier: Modifier = Modifier, commentTag: String = "feedback_comment", submitTag: String = "feedback_submit",
+    modifier: Modifier = Modifier, allowAnonymous: Boolean = true, commentTag: String = "feedback_comment", submitTag: String = "feedback_submit",
     extraActions: @Composable ColumnScope.() -> Unit = {}, photos: @Composable () -> Unit) {
+    LaunchedEffect(scopeKey, allowAnonymous, draft.details.anonymous) {
+        if (!allowAnonymous && draft.details.anonymous) update(draft.copy(details = draft.details.copy(anonymous = false)))
+    }
     var details by rememberSaveable(scopeKey) { mutableStateOf(false) }
     var privacy by rememberSaveable(scopeKey) { mutableStateOf(false) }
     var menu by remember(scopeKey) { mutableStateOf(false) }
@@ -159,8 +162,8 @@ internal fun FeedbackEditor(scopeKey: String, summary: ReviewEventSummary, draft
                     item(key = "privacy") {
                         AppDivider(color = ReviewDivider)
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text("Post anonymously", Modifier.weight(1f), fontSize = 16.sp)
-                            Switch(draft.details.anonymous, { value -> changeDetail { it.copy(anonymous = value) } }, enabled = !busy,
+                            Text(if (allowAnonymous) "Post anonymously" else "Organizer reviews use your name", Modifier.weight(1f), fontSize = 16.sp)
+                            Switch(draft.details.anonymous, { value -> changeDetail { it.copy(anonymous = value) } }, enabled = !busy && allowAnonymous,
                                 modifier = Modifier.testTag("feedback_anonymous"))
                         }
                         OptionalReviewRow("Visible to", if (draft.details.visibility == FeedbackVisibility.PUBLIC) "Public" else "Organizer only",

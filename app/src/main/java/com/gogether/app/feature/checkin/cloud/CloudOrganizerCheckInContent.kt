@@ -36,11 +36,11 @@ import com.journeyapps.barcodescanner.BarcodeEncoder
 /** UI only: QR issuance, location, eligibility and attendance still belong to the caller. */
 @Composable
 internal fun CloudOrganizerCheckInContent(
-    event: Event, now: Long, meetingReady: Boolean, code: String?, codeExpiresAt: Long,
+    event: Event, now: Long, checkInReady: Boolean, code: String?, codeExpiresAt: Long,
     showingCode: Boolean, loading: Boolean, hasInformation: Boolean, busy: Boolean, message: String,
     people: List<CloudAttendancePerson>, rosterLoaded: Boolean, rosterLoading: Boolean, rosterError: String,
     onBack: () -> Unit, onRefresh: () -> Unit, onReviews: () -> Unit, onAttendance: () -> Unit,
-    onShowCode: () -> Unit, onHideCode: () -> Unit, onBindMeeting: () -> Unit,
+    onShowCode: () -> Unit, onHideCode: () -> Unit, onConfirmArrival: () -> Unit,
     extraMenuItems: @Composable (closeMenu: () -> Unit) -> Unit = {},
 ) {
     var menu by remember { mutableStateOf(false) }
@@ -48,9 +48,11 @@ internal fun CloudOrganizerCheckInContent(
     val scroll = rememberScrollState()
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(message) { if (message.isNotBlank()) snackbar.showSnackbar(message) }
+    val participants = people.filterNot { it.organizer }
+    val host = people.firstOrNull { it.organizer }
     val window = CheckInWindow.state(event, now)
     val windowOpen = window == CheckInWindowState.OPEN
-    val validCode = code?.takeIf { showingCode && now < codeExpiresAt && windowOpen && meetingReady }
+    val validCode = code?.takeIf { showingCode && now < codeExpiresAt && windowOpen && checkInReady }
     val status = when {
         loading && !hasInformation -> "Loading check-in…"
         !hasInformation -> "Check-in unavailable"
@@ -58,7 +60,7 @@ internal fun CloudOrganizerCheckInContent(
         window == CheckInWindowState.EVENT_ENDED -> "Event ended"
         window == CheckInWindowState.NOT_STARTED -> "Check-in opens at ${attendanceTime(CheckInWindow.opensAt(event))}"
         window == CheckInWindowState.EXPIRED -> "Check-in closed"
-        !meetingReady -> "Confirm the meeting point"
+        !checkInReady -> "Confirm your arrival"
         else -> "Check-in open"
     }
     Box(Modifier.fillMaxSize()) {
@@ -84,7 +86,7 @@ internal fun CloudOrganizerCheckInContent(
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(Modifier.size(8.dp).background(if (windowOpen && meetingReady && hasInformation) Color(0xFF26883F)
+                    Box(Modifier.size(8.dp).background(if (windowOpen && checkInReady && hasInformation) Color(0xFF26883F)
                         else MaterialTheme.colorScheme.onSurfaceVariant, CircleShape))
                     Text(status, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("cloud_organizer_status"))
                 }
@@ -112,19 +114,19 @@ internal fun CloudOrganizerCheckInContent(
                                     loading && !hasInformation -> "Loading check-in…"
                                     !hasInformation -> "Could not load check-in"
                                     !windowOpen -> status
-                                    !meetingReady -> "Set the meeting point"
+                                    !checkInReady -> "Confirm your arrival"
                                     showingCode -> "Getting a fresh code…"
                                     else -> "Code hidden"
                                 }
-                                if ((showingCode && windowOpen && meetingReady && hasInformation) || (loading && !hasInformation))
+                                if ((showingCode && windowOpen && checkInReady && hasInformation) || (loading && !hasInformation))
                                     CircularProgressIndicator(Modifier.size(28.dp))
-                                else Icon(if (meetingReady && windowOpen) Icons.Default.Lock else Icons.Default.Info,
+                                else Icon(if (checkInReady && windowOpen) Icons.Default.Lock else Icons.Default.Info,
                                     null, Modifier.size(36.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Text(heading, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
                                 Text(when {
                                     !hasInformation -> "Reconnect and try again."
                                     !windowOpen -> "View the attendance list or check the rules below."
-                                    !meetingReady -> "Confirm your GPS location when you arrive."
+                                    !checkInReady -> "Confirm your arrival to record it and display the code."
                                     showingCode -> "Keep this page open while the code refreshes."
                                     else -> "Check-in stays open."
                                 }, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -132,8 +134,8 @@ internal fun CloudOrganizerCheckInContent(
                                 when {
                                     !hasInformation -> PageActionButton(onRefresh, enabled = !busy && !loading,
                                         modifier = Modifier.testTag("cloud_organizer_retry")) { Text("Retry") }
-                                    windowOpen && !meetingReady -> PageActionButton(onBindMeeting, enabled = !busy,
-                                        modifier = Modifier.testTag("cloud_bind_meeting")) { Text("Set meeting point") }
+                                    windowOpen && !checkInReady -> PageActionButton(onConfirmArrival, enabled = !busy,
+                                        modifier = Modifier.testTag("cloud_confirm_arrival")) { Text("Confirm arrival and show code") }
                                     windowOpen && showingCode -> TextButton(onHideCode, modifier = Modifier.testTag("cloud_hide_code")) { Text("Hide code") }
                                     windowOpen -> PageActionButton(onShowCode, enabled = !busy,
                                         modifier = Modifier.testTag("cloud_issue_code")) { Text("Show check-in code") }
@@ -143,7 +145,9 @@ internal fun CloudOrganizerCheckInContent(
                     }
                 }
                 AppDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                AttendancePreview(people, rosterLoaded, rosterLoading, rosterError, onAttendance)
+                Text("Organizer · " + (host?.name ?: "You") + " · " + if (checkInReady) "Arrival confirmed" else "Arrival not confirmed",
+                    style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("cloud_host_attendance"))
+                AttendancePreview(participants, rosterLoaded, rosterLoading, rosterError, onAttendance)
                 AppDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 OrganizerDetailRow("Meeting point", "${event.city} · ${event.meetingLocation ?: event.location}",
                     Modifier.testTag("cloud_meeting_details"), Icons.Default.LocationOn) { sheet = "meeting" }
@@ -154,9 +158,7 @@ internal fun CloudOrganizerCheckInContent(
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
     when (sheet) {
-        "meeting" -> OrganizerMeetingSheet(event, meetingReady, busy,
-            canUpdate = hasInformation && event.status == com.gogether.app.core.model.EventStatus.OPEN && now < event.endAt,
-            onClose = { sheet = null }, onBind = { sheet = null; onBindMeeting() })
+        "meeting" -> OrganizerMeetingSheet(event, onClose = { sheet = null })
         "rules" -> OrganizerRulesSheet(event, onClose = { sheet = null })
     }
 }

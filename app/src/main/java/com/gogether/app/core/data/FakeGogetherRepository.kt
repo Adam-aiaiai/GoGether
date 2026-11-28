@@ -20,6 +20,9 @@ class FakeGogetherRepository(
     private val accountBackend: AccountBackend? = null,
     override val storageDescription: String = if (store == null) "This test session is temporary." else
         "Demo profiles and activities are saved on this device. Other devices have separate data.",
+    private val registrationBlocked: (String, String) -> Boolean = { _, _ -> false },
+    private val interactionBlocked: (String, String) -> Boolean = { _, _ -> false },
+    private val contentDeleted: (String) -> Boolean = { false },
     private val save: (AppSnapshot) -> Unit = {},
 ) : GogetherRepository {
     init { require(accountBackend == null || store == null) { "A connected account backend owns its own persistence." } }
@@ -28,7 +31,7 @@ class FakeGogetherRepository(
         currentUserId = initial.currentUserId?.takeIf { id -> initial.users.any { it.id == id && it.status == UserStatus.DEMO } },
         sessionRestoring = false, sessionError = null,
     ) else initial.copy(currentUserId = null, sessionRestoring = true, sessionError = null)
-    private val engine = RegistrationEngine(startingState, now)
+    private val engine = RegistrationEngine(startingState, now, registrationBlocked = registrationBlocked, interactionBlocked = interactionBlocked, contentDeleted = contentDeleted)
     private val mutex = Mutex()
     @Volatile private var sessionGeneration = 0L
     private val mutableState = MutableStateFlow(startingState)
